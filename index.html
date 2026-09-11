@@ -1,374 +1,609 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>River Fishing Companion</title>
-    <!-- Supabase JS -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        :root {
-            --bg-main: #121212;
-            --bg-panel: #242424;
-            --bg-tactile: #333333;
-            --accent: #4CAF50;
-            --text-main: #E0E0E0;
-            --text-dim: #9E9E9E;
-            --danger: #CF6679;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Puyallup River Companion</title>
+<style>
+    /* COMBINED CSS FROM DRIFTSIM AND WATER REPORT */
+    :root {
+        --bg-main: #000000;
+        --bg-panel: #1c1c1e;
+        --text-main: #ffffff;
+        --text-muted: #8e8e93;
+        --accent-blue: #3a82f6;
+        --accent-green: #4ade80;
+        --accent-red: #f87171;
+        --accent-yellow: #facc15;
+        --accent-purple: #c084fc;
+    }
+    
+    html, body { background-color: var(--bg-main); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
+    body { overflow-y: auto; padding-bottom: 50px; font-size: 11px; line-height: 1.2; }
+    
+    /* NAV BAR */
+    #top-nav { position: sticky; top: 0; background-color: #1a1a1a; z-index: 2000; padding: 12px 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+    .nav-btn { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; font-weight: bold; }
+    .menu-drawer { display: none; background: #1a1a1a; padding: 10px; border-bottom: 1px solid #333; }
+    .menu-drawer button { width: 100%; text-align: left; background: none; border: none; padding: 15px 10px; color: #fff; font-size: 16px; border-bottom: 1px solid #333; margin: 0; }
+    
+    /* TABS */
+    .tab-content { display: none; padding: 6px 4px; }
+    .tab-active { display: block; }
+    
+    /* DRIFTSIM EXACT STYLING */
+    h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 10px; margin-top: 25px; padding-left: 15px; }
+    .purple-heading { color: var(--accent-purple); }
+    
+    #hud { position: -webkit-sticky; position: sticky; top: 48px; background-color: #1a1a1a; z-index: 1000; padding: 15px 10px; border-bottom: 1px solid #333; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+    #stars { font-size: 2rem; color: #444; margin-bottom: 5px; letter-spacing: 2px; transition: color 0.3s; }
+    #hud-msg { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; }
+    .hud-metrics { display: flex; justify-content: space-between; }
+    .metric { flex: 1; text-align: center; border-right: 1px solid #333; }
+    .metric:last-child { border-right: none; }
+    .metric-val { font-size: 1.2rem; font-weight: bold; margin-bottom: 2px; }
+    .metric-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
+    .metric-target { font-size: 0.6rem; color: #555; }
+    #score-bar { height: 6px; width: 90%; margin: 15px auto 0 auto; border-radius: 3px; background: #333; }
 
-        /* Strict Mobile Optimization */
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { 
-            background-color: var(--bg-main); 
-            color: var(--text-main); 
-            -webkit-overflow-scrolling: touch; 
-            overflow-x: hidden;
-            /* NO height: 100% to protect iOS dropdowns */
-        }
-        
-        /* Navigation */
-        header {
-            background-color: var(--bg-panel);
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--bg-tactile);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        .menu-btn { background: none; border: none; color: var(--text-main); font-size: 24px; cursor: pointer; }
-        .nav-drawer {
-            display: none; position: fixed; top: 60px; left: 0; width: 100%; background: var(--bg-panel); z-index: 99; flex-direction: column; border-bottom: 1px solid var(--bg-tactile);
-        }
-        .nav-drawer.open { display: flex; }
-        .nav-btn { padding: 15px; border: none; border-bottom: 1px solid var(--bg-tactile); background: none; color: var(--text-main); text-align: left; font-size: 16px; }
-        
-        /* Tools Containers */
-        .tool-container { display: none; padding: 15px; padding-bottom: 100px; }
-        .tool-container.active { display: block; }
+    .bucket { padding: 0 15px; }
+    .row { display: flex; gap: 15px; margin-bottom: 15px; }
+    .col { flex: 1; display: flex; flex-direction: column; }
+    label { font-size: 0.75rem; color: #aaa; margin-bottom: 5px; }
+    
+    /* FORCE 16px font-size to prevent iOS zoom */
+    input, select { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid #38383a; border-radius: 8px; padding: 10px; font-size: 16px; font-weight: 600; -webkit-appearance: none; outline: none; }
+    
+    button.btn-main { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; margin-top: 15px; background-color: #333; color: #aaa; }
+    #btn-sim { background-color: var(--accent-green); color: #000; margin-top: 25px; }
+    #btn-log { background-color: #333; color: #666; pointer-events: none; }
+    #btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
+    #btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
+    #btn-clear { background-color: var(--accent-red); color: #fff; margin-bottom: 20px;}
+    
+    #suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 8px; padding: 10px; margin: 15px; font-size: 0.85rem; color: #fcd34d; display: none; }
+    .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
+    th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
+    td { padding: 8px; border-bottom: 1px solid #222; }
+    .foul-hook { color: var(--accent-red); }
 
-        /* Tactile UI Elements */
-        .panel { background: var(--bg-panel); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--bg-tactile); }
-        label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
-        select, input { 
-            width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 6px; 
-            background: var(--bg-tactile); color: var(--text-main); border: none; 
-            font-size: 16px; /* 16px prevents iOS auto-zoom */
-            appearance: none; -webkit-appearance: none;
-        }
-        button.action { width: 100%; padding: 15px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
-        
-        /* Gear Sim HUD */
-        .hud { display: flex; justify-content: space-between; margin-bottom: 15px; }
-        .hud-metric { text-align: center; background: var(--bg-tactile); padding: 10px; border-radius: 6px; flex: 1; margin: 0 5px; }
-        .hud-metric:first-child { margin-left: 0; }
-        .hud-metric:last-child { margin-right: 0; }
-        .hud-val { font-size: 18px; font-weight: bold; color: var(--accent); }
+    /* WATER REPORT EXACT STYLING */
+    .card { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+    .card-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2c2c2e; padding-bottom: 6px; margin-bottom: 6px; }
+    .tag-pill { background-color: #2c2c2e; color: #30d158; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+    .card-date { color: #ffffff; font-size: 15px; margin: 2px 0 0 0; font-weight: 800; }
+    .peak-box { text-align: right; }
+    .peak-num { font-size: 20px; font-weight: 900; line-height: 1; }
+    .peak-lbl { color: #8e8e93; font-size: 8px; font-weight: 700; margin-top: 2px; }
+    .sec-hdr { color: #8e8e93; font-size: 9px; font-weight: 700; margin: 10px 0 4px 0; border-bottom: 1px solid #2c2c2e; padding-bottom: 2px; }
+    .data-row { display: flex; align-items: flex-start; margin-bottom: 3px; }
+    .k { color: #8e8e93; flex: 0 0 90px; font-size: 11px; font-weight: 500; }
+    .v { color: #f2f2f7; flex: 1; font-size: 11px; font-weight: 500; }
+    .highlight-legal { background-color: #2c2c2e; padding: 4px 8px; border-radius: 6px; margin: 4px 0; align-items: center; }
+    .highlight-legal .k, .highlight-legal .v { color: #ffffff; font-weight: 700; font-size: 11px; margin: 0; }
+    .tide-row { background-color: #000000; color: #64d2ff; padding: 6px; border-radius: 6px; font-size: 10px; text-align: center; font-weight: 600; margin: 4px 0; border: 1px solid #1c1c1e; }
+    .fmi-caption { font-size: 8px; color: #636366; font-style: italic; margin-top: 2px; }
+    .window-box { background-color: #000000; border-radius: 6px; padding: 6px 10px; margin-top: 4px; border: 1px solid #2c2c2e; }
+    .window-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+    .window-time { color: #ffffff; font-size: 12px; font-weight: 700; }
+    .window-score { font-size: 14px; font-weight: 900; }
+    .window-triggers { color: #98989d; font-size: 10px; line-height: 1.2; }
 
-        /* Debug Console */
-        #debug-console {
-            display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 40vh; 
-            background: rgba(0,0,0,0.9); border-top: 2px solid var(--accent); z-index: 1000; 
-            overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; color: #0f0;
-        }
-        #debug-console.open { display: block; }
-        .log-entry { border-bottom: 1px solid #333; padding: 4px 0; }
-        
-        /* Custom Toast Notification (Replaces alerts) */
-        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--text-main); color: var(--bg-main); padding: 10px 20px; border-radius: 20px; opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 2000; font-weight: bold; }
-    </style>
+    /* DEBUG MATRIX */
+    #debug-console { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 40vh; background: rgba(0,0,0,0.9); border-top: 2px solid var(--accent-green); z-index: 3000; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; color: #0f0; }
+    #debug-console.open { display: block; }
+    .log-entry { border-bottom: 1px solid #333; padding: 4px 0; }
+</style>
 </head>
 <body>
 
-    <header id="main-header">
-        <button class="menu-btn" onclick="toggleMenu()">☰ Tools</button>
-        <span style="font-weight: bold; color: var(--accent);">Puyallup Dashboard</span>
-    </header>
+<!-- NAVIGATION -->
+<div id="top-nav">
+    <button class="nav-btn" onclick="toggleMenu()">☰</button>
+    <span style="font-weight: 800; color: #fff;">PUYALLUP RIVER</span>
+    <span style="width: 20px;"></span> <!-- spacer -->
+</div>
+<div id="menu-drawer" class="menu-drawer">
+    <button onclick="switchTab('tab-water-report')">1. Water Report</button>
+    <button onclick="switchTab('tab-gear-sim')">2. Gear Sim</button>
+    <button onclick="switchTab('tab-catch-log')">3. Catch Log</button>
+</div>
 
-    <nav class="nav-drawer" id="nav-drawer">
-        <button class="nav-btn" onclick="switchTool('water-report')">1. Water Report</button>
-        <button class="nav-btn" onclick="switchTool('gear-sim')">2. Gear Sim</button>
-        <button class="nav-btn" onclick="switchTool('catch-log')">3. Catch Log</button>
-    </nav>
+<!-- TOOL 1: WATER REPORT -->
+<div id="tab-water-report" class="tab-content tab-active">
+    <div style="margin-bottom: 6px;">
+        <select id="day-selector" onchange="showDay(this.value)">
+            <option value="loading">Loading live data...</option>
+        </select>
+    </div>
+    <div id="water-report-cards"></div>
+</div>
 
-    <!-- TOOL 1: WATER REPORT -->
-    <div id="water-report" class="tool-container active">
-        <div class="panel">
-            <h2 style="margin-bottom: 10px;">Live Conditions</h2>
-            <div class="hud">
-                <div class="hud-metric">Flow<br><span class="hud-val" id="wr-cfs">--</span></div>
-                <div class="hud-metric">NTU<br><span class="hud-val" id="wr-ntu">--</span></div>
-                <div class="hud-metric">FMI<br><span class="hud-val" id="wr-fmi">--</span></div>
-            </div>
-            <p id="wr-trend" style="color: var(--text-dim); font-size: 14px; margin-top: 10px;">Fetching from Python API...</p>
+<!-- TOOL 2: GEAR SIM -->
+<div id="tab-gear-sim" class="tab-content">
+    <div id="hud">
+        <div id="stars">★★★★★</div>
+        <div id="hud-msg">Awaiting inputs...</div>
+        <div class="hud-metrics">
+            <div class="metric"><div id="hud-hgt" class="metric-val">--</div><div class="metric-label">LINE HEIGHT</div><div id="target-hgt" class="metric-target">Target: 4.0"-12.0"</div></div>
+            <div class="metric"><div id="hud-swp" class="metric-val">--</div><div class="metric-label">SWEEP ANGLE</div><div class="metric-target">Target: < 85°</div></div>
+            <div class="metric"><div id="hud-dly" class="metric-val">--</div><div class="metric-label">DELAY (MS)</div><div class="metric-target">Target: < 300</div></div>
         </div>
+        <div id="score-bar"></div>
     </div>
 
-    <!-- TOOL 2: GEAR SIM -->
-    <div id="gear-sim" class="tool-container">
-        <div class="panel" style="position: sticky; top: 65px; z-index: 90;">
-            <div class="hud">
-                <div class="hud-metric">Rating<br><span class="hud-val" id="gs-rating">5.0</span></div>
-                <div class="hud-metric">Target<br><span class="hud-val" id="gs-target">4.0"-12.0"</span></div>
-                <div class="hud-metric">Height<br><span class="hud-val" id="gs-height">8.2"</span></div>
+    <div class="bucket">
+        <h2>River Flow & Placement</h2>
+        <div class="row">
+            <div class="col"><label>River Flow (CFS)</label><input type="number" id="flow" value="1040" min="100" max="10000" step="10" onchange="syncSelect('flow')"></div>
+            <div class="col"><label>Distance (ft)</label>
+                <select id="distance" onchange="syncSelect('distance')">
+                    <option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option>
+                </select>
+            </div>
+        </div>
+
+        <h2>Rod & Line Setup</h2>
+        <div class="row">
+            <div class="col"><label>Rod</label>
+                <select id="rod" onchange="syncSelect('rod')"><option value="8.5">8'6"</option><option value="9">9'</option><option value="9.66" selected>9'8"</option><option value="10">10'</option><option value="11">11'</option><option value="12">12'</option><option value="13">13'</option></select>
+            </div>
+            <div class="col"><label>Weight</label>
+                <select id="weight" onchange="syncSelect('weight')"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
             </div>
         </div>
         
-        <div class="panel">
-            <label>Mainline</label>
-            <select id="sim-mainline" onchange="syncGear(); runPhysicsEngine();">
-                <option value="40_braid">40 lb Braided</option>
-                <option value="50_braid">50 lb Braided</option>
-                <option value="15_mono">15 lb Monofilament</option>
-            </select>
-            
-            <label>Leader Material & Length</label>
-            <select id="sim-leader" onchange="syncGear(); runPhysicsEngine();">
-                <option value="12_copoly">12 lb Copolymer (36")</option>
-                <option value="12_mono">12 lb Monofilament (36")</option>
-                <option value="10_fluoro">10 lb Fluorocarbon (36")</option>
-            </select>
+        <h3 style="margin-top:5px;">Mainline</h3>
+        <div class="row">
+            <div class="col"><label>Material</label><select id="ml-mat" onchange="syncSelect('ml-mat')"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Lb Test</label><select id="ml-lb" onchange="syncSelect('ml-lb')"><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40" selected>40lb</option></select></div>
+        </div>
 
-            <label>Terminal Tackle</label>
-            <select id="sim-terminal" onchange="syncGear(); runPhysicsEngine();">
-                <option value="corky_yarn">Standard Corky & Yarn</option>
-                <option value="foam_cheater">Foam Cheater (High Float)</option>
-                <option value="corky_shrimp">Corky + Sand Shrimp (Heavy)</option>
-            </select>
+        <h3 style="margin-top:5px;">Leader</h3>
+        <div class="row">
+            <div class="col"><label>Length (ft)</label><select id="ld-len" onchange="syncSelect('ld-len')"><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
+            <div class="col"><label>Material</label><select id="ld-mat" onchange="syncSelect('ld-mat')"><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Lb Test</label><select id="ld-lb" onchange="syncSelect('ld-lb')"><option value="10">10lb</option><option value="12" selected>12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select></div>
+        </div>
 
-            <label>Rigging Hardware</label>
-            <select id="sim-hardware" onchange="syncGear(); runPhysicsEngine();">
-                <option value="sliding_swivel">Sliding Swivel</option>
-                <option value="fixed_inline">Fixed Inline</option>
-            </select>
+        <h2>Rig Configuration</h2>
+        <div class="row">
+            <div class="col"><label>Hook</label><select id="hook" onchange="syncSelect('hook')"><option value="3">Size 3</option><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">Size 1/0</option></select></div>
+            <div class="col"><label>Yarn</label><select id="yarn" onchange="syncSelect('yarn')"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
+            <div class="col"><label>Corky</label><select id="corky" onchange="syncSelect('corky')"><option value="0">None</option><option value="14">Sz 14</option><option value="12">Sz 12</option><option value="10" selected>Sz 10</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Bead Mat</label><select id="bd-mat" onchange="syncSelect('bd-mat')"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
+            <div class="col"><label>Bead Size</label><select id="bd-sz" onchange="syncSelect('bd-sz')"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
+        </div>
+
+        <button class="btn-main" id="btn-sim" onclick="runSim()">RUN SIMULATION</button>
+        <div id="suggestions"></div>
+    </div>
+</div>
+
+<!-- TOOL 3: CATCH LOG -->
+<div id="tab-catch-log" class="tab-content">
+    <div class="bucket">
+        <h2 class="purple-heading">Angler & Location Details</h2>
+        <div class="row">
+            <div class="col"><label>Angler Name</label><input type="text" id="log-name" value="Nicholas"></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Date & Time</label><input type="datetime-local" id="log-datetime"></div>
+        </div>
+        <div class="row">
+            <div class="col">
+                <label>GPS Coordinates</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="log-gps" placeholder="Fetching..." style="flex:1;" readonly>
+                    <button onclick="getGPS()" style="padding:10px; background:#333; color:#fff; border:none; border-radius:8px; font-size:20px; font-weight:bold;">📍</button>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="purple-heading">Current Gear Details</h2>
+        <p style="font-size:0.75rem; color:#aaa; margin-bottom:10px;">These match your Gear Sim automatically.</p>
+        
+        <!-- DUPLICATED DROPDOWNS (WITH -LOG SUFFIX) -->
+        <div class="row">
+            <div class="col"><label>River Flow</label><input type="number" id="flow-log" value="1040" step="10" onchange="syncSelect('flow', true)"></div>
+            <div class="col"><label>Distance</label><select id="distance-log" onchange="syncSelect('distance', true)"><option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Rod</label><select id="rod-log" onchange="syncSelect('rod', true)"><option value="8.5">8'6"</option><option value="9">9'</option><option value="9.66" selected>9'8"</option><option value="10">10'</option><option value="11">11'</option><option value="12">12'</option><option value="13">13'</option></select></div>
+            <div class="col"><label>Weight</label><select id="weight-log" onchange="syncSelect('weight', true)"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Mainline Mat</label><select id="ml-mat-log" onchange="syncSelect('ml-mat', true)"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Main Lb</label><select id="ml-lb-log" onchange="syncSelect('ml-lb', true)"><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40" selected>40lb</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Ldr Len</label><select id="ld-len-log" onchange="syncSelect('ld-len', true)"><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
+            <div class="col"><label>Ldr Mat</label><select id="ld-mat-log" onchange="syncSelect('ld-mat', true)"><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Ldr Lb</label><select id="ld-lb-log" onchange="syncSelect('ld-lb', true)"><option value="10">10lb</option><option value="12" selected>12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Hook</label><select id="hook-log" onchange="syncSelect('hook', true)"><option value="3">Size 3</option><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">Size 1/0</option></select></div>
+            <div class="col"><label>Yarn</label><select id="yarn-log" onchange="syncSelect('yarn', true)"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
+            <div class="col"><label>Corky</label><select id="corky-log" onchange="syncSelect('corky', true)"><option value="0">None</option><option value="14">Sz 14</option><option value="12">Sz 12</option><option value="10" selected>Sz 10</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Bead Mat</label><select id="bd-mat-log" onchange="syncSelect('bd-mat', true)"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
+            <div class="col"><label>Bead Size</label><select id="bd-sz-log" onchange="syncSelect('bd-sz', true)"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
+        </div>
+
+        <h2 class="purple-heading">Catch Result</h2>
+        <div class="row">
+            <div class="col"><label>Species Caught</label><select id="species"><option value="Chinook">Chinook</option><option value="Coho" selected>Coho (Silver)</option><option value="Pink">Pink</option><option value="Chum">Chum</option><option value="Steelhead">Steelhead</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Hook Location</label><select id="hook-loc"><option value="Fair" selected>Mouth (Fair)</option><option value="Foul (Belly)">Belly (Foul)</option><option value="Foul (Back)">Back (Foul)</option><option value="Foul (Tail)">Tail (Foul)</option></select></div>
+        </div>
+        
+        <button class="btn-main" id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
+
+        <h2>Log Database</h2>
+        <button class="btn-main" id="btn-clear" onclick="tryClearDB()">CLEAR ALL DATA</button>
+        
+        <div class="table-wrapper">
+            <table id="db-table">
+                <thead>
+                    <tr><th>Name</th><th>Flow</th><th>Fish</th><th>Loc</th><th>Leader</th><th>Hook</th><th>Yarn</th><th>Corky</th><th>GPS</th></tr>
+                </thead>
+                <tbody id="db-body"></tbody>
+            </table>
         </div>
     </div>
+</div>
 
-    <!-- TOOL 3: CATCH LOG -->
-    <div id="catch-log" class="tool-container">
-        <div class="panel">
-            <label>Angler Name</label>
-            <input type="text" id="log-name" value="Nicholas">
+<div id="debug-console"></div>
+
+<script>
+    // --- DEBUG MATRIX (Double Tap Header) ---
+    var lastTap = 0;
+    document.getElementById('top-nav').addEventListener('touchend', function(e) {
+        var currentTime = new Date().getTime();
+        if (currentTime - lastTap < 300) {
+            document.getElementById('debug-console').classList.toggle('open');
+            logDebug("Debug Matrix Toggled", "SYS");
+            e.preventDefault();
+        }
+        lastTap = currentTime;
+    });
+
+    function logDebug(msg, source) {
+        var con = document.getElementById('debug-console');
+        var time = new Date().toISOString().split('T')[1].slice(0,-1);
+        con.innerHTML += '<div class="log-entry">[' + time + '] <b>' + source + '</b>: ' + msg + '</div>';
+        con.scrollTop = con.scrollHeight;
+    }
+
+    // --- NAVIGATION ---
+    function toggleMenu() {
+        var m = document.getElementById('menu-drawer');
+        m.style.display = (m.style.display === 'block') ? 'none' : 'block';
+    }
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('tab-active'); });
+        document.getElementById(tabId).classList.add('tab-active');
+        toggleMenu();
+        logDebug("Switched to " + tabId, "UI");
+    }
+
+    // --- SHARED GEAR STATE ---
+    function syncSelect(baseId, fromLog) {
+        var id1 = baseId;
+        var id2 = baseId + '-log';
+        if (fromLog) {
+            document.getElementById(id1).value = document.getElementById(id2).value;
+        } else {
+            document.getElementById(id2).value = document.getElementById(id1).value;
+        }
+        logDebug("Synced Dropdown: " + baseId, "STATE");
+    }
+
+    // --- WATER REPORT LOGIC ---
+    function getFMIColor(score) {
+        var s = Math.max(0, Math.min(100, parseFloat(score)));
+        if (s <= 50) {
+            var pct = s / 50.0;
+            return "rgb(255, " + Math.round(69 + pct*(214-69)) + ", " + Math.round(58 + pct*(10-58)) + ")";
+        } else {
+            var pct = (s - 50) / 50.0;
+            return "rgb(" + Math.round(255 + pct*(48-255)) + ", " + Math.round(214 + pct*(209-214)) + ", " + Math.round(10 + pct*(88-10)) + ")";
+        }
+    }
+
+    function showDay(dayId) {
+        var cards = document.getElementsByClassName('day-card');
+        for(var i = 0; i < cards.length; i++) { cards[i].style.display = 'none'; }
+        var target = document.getElementById(dayId);
+        if(target) target.style.display = 'block';
+    }
+
+    async function loadWaterReport() {
+        logDebug("Fetching Water API...", "NET");
+        try {
+            var res = await fetch('/api/water-report');
+            var reports = await res.json();
+            logDebug("Water API success. Processing " + reports.length + " days.", "NET");
             
-            <label>Date & Time</label>
-            <input type="datetime-local" id="log-date">
+            var sel = document.getElementById('day-selector');
+            sel.innerHTML = '';
+            var cardsHtml = '';
+
+            // Automatically push Live CFS to Gear Sim
+            if(reports.length > 0) {
+                var cfsInput = document.getElementById('flow');
+                cfsInput.value = reports[0].cfs;
+                syncSelect('flow');
+                logDebug("Auto-synced CFS to Gear Sim: " + reports[0].cfs, "STATE");
+            }
+
+            for(var i=0; i<reports.length; i++) {
+                var rep = reports[i];
+                var opt = document.createElement('option');
+                opt.value = rep.id;
+                opt.innerText = (i < 2) ? rep.title + ' (' + rep.tag + ')' : rep.title;
+                sel.appendChild(opt);
+
+                var winHtml = '';
+                for(var j=0; j<rep.windows.length; j++) {
+                    var w = rep.windows[j];
+                    var col = getFMIColor(w.score);
+                    winHtml += '<div class="window-box" style="border-left: 4px solid '+col+';">' +
+                        '<div class="window-hdr"><span class="window-time">'+w.start_str+' &ndash; '+w.end_str+'</span>' +
+                        '<span class="window-score" style="color: '+col+';">'+w.score+'%</span></div>' +
+                        '<div class="window-triggers">&rarr; '+w.triggers+'</div></div>';
+                }
+
+                var tIcon = (rep.press_delta <= -0.04) ? "&darr;" : (rep.press_delta >= 0.04) ? "&uarr;" : "&rarr;";
+                var nColor = rep.is_netting ? "#ff453a" : "#30d158";
+                var pColor = getFMIColor(rep.peak);
+                var fColor = getFMIColor(rep.flow_idx);
+                var dStyle = (i === 0) ? "block" : "none";
+
+                cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
+                    '<div class="card"><div class="card-top"><div><span class="tag-pill">'+rep.tag+'</span><h1 class="card-date">'+rep.title+'</h1></div>' +
+                    '<div class="peak-box"><div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div><div class="peak-lbl">MAX POTENTIAL</div></div></div>' +
+                    '<div class="sec-hdr">[ METEOROLOGY &amp; LUNAR ]</div>' +
+                    '<div class="data-row"><span class="k">Lunar:</span> <div class="v">'+rep.lunar_icon+' &bull; '+rep.cloud_pct+'% Clouds</div></div>' +
+                    '<div class="data-row"><span class="k">Atmosphere:</span> <div class="v">'+rep.pressure.toFixed(2)+' inHg ('+tIcon+' '+Math.abs(rep.press_delta).toFixed(2)+') &bull; '+rep.rain.toFixed(2)+' in Rain</div></div>' +
+                    '<div class="sec-hdr">[ HYDROLOGY &amp; WATER QUALITY ]</div>' +
+                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+rep.cfs+' CFS &bull; '+rep.gage.toFixed(2)+' ft Gauge</div></div>' +
+                    '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+rep.ntu.toFixed(1)+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
+                    '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+rep.do.toFixed(1)+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
+                    '<div class="sec-hdr">[ DAILY TIDE CHART (BAY) ]</div><div class="tide-row">'+rep.tide_chart+'</div>' +
+                    '<div class="sec-hdr">[ SOLAR &amp; LEGAL HOURS ]</div>' +
+                    '<div class="data-row"><span class="k">Sunlight:</span> <div class="v">'+rep.sunrise+' to '+rep.sunset+'</div></div>' +
+                    '<div class="data-row highlight-legal"><span class="k">LEGAL HRS:</span> <div class="v">IN: '+rep.lines_in+' &bull; OUT: '+rep.lines_out+'</div></div>' +
+                    '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +
+                    '<div class="data-row" style="margin-bottom:4px;"><span class="k">Escapement:</span> <div class="v" style="color:#ffffff;">'+rep.active_fish+'</div></div>' +
+                    '<div class="data-row"><span class="k">Tribal Nets:</span> <div class="v" style="color:'+nColor+'; font-weight:700;">'+rep.net_status+'</div></div>' +
+                    '<div class="data-row"><span class="k">FMI*:</span> <div class="v"><span style="color:'+fColor+'; font-weight:800; font-size:12px;">'+rep.flow_idx+'/100</span> <span style="color:#ffd60a; margin-left:6px; font-weight:600;">('+rep.push_status+')</span></div></div>' +
+                    '<div class="data-row"><span class="k">Transit Math:</span> <div class="v">Kinematic Simulation via Tide/CFS Interaction</div></div>' +
+                    '<div class="fmi-caption">*FMI (Flow Migration Index): 1-100 scale of optimal water velocity for upstream movement.</div>' +
+                    '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
+            }
+            document.getElementById('water-report-cards').innerHTML = cardsHtml;
+        } catch(e) {
+            logDebug("API Error: " + e.message, "ERR");
+            document.getElementById('day-selector').innerHTML = '<option>Error loading data</option>';
+        }
+    }
+
+    // --- GEAR SIM & LOG MATH (EXACT PORT FROM Pythonista) ---
+    var currentStats = null;
+    var targetHgtMin = 4.0;
+    var targetHgtMax = 12.0;
+    var aiDragModifier = 0.005; 
+    
+    function getNum(id) { var val = parseFloat(document.getElementById(id).value); return isNaN(val) ? 0 : val; }
+    function getStr(id) { return document.getElementById(id).value; }
+
+    function getGPS() {
+        if("geolocation" in navigator) {
+            logDebug("Requesting GPS...", "SYS");
+            navigator.geolocation.getCurrentPosition(function(pos){
+                var coords = pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
+                document.getElementById('log-gps').value = coords;
+                logDebug("GPS Lock: " + coords, "SYS");
+            }, function(err){
+                document.getElementById('log-gps').value = "Denied";
+                logDebug("GPS Error: " + err.message, "ERR");
+            });
+        }
+    }
+
+    function processAiStrikeZone(dbArray) {
+        var curFlow = getNum('flow');
+        var curSpecies = getStr('species');
+        var minH = 999; var maxH = -999;
+        var found = false;
+        var blowoutFrictionLearnings = 0;
+
+        for(var i=0; i<dbArray.length; i++) {
+            var item = dbArray[i];
+            if(item.loc === 'Fair') {
+                if(item.flow >= 1040) blowoutFrictionLearnings++;
+                if(item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
+                    found = true;
+                    var histHgt = calcHistoricHeight(item.ldLen, item.yarn, item.corky, item.bdMat, item.bdSz, item.flow);
+                    if(histHgt < minH) minH = histHgt;
+                    if(histHgt > maxH) maxH = histHgt;
+                }
+            }
+        }
+        if(found) { targetHgtMin = minH - 1.0; targetHgtMax = maxH + 1.0; } 
+        else { targetHgtMin = 4.0; targetHgtMax = 12.0; }
+        
+        aiDragModifier = 0.005 - (blowoutFrictionLearnings * 0.0001);
+        if (aiDragModifier < 0.002) aiDragModifier = 0.002;
+        document.getElementById('target-hgt').innerText = 'Target: ' + targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
+    }
+    
+    function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow) {
+        var baseLift = (ldLen * 0.5); 
+        if (corky === 14) baseLift += 2; else if (corky === 12) baseLift += 3.5; else if (corky === 10) baseLift += 5;
+        baseLift += (yarn * 1.5);
+        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
+        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        var flowSuppression = (flow / 1000) * 0.5;
+        return Math.max(0.1, baseLift - flowSuppression);
+    }
+
+    function loadDatabase() {
+        var jStr = localStorage.getItem('catch_db');
+        var dbArray = jStr ? JSON.parse(jStr) : [];
+        var tbody = document.getElementById('db-body');
+        tbody.innerHTML = '';
+        
+        processAiStrikeZone(dbArray);
+
+        for (var i=0; i < dbArray.length; i++) {
+            var row = dbArray[i];
+            var tr = document.createElement('tr');
+            if (row.loc !== 'Fair') tr.className = 'foul-hook';
             
-            <label>GPS Coordinates</label>
-            <input type="text" id="log-gps" readonly placeholder="Fetching location...">
+            tr.innerHTML = '<td>'+(row.name||'--')+'</td>' +
+                '<td>'+row.flow+'</td><td>'+row.spc+'</td>' +
+                '<td>'+(row.loc==='Fair'?'Mouth':'Foul')+'</td>' +
+                '<td>'+row.ldLen+"'</td>" +
+                '<td>'+(row.hook===0?"1/0":"Sz "+row.hook)+'</td>' +
+                '<td>'+(row.yarn===0?"None":row.yarn+'"')+'</td>' +
+                '<td>'+(row.corky===0?"None":"Sz "+row.corky)+'</td>' +
+                '<td>'+(row.gps||'--')+'</td>';
+            tbody.appendChild(tr);
+        }
+        logDebug("Loaded " + dbArray.length + " DB records", "DB");
+    }
 
-            <label>Current Rig Setup (Auto-Synced)</label>
-            <input type="text" id="log-rig-summary" readonly style="color: var(--accent);">
+    function runSim() {
+        var jStr = localStorage.getItem('catch_db');
+        processAiStrikeZone(jStr ? JSON.parse(jStr) : []);
 
-            <label>Hook Location</label>
-            <select id="log-hook">
-                <option value="Fair">Fair (Mouth)</option>
-                <option value="Foul_Back">Foul (Back/Dorsal)</option>
-                <option value="Foul_Belly">Foul (Belly/Pectoral)</option>
-                <option value="Foul_Tail">Foul (Tail)</option>
-            </select>
-            
-            <button class="action" onclick="submitCatch()">Log Catch & Train AI</button>
-        </div>
-    </div>
-
-    <!-- UI Overlays -->
-    <div id="debug-console"></div>
-    <div id="toast">Message</div>
-
-    <script>
-        // --- 1. SYSTEM INITIALIZATION & STATE ---
-        const State = {
-            env: { cfs: 1000, ntu: 15, temp_delta: 0 },
-            gear: { mainline: '40_braid', leader: '12_copoly', terminal: 'corky_yarn', hardware: 'sliding_swivel' },
-            ai: { heightBias: 0.0, dragModifier: 1.0, targetZoneMin: 4.0, targetZoneMax: 12.0 }
+        var flow = getNum('flow'); var dist = getNum('distance'); var wt = getNum('weight');
+        var mlMat = getStr('ml-mat'); var mlLb = getNum('ml-lb'); var mlDia = mlLb * 0.0003; 
+        var ldLen = getNum('ld-len'); var ldMat = getStr('ld-mat');
+        var hook = getNum('hook'); var yarn = getNum('yarn'); var corky = getNum('corky');
+        var bdMat = getStr('bd-mat'); var bdSz = getNum('bd-sz');
+        
+        var drag = flow * dist * mlDia * aiDragModifier;
+        var friction = wt * 20; 
+        var blownOut = (drag > friction * 1.05);
+        
+        var baseLift = (ldLen * 0.5); 
+        if (ldMat === 'braid') baseLift += 1.0;
+        if (ldMat === 'copoly' || ldMat === 'fluoro') baseLift -= 0.5;
+        if (corky === 14) baseLift += 2; else if (corky === 12) baseLift += 3.5; else if (corky === 10) baseLift += 5;
+        baseLift += (yarn * 1.5);
+        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
+        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        
+        var flowSuppression = (flow / 1000) * 0.5;
+        var hgt = Math.max(0.1, baseLift - flowSuppression);
+        
+        var swp = (hgt / (ldLen * 12)) * 90 * 1.5;
+        if (swp > 90) swp = 90;
+        
+        var stretchFactor = (mlMat === 'braid') ? 1.0 : 3.0;
+        var dly = dist * stretchFactor * (1 + (swp/90));
+        
+        var score = 5.0; var sugs = [];
+        if (blownOut) { score = 0.0; sugs.push("RIG BLOWN OUT. Add weight or shorten distance."); } 
+        else {
+            if (hgt < targetHgtMin) { score -= 1.5; sugs.push("Too low. Add Corky/Yarn or lengthen leader."); }
+            if (hgt > targetHgtMax) { score -= 1.5; sugs.push("Too high. Reduce floatation or shorten leader."); }
+            if (swp > 85) { score -= 1.0; sugs.push("Sweep angle critical. Increase leader length."); }
+            if (dly > 300) { score -= 1.0; sugs.push("Delay too long. Switch to Braid or fish closer."); }
+        }
+        if (score < 0) score = 0;
+        
+        currentStats = { flow: flow, hgt: hgt, swp: swp, score: score, dly: dly };
+        logDebug("Ran Physics Sim. Height: " + hgt.toFixed(1), "PHYS");
+        
+        var color = 'var(--accent-green)';
+        if (score <= 2.5) color = 'var(--accent-yellow)';
+        if (score === 0.0) color = 'var(--accent-red)';
+        
+        document.getElementById('stars').innerText = '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
+        document.getElementById('stars').style.color = color;
+        document.getElementById('score-bar').style.backgroundColor = color;
+        document.getElementById('hud-msg').innerText = "Score: " + score.toFixed(1) + " / 5.0";
+        
+        var eHgt = document.getElementById('hud-hgt'); eHgt.innerText = hgt.toFixed(1) + '"'; eHgt.style.color = color;
+        var eSwp = document.getElementById('hud-swp'); eSwp.innerText = swp.toFixed(1) + '°'; eSwp.style.color = color;
+        var eDly = document.getElementById('hud-dly'); eDly.innerText = dly.toFixed(0); eDly.style.color = color;
+        
+        var btnLog = document.getElementById('btn-log');
+        if (blownOut) { btnLog.innerText = "LOG ANYWAY (FORCE)"; btnLog.className = 'btn-main force'; } 
+        else { btnLog.innerText = "LOG CATCH DATA"; btnLog.className = 'btn-main ready'; }
+        
+        var sugBox = document.getElementById('suggestions');
+        if (score < 4.7 && sugs.length > 0) {
+            sugBox.style.display = 'block';
+            sugBox.innerHTML = "<strong>Rig Suggestions:</strong><br>- " + sugs.join("<br>- ");
+        } else { sugBox.style.display = 'none'; }
+    }
+    
+    function logData() {
+        if (!currentStats) return;
+        var payload = {
+            name: getStr('log-name'),
+            time: getStr('log-datetime'),
+            gps: getStr('log-gps'),
+            flow: currentStats.flow,
+            spc: getStr('species'),
+            loc: getStr('hook-loc'),
+            ldLen: getNum('ld-len'),
+            hook: getNum('hook'),
+            yarn: getNum('yarn'),
+            corky: getNum('corky'),
+            bdMat: getStr('bd-mat'),
+            bdSz: getNum('bd-sz')
         };
-
-        // --- 2. TACTILE DEBUG MATRIX ---
-        const Debugger = {
-            log: function(msg, source = "SYS") {
-                const con = document.getElementById('debug-console');
-                const time = new Date().toISOString().split('T')[1].slice(0,-1);
-                con.innerHTML += `<div class="log-entry">[${time}] <b>${source}</b>: ${msg}</div>`;
-                con.scrollTop = con.scrollHeight;
-                console.log(`[${source}] ${msg}`);
-            }
-        };
-
-        // Double tap header to toggle debugger
-        let lastTap = 0;
-        document.getElementById('main-header').addEventListener('touchend', (e) => {
-            const currentTime = new Date().getTime();
-            if (currentTime - lastTap < 300) {
-                document.getElementById('debug-console').classList.toggle('open');
-                Debugger.log("Debug Matrix Toggled", "UI");
-                e.preventDefault();
-            }
-            lastTap = currentTime;
-        });
-
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.innerText = msg;
-            toast.style.opacity = 1;
-            setTimeout(() => toast.style.opacity = 0, 2500);
+        
+        // Save to browser LocalStorage (Works instantly without Supabase setup)
+        var jStr = localStorage.getItem('catch_db');
+        var dbArray = jStr ? JSON.parse(jStr) : [];
+        dbArray.push(payload);
+        localStorage.setItem('catch_db', JSON.stringify(dbArray));
+        logDebug("Catch Logged Locally", "DB");
+        
+        loadDatabase();
+        document.getElementById('btn-log').innerText = "FEED DATA (RUN SIM FIRST)";
+        document.getElementById('btn-log').className = 'btn-main';
+        currentStats = null;
+        switchTab('tab-water-report'); // Optional: Kick user back to main dashboard
+    }
+    
+    var clearTaps = 0; var clearTimer = null;
+    function tryClearDB() {
+        clearTaps++;
+        var btn = document.getElementById('btn-clear');
+        if (clearTaps === 1) {
+            btn.innerText = "TAP AGAIN TO CONFIRM CLEAR";
+            clearTimer = setTimeout(function() { clearTaps = 0; btn.innerText = "CLEAR ALL DATA"; }, 3000);
+        } else if (clearTaps === 2) {
+            clearTimeout(clearTimer); clearTaps = 0; btn.innerText = "CLEAR ALL DATA";
+            localStorage.removeItem('catch_db');
+            loadDatabase();
+            logDebug("DB Cleared", "DB");
         }
+    }
 
-        // --- 3. NAVIGATION & SYNC ---
-        function toggleMenu() {
-            document.getElementById('nav-drawer').classList.toggle('open');
-        }
-
-        function switchTool(toolId) {
-            document.querySelectorAll('.tool-container').forEach(el => el.classList.remove('active'));
-            document.getElementById(toolId).classList.add('active');
-            toggleMenu();
-            if (toolId === 'gear-sim') runPhysicsEngine();
-            if (toolId === 'catch-log') syncGearToLog();
-            Debugger.log(`Switched to ${toolId}`, "UI");
-        }
-
-        function syncGear() {
-            State.gear.mainline = document.getElementById('sim-mainline').value;
-            State.gear.leader = document.getElementById('sim-leader').value;
-            State.gear.terminal = document.getElementById('sim-terminal').value;
-            State.gear.hardware = document.getElementById('sim-hardware').value;
-            Debugger.log(`Gear Synced: ${JSON.stringify(State.gear)}`, "STATE");
-        }
-
-        function syncGearToLog() {
-            document.getElementById('log-rig-summary').value = 
-                `${State.gear.mainline} | ${State.gear.leader} | ${State.gear.terminal}`;
-        }
-
-        // --- 4. DATA FETCHING (WATER REPORT) ---
-        async function fetchWaterData() {
-            Debugger.log("Initiating API fetch to Vercel Backend", "NET");
-            try {
-                // UPDATE THIS URL TO YOUR ACTUAL VERCEL DEPLOYMENT URL
-                const response = await fetch('/api/water-report'); 
-                const data = await response.json();
-                
-                State.env.cfs = data.hydrology.cfs;
-                State.env.ntu = data.hydrology.ntu;
-                State.env.temp_delta = data.hydrology.temp_delta;
-
-                document.getElementById('wr-cfs').innerText = data.hydrology.cfs;
-                document.getElementById('wr-ntu').innerText = data.hydrology.ntu;
-                document.getElementById('wr-fmi').innerText = data.kinematics.fmi_score;
-                document.getElementById('wr-trend').innerText = `Water is ${data.hydrology.ntu_trend}. Temp delta: ${data.hydrology.temp_delta}°C`;
-                
-                Debugger.log(`Water Data loaded: CFS ${State.env.cfs}, NTU ${State.env.ntu}`, "NET");
-                runMLKNNLoop(); // Adjust AI biases based on new environmental baseline
-            } catch (error) {
-                Debugger.log(`API Fetch Failed (Using Defaults): ${error.message}`, "ERR");
-            }
-        }
-
-        // --- 5. GEAR SIM PHYSICS ENGINE ---
-        function runPhysicsEngine() {
-            Debugger.log("Running Hydrodynamic Math", "PHYSICS");
-            
-            // 1. Calculate Bottom Boundary Velocity (Slower at bottom)
-            let baseVelocity = State.env.cfs * 0.005; 
-            let bottomVelocity = baseVelocity * State.ai.dragModifier; 
-
-            // 2. Terminal Lift Calculation (Factoring Leader Diameter/Stiffness)
-            let liftBase = 8.0; // inches
-            if (State.gear.leader.includes('mono')) liftBase -= 1.0; // Mono bows
-            if (State.gear.leader.includes('copoly')) liftBase -= 0.5; // Copoly slightly stiffer
-            if (State.gear.terminal === 'foam_cheater') liftBase += 4.0; // High float
-            if (State.gear.terminal === 'corky_shrimp') liftBase -= 3.0; // Heavy bait drag
-
-            // Suppress lift based on water velocity pushing it down
-            let currentLift = liftBase - (bottomVelocity * 0.2); 
-            
-            // Apply AI Historical Bias
-            let finalHeight = currentLift + State.ai.heightBias;
-            
-            // 3. Scoring & AI Target Zones
-            let rating = 5.0;
-            if (finalHeight < State.ai.targetZoneMin) rating -= (State.ai.targetZoneMin - finalHeight) * 0.5;
-            if (finalHeight > State.ai.targetZoneMax) rating -= (finalHeight - State.ai.targetZoneMax) * 0.5;
-            
-            // NTU shifts strike zone (Dirty water = lower target)
-            if (State.env.ntu > 25) {
-                State.ai.targetZoneMin = 2.0; State.ai.targetZoneMax = 8.0;
-            } else {
-                State.ai.targetZoneMin = 6.0; State.ai.targetZoneMax = 16.0;
-            }
-
-            // Update UI
-            document.getElementById('gs-height').innerText = finalHeight.toFixed(1) + '"';
-            document.getElementById('gs-target').innerText = `${State.ai.targetZoneMin}"-${State.ai.targetZoneMax}"`;
-            document.getElementById('gs-rating').innerText = Math.max(0, rating).toFixed(1);
-            
-            Debugger.log(`Calculated Height: ${finalHeight.toFixed(1)}", Rating: ${rating.toFixed(1)}`, "PHYSICS");
-        }
-
-        // --- 6. CATCH LOG & MACHINE LEARNING LOOP ---
-        function getGeolocation() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const coords = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
-                    document.getElementById('log-gps').value = coords;
-                    Debugger.log(`GPS Acquired: ${coords}`, "SYS");
-                }, (error) => {
-                    document.getElementById('log-gps').value = "Location Access Denied";
-                    Debugger.log(`GPS Error: ${error.message}`, "ERR");
-                });
-            }
-        }
-
-        function runMLKNNLoop() {
-            Debugger.log("Running KNN AI cluster parsing on historical data", "ML");
-            // In a full DB setup, this queries Supabase for catches at matching CFS/NTU
-            // Placeholder Logic mimicking ML cluster adjustments:
-            if (State.env.cfs > 1500) {
-                State.ai.dragModifier = 0.85; // History shows heavy flow needs more drag weight to hold
-                Debugger.log("AI Mod: Reduced Drag Modifier for High CFS", "ML");
-            }
-        }
-
-        async function submitCatch() {
-            const hook = document.getElementById('log-hook').value;
-            Debugger.log(`Logging catch... Hook: ${hook}`, "DB");
-            
-            // 1. Train AI immediately on log
-            if (hook === 'Foul_Back') { State.ai.heightBias -= 1.5; Debugger.log("AI Mod: Lowered Height Bias (Back Foul)", "ML"); }
-            if (hook === 'Foul_Belly') { State.ai.heightBias += 1.5; Debugger.log("AI Mod: Raised Height Bias (Belly Foul)", "ML"); }
-            
-            const payload = {
-                angler: document.getElementById('log-name').value,
-                date: document.getElementById('log-date').value || new Date().toISOString(),
-                gps: document.getElementById('log-gps').value,
-                gear: State.gear,
-                env: State.env,
-                hook_location: hook
-            };
-
-            // SUPABASE INSERT PLACEHOLDER
-            /*
-            const { data, error } = await supabase.from('catches').insert([payload]);
-            if (error) Debugger.log(`Supabase Error: ${error.message}`, "ERR");
-            */
-           
-            Debugger.log(`Catch Payload Saved: ${JSON.stringify(payload)}`, "DB");
-            showToast("Catch Logged Successfully!");
-            runPhysicsEngine(); // Re-run math with new AI bias
-        }
-
-        // --- 7. BOOTSTRAP ---
-        window.onload = () => {
-            const now = new Date();
-            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-            document.getElementById('log-date').value = now.toISOString().slice(0,16);
-            
-            getGeolocation();
-            fetchWaterData(); // Starts the matrix
-        };
-    </script>
+    // --- BOOTSTRAP ---
+    window.onload = function() {
+        // Set datetime to now
+        var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        document.getElementById('log-datetime').value = d.toISOString().slice(0,16);
+        
+        getGPS();
+        loadDatabase();
+        loadWaterReport();
+    };
+</script>
 </body>
 </html>

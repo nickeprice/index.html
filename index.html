@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Drift Sim & Catch Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    :root {
+        --bg-main: #121212;
+        --bg-panel: #1e1e1e;
+        --text-main: #ffffff;
+        --text-muted: #888888;
+        --accent-blue: #3a82f6;
+        --accent-green: #4ade80;
+        --accent-red: #f87171;
+        --accent-yellow: #facc15;
+        --accent-purple: #c084fc;
+    }
+    body {
+        background-color: var(--bg-main);
+        color: var(--text-main);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        padding-bottom: 50px;
+    }
+    h2, h3 { 
+        font-size: 1.0rem; 
+        color: var(--accent-blue); 
+        margin-bottom: 8px; 
+        margin-top: 20px; 
+        padding: 0 15px; 
+        box-sizing: border-box;
+        width: 100%;
+    }
+    .purple-heading { color: var(--accent-purple); }
+    #hud {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 0;
+        background-color: #1a1a1a;
+        z-index: 1000;
+        padding: 12px 10px;
+        border-bottom: 1px solid #333;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    }
+    #stars { font-size: 1.8rem; color: #444; margin-bottom: 2px; letter-spacing: 2px; transition: color 0.3s; }
+    #hud-msg { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; font-weight: bold; }
+    .hud-metrics { display: flex; justify-content: center; gap: 20px; }
+    .metric { flex: 1; text-align: center; border-right: 1px solid #333; max-width: 45%; }
+    .metric:last-child { border-right: none; }
+    .metric-val { font-size: 1.2rem; font-weight: bold; margin-bottom: 2px; }
+    .metric-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
+    #score-bar { height: 5px; width: 90%; margin: 10px auto 0 auto; border-radius: 3px; background: #333; }
+    .bucket { padding: 0 15px; width: 100%; box-sizing: border-box; }
+    .row { display: flex; gap: 15px; margin-bottom: 12px; width: 100%; box-sizing: border-box; }
+    .col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    label { font-size: 0.75rem; color: #aaa; margin-bottom: 4px; }
+    input, select {
+        background-color: var(--bg-panel);
+        color: var(--text-main);
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 0.95rem;
+        -webkit-appearance: none;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    button {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        margin-top: 15px;
+        background-color: #333;
+        color: #aaa;
+        box-sizing: border-box;
+    }
+    #btn-sim { background-color: var(--accent-green); color: #000; margin-top: 20px; }
+    #btn-log { background-color: #333; color: #666; pointer-events: none; }
+    #btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
+    #btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
+    #btn-clear { background-color: var(--accent-red); color: #fff; margin-bottom: 20px;}
+    #suggestions {
+        background-color: #2a2015; border: 1px solid #5c4018; border-radius: 8px;
+        padding: 10px; margin: 15px 0; font-size: 0.85rem; color: #fcd34d; display: none;
+    }
+    .table-wrapper { overflow-x: auto; margin-bottom: 20px; width: 100%; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
+    th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
+    td { padding: 8px; border-bottom: 1px solid #222; }
+    .foul-hook { color: var(--accent-red); }
+</style>
+</head>
+<body>
+
+<div id="hud">
+    <div id="stars">★★★★★</div>
+    <div id="hud-msg">Awaiting Simulation...</div>
+    <div class="hud-metrics">
+        <div class="metric">
+            <div id="hud-tgt" class="metric-val">4.0"-12.0"</div>
+            <div class="metric-label">TARGET ZONE</div>
+        </div>
+        <div class="metric">
+            <div id="hud-hgt" class="metric-val">--</div>
+            <div class="metric-label">LINE HEIGHT (MATH)</div>
+        </div>
+    </div>
+    <div id="score-bar"></div>
+</div>
+
+<div class="bucket">
+    <h2>River Flow & Placement</h2>
+    <div class="row">
+        <div class="col"><label>River Flow (CFS)</label><input type="number" id="flow" value="1040" min="100" max="10000" step="10"></div>
+        <div class="col"><label>Distance (ft)</label>
+            <select id="distance">
+                <option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option>
+            </select>
+        </div>
+    </div>
+
+    <h2>Rod & Line Setup</h2>
+    <div class="row">
+        <div class="col"><label>Rod</label>
+            <select id="rod">
+                <option value="8.5">8'6"</option><option value="9">9'</option><option value="9.66" selected>9'8"</option><option value="10">10'</option><option value="11">11'</option><option value="12">12'</option><option value="13">13'</option>
+            </select>
+        </div>
+        <div class="col"><label>Weight</label>
+            <select id="weight">
+                <option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option>
+            </select>
+        </div>
+    </div>
+    
+    <h3>Mainline</h3>
+    <div class="row">
+        <div class="col"><label>Material</label>
+            <select id="ml-mat">
+                <option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option>
+            </select>
+        </div>
+        <div class="col"><label>Lb Test</label>
+            <select id="ml-lb">
+                <option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40" selected>40lb</option>
+            </select>
+        </div>
+    </div>
+
+    <h3>Leader</h3>
+    <div class="row">
+        <div class="col"><label>Length (ft)</label>
+            <select id="ld-len">
+                <option value="6">6</option><option value="7">7</option><option value="8" selected>8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select>
+        </div>
+        <div class="col"><label>Material</label>
+            <select id="ld-mat">
+                <option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option>
+            </select>
+        </div>
+        <div class="col"><label>Lb Test</label>
+            <select id="ld-lb">
+                <option value="10">10lb</option><option value="12" selected>12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option>
+            </select>
+        </div>
+    </div>
+
+    <h2>Rig Configuration</h2>
+    <div class="row">
+        <div class="col"><label>Hook</label>
+            <select id="hook">
+                <option value="3">Size 3</option><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">Size 1/0</option>
+            </select>
+        </div>
+        <div class="col"><label>Yarn</label>
+            <select id="yarn">
+                <option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option>
+            </select>
+        </div>
+        <div class="col"><label>Corky (Foam)</label>
+            <select id="corky">
+                <option value="0">None</option><option value="14">Sz 14</option><option value="12">Sz 12</option><option value="10" selected>Sz 10</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col"><label>Bead Material</label>
+            <select id="bd-mat">
+                <option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft Plastic</option>
+            </select>
+        </div>
+        <div class="col"><label>Bead Size</label>
+            <select id="bd-sz">
+                <option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option>
+            </select>
+        </div>
+    </div>
+
+    <button id="btn-sim" onclick="runSim()">RUN SIMULATION</button>
+    <div id="suggestions"></div>
+
+    <h2 class="purple-heading">Train Algorithm: Log Catch</h2>
+    <div class="row">
+        <div class="col"><label>Species Caught</label>
+            <select id="species">
+                <option value="Chinook">Chinook</option><option value="Coho" selected>Coho (Silver)</option><option value="Pink">Pink</option><option value="Chum">Chum</option><option value="Steelhead">Steelhead</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col"><label>Hook Location</label>
+            <select id="hook-loc">
+                <option value="Fair (Mouth)" selected>Mouth (Fair)</option><option value="Foul (Back - Too High)">Back (Foul - Too High)</option><option value="Foul (Belly - Too Low)">Belly (Foul - Too Low)</option><option value="Foul (Tail)">Tail (Foul)</option>
+            </select>
+        </div>
+        <div class="col"><label>Time</label>
+            <input type="time" id="log-time">
+        </div>
+    </div>
+    <button id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
+
+    <h2>Log Database</h2>
+    <button id="btn-clear" onclick="tryClearDB()">CLEAR ALL DATA</button>
+    
+    <div class="table-wrapper">
+        <table id="db-table">
+            <thead>
+                <tr>
+                    <th>CFS</th><th>Fish</th><th>Time</th><th>Location</th>
+                    <th>Leader</th><th>Hook</th><th>Yarn</th><th>Corky</th>
+                    <th>Bd Mat</th><th>Bd Sz</th>
+                </tr>
+            </thead>
+            <tbody id="db-body">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 1. INITIALIZE SUPABASE WITH YOUR KEYS
+    const supabaseUrl = 'https://pztcfsqifbfkjvosygcy.supabase.co';
+    const supabaseKey = 'sb_publishable_CJcIKTHTSUGSFkw6POK6XA_tNfo37Gr';
+    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentStats = null;
+    let targetHgtMin = 4.0;
+    let targetHgtMax = 12.0;
+    let aiDragModifier = 0.005; 
+    let aiHeightBias = 0.0; 
+    
+    function getNum(id) {
+        let val = parseFloat(document.getElementById(id).value);
+        return isNaN(val) ? 0 : val;
+    }
+    
+    function getStr(id) {
+        return document.getElementById(id).value;
+    }
+
+    const d = new Date();
+    const hh = d.getHours().toString().padStart(2, '0');
+    const mm = d.getMinutes().toString().padStart(2, '0');
+    document.getElementById('log-time').value = `${hh}:${mm}`;
+
+    window.onload = function() {
+        loadDatabase();
+    };
+
+    async function loadDatabase() {
+        const { data, error } = await supabase
+            .from('catches')
+            .select('*')
+            .order('created_at', { ascending: true }); // Process chronologically for ML
+            
+        if (error) {
+            console.error('Data error:', error);
+            return;
+        }
+        
+        const tbody = document.getElementById('db-body');
+        tbody.innerHTML = '';
+        
+        processAiLearningAndStrikeZone(data);
+
+        // Reverse to show newest catches at the top of the UI
+        const displayData = [...data].reverse();
+
+        displayData.forEach(row => {
+            const tr = document.createElement('tr');
+            if (row.loc.indexOf('Fair') === -1) tr.className = 'foul-hook';
+            
+            tr.innerHTML = `
+                <td>${row.flow}</td>
+                <td>${row.spc}</td>
+                <td>${row.time || '--:--'}</td>
+                <td>${row.loc}</td>
+                <td>${row.ldLen}'</td>
+                <td>${row.hook === 0 ? "1/0" : "Sz " + row.hook}</td>
+                <td>${row.yarn === 0 ? "None" : row.yarn + '"'}</td>
+                <td>${row.corky === 0 ? "None" : "Sz " + row.corky}</td>
+                <td>${row.bdMat === 'none' ? "None" : (row.bdMat === 'hard' ? "Plas" : "Soft")}</td>
+                <td>${row.bdSz === 0 ? "None" : row.bdSz + "mm"}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function processAiLearningAndStrikeZone(dbArray) {
+        let curFlow = getNum('flow');
+        let curSpecies = getStr('species');
+        let minH = 999; let maxH = -999;
+        let found = false;
+        let blowoutFrictionLearnings = 0;
+        
+        aiHeightBias = 0.0; 
+
+        for(let i=0; i<dbArray.length; i++) {
+            let item = dbArray[i];
+            
+            if(item.loc.indexOf('Back') !== -1) {
+                aiHeightBias -= 0.4; 
+            } else if(item.loc.indexOf('Belly') !== -1) {
+                aiHeightBias += 0.4; 
+            }
+
+            if(item.flow >= 1040 && item.loc.indexOf('Fair') !== -1) {
+                blowoutFrictionLearnings++;
+            }
+
+            if(item.loc.indexOf('Fair') !== -1 && item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
+                found = true;
+                let histHgt = calcHistoricHeight(item.ldLen, item.yarn, item.corky, item.bdMat, item.bdSz, item.flow);
+                if(histHgt < minH) minH = histHgt;
+                if(histHgt > maxH) maxH = histHgt;
+            }
+        }
+        
+        if(found) {
+            targetHgtMin = minH - 1.0;
+            targetHgtMax = maxH + 1.0;
+        } else {
+            targetHgtMin = 4.0;
+            targetHgtMax = 12.0;
+        }
+        
+        aiDragModifier = 0.005 - (blowoutFrictionLearnings * 0.0001);
+        if (aiDragModifier < 0.002) aiDragModifier = 0.002;
+
+        document.getElementById('hud-tgt').innerText = targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
+    }
+    
+    function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow) {
+        let baseLift = (ldLen * 0.5); 
+        if (corky === 14) baseLift += 2;
+        else if (corky === 12) baseLift += 3.5;
+        else if (corky === 10) baseLift += 5;
+        baseLift += (yarn * 1.5);
+        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
+        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        let flowSuppression = (flow / 1000) * 0.5;
+        return Math.max(0.1, baseLift - flowSuppression + aiHeightBias);
+    }
+
+    function runSim() {
+        // Trigger UI rebuild just to prep logic
+        let flow = getNum('flow');
+        let dist = getNum('distance');
+        let wt = getNum('weight');
+        let mlLb = getNum('ml-lb');
+        let mlDia = mlLb * 0.0003; 
+        
+        let ldLen = getNum('ld-len');
+        let ldMat = getStr('ld-mat');
+        let yarn = getNum('yarn');
+        let corky = getNum('corky');
+        let bdMat = getStr('bd-mat');
+        let bdSz = getNum('bd-sz');
+        
+        let drag = flow * dist * mlDia * aiDragModifier;
+        let friction = wt * 20; 
+        let blownOut = (drag > friction * 1.05);
+        
+        let baseLift = (ldLen * 0.5); 
+        if (ldMat === 'braid') baseLift += 1.0;
+        if (ldMat === 'copoly' || ldMat === 'fluoro') baseLift -= 0.5;
+        
+        if (corky === 14) baseLift += 2;
+        else if (corky === 12) baseLift += 3.5;
+        else if (corky === 10) baseLift += 5;
+        
+        baseLift += (yarn * 1.5);
+        
+        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
+        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        
+        let flowSuppression = (flow / 1000) * 0.5;
+        let hgt = Math.max(0.1, baseLift - flowSuppression + aiHeightBias);
+        
+        let score = 5.0;
+        let sugs = [];
+        
+        if (blownOut) {
+            score = 0.0;
+            sugs.push("RIG BLOWN OUT. Add weight or shorten distance.");
+        } else {
+            if (hgt < targetHgtMin) { score -= 2.0; sugs.push("Too low. Add Corky/Yarn or lengthen leader."); }
+            if (hgt > targetHgtMax) { score -= 2.0; sugs.push("Too high. Reduce floatation or shorten leader."); }
+        }
+        
+        if (score < 0) score = 0;
+        
+        currentStats = { flow: flow, hgt: hgt, score: score };
+        updateUI(score, hgt, blownOut, sugs);
+    }
+    
+    function updateUI(score, hgt, blownOut, sugs) {
+        let color = 'var(--accent-green)';
+        if (score <= 2.5) color = 'var(--accent-yellow)';
+        if (score === 0.0) color = 'var(--accent-red)';
+        
+        document.getElementById('stars').innerText = '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
+        document.getElementById('stars').style.color = color;
+        document.getElementById('score-bar').style.backgroundColor = color;
+        document.getElementById('hud-msg').innerText = "Score: " + score.toFixed(1) + " / 5.0";
+        
+        let eHgt = document.getElementById('hud-hgt'); 
+        eHgt.innerText = hgt.toFixed(1) + '"'; 
+        eHgt.style.color = color;
+        
+        let btnLog = document.getElementById('btn-log');
+        if (blownOut) {
+            btnLog.innerText = "LOG ANYWAY (FORCE)";
+            btnLog.className = 'force';
+        } else {
+            btnLog.innerText = "LOG CATCH DATA";
+            btnLog.className = 'ready';
+        }
+        
+        let sugBox = document.getElementById('suggestions');
+        if (score < 4.7 && sugs.length > 0) {
+            sugBox.style.display = 'block';
+            sugBox.innerHTML = "<strong>Rig Suggestions:</strong><br>- " + sugs.join("<br>- ");
+        } else {
+            sugBox.style.display = 'none';
+        }
+    }
+    
+    async function logData() {
+        if (!currentStats) return;
+        
+        let payload = {
+            flow: currentStats.flow,
+            spc: getStr('species'),
+            time: getStr('log-time'),
+            loc: getStr('hook-loc'),
+            ldLen: getNum('ld-len'),
+            hook: getNum('hook'),
+            yarn: getNum('yarn'),
+            corky: getNum('corky'),
+            bdMat: getStr('bd-mat'),
+            bdSz: getNum('bd-sz')
+        };
+        
+        let btnLog = document.getElementById('btn-log');
+        btnLog.innerText = "SAVING...";
+        
+        const { error } = await supabase.from('catches').insert([payload]);
+        if (error) {
+            alert("Error saving data!");
+            console.error(error);
+        } else {
+            loadDatabase();
+        }
+        
+        btnLog.innerText = "FEED DATA (RUN SIM FIRST)";
+        btnLog.className = '';
+        currentStats = null;
+    }
+    
+    let clearTaps = 0;
+    let clearTimer = null;
+    async function tryClearDB() {
+        clearTaps++;
+        let btn = document.getElementById('btn-clear');
+        if (clearTaps === 1) {
+            btn.innerText = "TAP AGAIN TO CONFIRM CLEAR";
+            clearTimer = setTimeout(function() {
+                clearTaps = 0;
+                btn.innerText = "CLEAR ALL DATA";
+            }, 3000);
+        } else if (clearTaps === 2) {
+            clearTimeout(clearTimer);
+            clearTaps = 0;
+            btn.innerText = "CLEARING...";
+            
+            const { error } = await supabase.from('catches').delete().neq('id', 0);
+            if (!error) loadDatabase();
+            
+            btn.innerText = "CLEAR ALL DATA";
+        }
+    }
+</script>
+</body>
+</html>

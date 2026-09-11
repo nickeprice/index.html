@@ -4,7 +4,6 @@ import urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 
-# --- EXACT USER CONFIGURATION ---
 USGS_SITE = "12101500"   
 NOAA_STATION = "9446484" 
 LAT, LON = 47.1950, -122.3020 
@@ -21,7 +20,6 @@ def c_to_f(c): return (c * 9/5) + 32
 def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
-# --- EXACT USER ALGORITHMS ---
 def fetch_usgs_telemetry():
     url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={USGS_SITE}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -94,11 +92,12 @@ def calculate_escapement_curve(target_date):
             if score > base_score: base_score = score
     return " &bull; ".join(active_stocks) if active_stocks else "Resident / Pre-Run", base_score
 
-def calculate_water_quality(cfs, temp_c, rain_mm, actual_ntu, actual_do):
+def calculate_water_quality(cfs, temp_c, rain_mm, actual_ntu, actual_do, cloud_pct):
     if actual_ntu is not None: ntu, ntu_src = actual_ntu, "Live"
     else:
         ntu = 12.0 + ((cfs - 1000) / 100) * 1.5 + (rain_mm * 3.5)
-        if temp_c > 20.0 and rain_mm < 1.0: ntu += (temp_c - 20.0) * 4.0
+        # OVERHAUL: Glacial Melt threshold adjusted for UV index/cloud cover
+        if temp_c > 16.0 and cloud_pct < 40 and rain_mm < 1.0: ntu += (temp_c - 16.0) * 5.0
         ntu = max(5.0, min(150.0, ntu))
         ntu_src = "Est"
 
@@ -215,8 +214,6 @@ def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct
     windows.append({"start": start_time.isoformat(), "end": timeline[-1]["time"].isoformat(), "score": curr_score, "triggers": curr_trig, "start_str": start_time.strftime('%-I:%M %p'), "end_str": timeline[-1]["time"].strftime('%-I:%M %p')})
     return windows
 
-
-# --- VERCEL HTTP HANDLER ---
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         now = datetime.now()
@@ -255,9 +252,13 @@ class handler(BaseHTTPRequestHandler):
                     cloud_pct = met_data['daily']['cloudcover_mean'][i]
                     rain_mm = met_data['daily']['precipitation_sum'][i]
                     time_arr = met_data['hourly']['time']
-                    target_7am, target_1am = dt.strftime('%Y-%m-%dT07:00'), dt.strftime('%Y-%m-%dT01:00')
-                    if target_7am in time_arr: press_curr_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_7am)]
-                    if target_1am in time_arr: press_prev_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_1am)]
+                    
+                    # OVERHAUL: Dynamic 6-Hour Rolling Pressure Window
+                    target_now = dt.strftime('%Y-%m-%dT%H:00')
+                    target_minus6 = (dt - timedelta(hours=6)).strftime('%Y-%m-%dT%H:00')
+                    
+                    if target_now in time_arr: press_curr_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_now)]
+                    if target_minus6 in time_arr: press_prev_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_minus6)]
                 except: pass
 
             temp_f, rain_in = c_to_f(usgs_data["temp_c"]), mm_to_in(rain_mm)
@@ -267,7 +268,7 @@ class handler(BaseHTTPRequestHandler):
             net_status = "NETS IN (Severe Migration Block)" if is_netting_day else "River Open (Nets Out)"
             angler_desc, angler_mult = ("High (Weekend)", 0.80) if dt.weekday() in [5, 6] else ("Low/Moderate (Weekday)", 1.0)
             
-            ntu, ntu_desc, ntu_mult, ntu_src, do_mgl, do_desc, do_mult, do_src = calculate_water_quality(usgs_data["cfs"], usgs_data["temp_c"], rain_mm, usgs_data["ntu"], usgs_data["do"])
+            ntu, ntu_desc, ntu_mult, ntu_src, do_mgl, do_desc, do_mult, do_src = calculate_water_quality(usgs_data["cfs"], usgs_data["temp_c"], rain_mm, usgs_data["ntu"], usgs_data["do"], cloud_pct)
             transit_time, transit_state, flow_index, transit_hrs = calculate_transit_time_and_flow(usgs_data["cfs"], usgs_data["temp_c"], is_netting_day)
             active_str, stock_base = calculate_escapement_curve(dt)
             env_score, flow_mult, push_status = calculate_macro_environment(flow_index, press_curr_inHg, press_prev_inHg, rain_in, lunar_val, ntu_mult, do_mult, is_netting_day)

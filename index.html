@@ -59,7 +59,12 @@
     #btn-log { background-color: #333; color: #666; pointer-events: none; }
     #btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
     #btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
-    #btn-clear { background-color: var(--accent-red); color: #fff; margin-bottom: 20px;}
+    
+    /* Action Button Group */
+    .btn-group { display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px; }
+    .btn-group button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #fff; margin: 0; }
+    #btn-clear { background-color: var(--accent-red); }
+    #btn-import { background-color: var(--accent-blue); }
     
     #suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 8px; padding: 10px; margin: 15px; font-size: 0.85rem; color: #fcd34d; display: none; }
     .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
@@ -188,7 +193,7 @@
     <div class="bucket">
         <h2 class="purple-heading">Angler & Location Details</h2>
         <div class="row">
-            <div class="col"><label>Angler Name</label><input type="text" id="log-name" value="Nicholas"></div>
+            <div class="col"><label>Angler Name</label><input type="text" id="log-name" value="Nick"></div>
         </div>
         <div class="row">
             <div class="col"><label>Date & Time</label><input type="datetime-local" id="log-datetime"></div>
@@ -245,7 +250,10 @@
         <button class="btn-main" id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
 
         <h2>Log Database</h2>
-        <button class="btn-main" id="btn-clear" onclick="tryClearDB()">CLEAR ALL DATA</button>
+        <div class="btn-group">
+            <button id="btn-clear" onclick="tryClearDB()">CLEAR DATA</button>
+            <button id="btn-import" onclick="importHistoricalData()">IMPORT HISTORY</button>
+        </div>
         
         <div class="table-wrapper">
             <table id="db-table">
@@ -565,7 +573,7 @@
             bdSz: getNum('bd-sz')
         };
         
-        // Save to browser LocalStorage (Works instantly without Supabase setup)
+        // Save to browser LocalStorage
         var jStr = localStorage.getItem('catch_db');
         var dbArray = jStr ? JSON.parse(jStr) : [];
         dbArray.push(payload);
@@ -576,7 +584,39 @@
         document.getElementById('btn-log').innerText = "FEED DATA (RUN SIM FIRST)";
         document.getElementById('btn-log').className = 'btn-main';
         currentStats = null;
-        switchTab('tab-water-report'); // Optional: Kick user back to main dashboard
+        switchTab('tab-water-report');
+    }
+
+    function importHistoricalData() {
+        var historicalCatches = [
+            {"name": "Nick", "time": "2026-09-10T08:45", "gps": "47.2007, -122.2897", "flow": 1040, "spc": "Coho", "loc": "Fair", "ldLen": 8, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "hard", "bdSz": 4},
+            {"name": "Joe", "time": "2026-09-11T07:50", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "none", "bdSz": 0},
+            {"name": "Nick", "time": "2026-09-11T09:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "bdMat": "soft", "bdSz": 6},
+            {"name": "Nick", "time": "2026-09-11T10:15", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "bdMat": "soft", "bdSz": 6},
+            {"name": "Joe", "time": "2026-09-11T13:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "none", "bdSz": 0}
+        ];
+        
+        var jStr = localStorage.getItem('catch_db');
+        var dbArray = jStr ? JSON.parse(jStr) : [];
+        var existingStr = JSON.stringify(dbArray);
+        var importedCount = 0;
+        
+        historicalCatches.forEach(function(catchLog) {
+            // Prevent duplicate imports by checking if the exact timestamp already exists
+            if (!existingStr.includes(catchLog.time)) {
+                dbArray.push(catchLog);
+                importedCount++;
+            }
+        });
+        
+        if (importedCount > 0) {
+            localStorage.setItem('catch_db', JSON.stringify(dbArray));
+            loadDatabase();
+            logDebug("Imported " + importedCount + " historical records", "DB");
+            alert("Successfully imported " + importedCount + " catches!");
+        } else {
+            alert("Logs were already imported.");
+        }
     }
     
     var clearTaps = 0; var clearTimer = null;
@@ -584,10 +624,10 @@
         clearTaps++;
         var btn = document.getElementById('btn-clear');
         if (clearTaps === 1) {
-            btn.innerText = "TAP AGAIN TO CONFIRM CLEAR";
-            clearTimer = setTimeout(function() { clearTaps = 0; btn.innerText = "CLEAR ALL DATA"; }, 3000);
+            btn.innerText = "TAP TO CONFIRM";
+            clearTimer = setTimeout(function() { clearTaps = 0; btn.innerText = "CLEAR DATA"; }, 3000);
         } else if (clearTaps === 2) {
-            clearTimeout(clearTimer); clearTaps = 0; btn.innerText = "CLEAR ALL DATA";
+            clearTimeout(clearTimer); clearTaps = 0; btn.innerText = "CLEAR DATA";
             localStorage.removeItem('catch_db');
             loadDatabase();
             logDebug("DB Cleared", "DB");
@@ -596,10 +636,8 @@
 
     // --- BOOTSTRAP ---
     window.onload = function() {
-        // Set datetime to now
         var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         document.getElementById('log-datetime').value = d.toISOString().slice(0,16);
-        
         getGPS();
         loadDatabase();
         loadWaterReport();

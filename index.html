@@ -211,7 +211,7 @@
         <h2 class="purple-heading">Current Gear Details</h2>
         <p style="font-size:0.75rem; color:#aaa; margin-bottom:10px;">These match your Gear Sim automatically.</p>
         
-        <!-- DUPLICATED DROPDOWNS (WITH -LOG SUFFIX) -->
+        <!-- DUPLICATED DROPDOWNS -->
         <div class="row">
             <div class="col"><label>River Flow</label><input type="number" id="flow-log" value="1040" step="10" onchange="syncSelect('flow', true)"></div>
             <div class="col"><label>Distance</label><select id="distance-log" onchange="syncSelect('distance', true)"><option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option></select></div>
@@ -269,6 +269,9 @@
 <div id="debug-console"></div>
 
 <script>
+    // --- GLOBAL WATER STATE (For Logging NTU/Temp Delta) ---
+    var globalEnv = { ntu: null, temp_delta: null };
+
     // --- DEBUG MATRIX (Double Tap Header) ---
     var lastTap = 0;
     document.getElementById('top-nav').addEventListener('touchend', function(e) {
@@ -342,11 +345,13 @@
             sel.innerHTML = '';
             var cardsHtml = '';
 
-            // Automatically push Live CFS to Gear Sim
+            // Automatically push Live CFS to Gear Sim and track global environmental states
             if(reports.length > 0) {
                 var cfsInput = document.getElementById('flow');
                 cfsInput.value = reports[0].cfs;
                 syncSelect('flow');
+                globalEnv.ntu = reports[0].ntu;
+                globalEnv.temp_delta = reports[0].press_delta; // Repurposed for general metric tracking
                 logDebug("Auto-synced CFS to Gear Sim: " + reports[0].cfs, "STATE");
             }
 
@@ -402,7 +407,7 @@
         }
     }
 
-    // --- GEAR SIM & LOG MATH (EXACT PORT FROM Pythonista) ---
+    // --- GEAR SIM & LOG MATH (OVERHAULED AI & BOUNDARY PHYSICS) ---
     var currentStats = null;
     var targetHgtMin = 4.0;
     var targetHgtMax = 12.0;
@@ -429,35 +434,53 @@
         var curFlow = getNum('flow');
         var curSpecies = getStr('species');
         var minH = 999; var maxH = -999;
-        var found = false;
-        var blowoutFrictionLearnings = 0;
-
-        for(var i=0; i<dbArray.length; i++) {
-            var item = dbArray[i];
-            if(item.loc === 'Fair') {
-                if(item.flow >= 1040) blowoutFrictionLearnings++;
-                if(item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
-                    found = true;
-                    var histHgt = calcHistoricHeight(item.ldLen, item.yarn, item.corky, item.bdMat, item.bdSz, item.flow);
-                    if(histHgt < minH) minH = histHgt;
-                    if(histHgt > maxH) maxH = histHgt;
-                }
-            }
-        }
-        if(found) { targetHgtMin = minH - 1.0; targetHgtMax = maxH + 1.0; } 
-        else { targetHgtMin = 4.0; targetHgtMax = 12.0; }
         
+        // OVERHAUL: Bounded ML Loop (K-Nearest Neighbors approach)
+        // Sort array backwards to evaluate only the most recent catches
+        var recentMatches = [];
+        for(var i = dbArray.length - 1; i >= 0; i--) {
+            var item = dbArray[i];
+            if(item.loc === 'Fair' && item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
+                recentMatches.push(item);
+            }
+            if(recentMatches.length >= 10) break; // Hard limit to prevent infinite drift
+        }
+        
+        var blowoutFrictionLearnings = 0;
+        recentMatches.forEach(function(match) {
+            if (match.flow >= 1040) blowoutFrictionLearnings++;
+            var histHgt = calcHistoricHeight(match.ldLen, match.yarn, match.corky, match.bdMat, match.bdSz, match.flow, match.hook);
+            if(histHgt < minH) minH = histHgt;
+            if(histHgt > maxH) maxH = histHgt;
+        });
+
+        if(recentMatches.length > 0) { 
+            targetHgtMin = minH - 1.0; 
+            targetHgtMax = maxH + 1.0; 
+        } else { 
+            targetHgtMin = 4.0; 
+            targetHgtMax = 12.0; 
+        }
+        
+        // Boundary limit applied to drag modification
         aiDragModifier = 0.005 - (blowoutFrictionLearnings * 0.0001);
         if (aiDragModifier < 0.002) aiDragModifier = 0.002;
+        
         document.getElementById('target-hgt').innerText = 'Target: ' + targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
     }
     
-    function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow) {
+    // OVERHAUL: Hook weight subtraction added to terminal lift calculation
+    function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow, hookSize) {
         var baseLift = (ldLen * 0.5); 
         if (corky === 14) baseLift += 2; else if (corky === 12) baseLift += 3.5; else if (corky === 10) baseLift += 5;
         baseLift += (yarn * 1.5);
         if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
         if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        
+        // Hook Anchor Physics (1/0 = heavy, 3 = light)
+        var hookAnchor = (hookSize === 0) ? 1.5 : (hookSize === 1) ? 1.0 : (hookSize === 2) ? 0.6 : 0.3;
+        baseLift -= hookAnchor;
+        
         var flowSuppression = (flow / 1000) * 0.5;
         return Math.max(0.1, baseLift - flowSuppression);
     }
@@ -493,12 +516,21 @@
         processAiStrikeZone(jStr ? JSON.parse(jStr) : []);
 
         var flow = getNum('flow'); var dist = getNum('distance'); var wt = getNum('weight');
-        var mlMat = getStr('ml-mat'); var mlLb = getNum('ml-lb'); var mlDia = mlLb * 0.0003; 
+        var mlMat = getStr('ml-mat'); var mlLb = getNum('ml-lb'); 
+        
+        // OVERHAUL: Dual-zone fluid drag profile (Mainline vs Leader)
+        var mlDia = mlLb * 0.0003; 
         var ldLen = getNum('ld-len'); var ldMat = getStr('ld-mat');
+        var ldLb = getNum('ld-lb'); var ldDia = ldLb * 0.00025; 
+        
         var hook = getNum('hook'); var yarn = getNum('yarn'); var corky = getNum('corky');
         var bdMat = getStr('bd-mat'); var bdSz = getNum('bd-sz');
         
-        var drag = flow * dist * mlDia * aiDragModifier;
+        // Calculating segmented velocity drag 
+        var upperColumnDrag = flow * dist * mlDia * aiDragModifier;
+        var boundaryLayerDrag = (flow * 0.6) * ldLen * ldDia * aiDragModifier; // Bottom column moves 40% slower due to friction
+        var drag = upperColumnDrag + boundaryLayerDrag;
+        
         var friction = wt * 20; 
         var blownOut = (drag > friction * 1.05);
         
@@ -509,6 +541,10 @@
         baseLift += (yarn * 1.5);
         if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
         if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
+        
+        // Subtract hook mass
+        var hookAnchor = (hook === 0) ? 1.5 : (hook === 1) ? 1.0 : (hook === 2) ? 0.6 : 0.3;
+        baseLift -= hookAnchor;
         
         var flowSuppression = (flow / 1000) * 0.5;
         var hgt = Math.max(0.1, baseLift - flowSuppression);
@@ -530,7 +566,7 @@
         if (score < 0) score = 0;
         
         currentStats = { flow: flow, hgt: hgt, swp: swp, score: score, dly: dly };
-        logDebug("Ran Physics Sim. Height: " + hgt.toFixed(1), "PHYS");
+        logDebug("Ran Dual-Zone Physics Sim. Height: " + hgt.toFixed(1), "PHYS");
         
         var color = 'var(--accent-green)';
         if (score <= 2.5) color = 'var(--accent-yellow)';
@@ -563,6 +599,7 @@
             time: getStr('log-datetime'),
             gps: getStr('log-gps'),
             flow: currentStats.flow,
+            ntu: globalEnv.ntu, // OVERHAUL: Secretly logging water clarity
             spc: getStr('species'),
             loc: getStr('hook-loc'),
             ldLen: getNum('ld-len'),
@@ -573,12 +610,11 @@
             bdSz: getNum('bd-sz')
         };
         
-        // Save to browser LocalStorage
         var jStr = localStorage.getItem('catch_db');
         var dbArray = jStr ? JSON.parse(jStr) : [];
         dbArray.push(payload);
         localStorage.setItem('catch_db', JSON.stringify(dbArray));
-        logDebug("Catch Logged Locally", "DB");
+        logDebug("Catch Logged Locally (NTU tracking active)", "DB");
         
         loadDatabase();
         document.getElementById('btn-log').innerText = "FEED DATA (RUN SIM FIRST)";
@@ -602,7 +638,6 @@
         var importedCount = 0;
         
         historicalCatches.forEach(function(catchLog) {
-            // Prevent duplicate imports by checking if the exact timestamp already exists
             if (!existingStr.includes(catchLog.time)) {
                 dbArray.push(catchLog);
                 importedCount++;

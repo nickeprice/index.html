@@ -326,7 +326,7 @@
     async function loadWaterReport() {
         logDebug("Fetching Water API...", "NET");
         try {
-            var res = await fetch('/api/water-report');
+            var res = await fetch('/api/water_report');
             var reports = await res.json();
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
             

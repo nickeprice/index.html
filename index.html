@@ -246,13 +246,13 @@
 </div>
 
 <script>
-    // 1. INITIALIZE SUPABASE
+    // Embedded Credentials
     var supabaseUrl = 'https://pztcfsqifbfkjvosygcy.supabase.co';
     var supabaseKey = 'sb_publishable_CJcIKTHTSUGSFkw6POK6XA_tNfo37Gr';
     
     var sbClient = null;
     try {
-        if (window.supabase && supabaseKey.indexOf('PASTE_') === -1) {
+        if (window.supabase) {
             sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
         }
     } catch(e) {

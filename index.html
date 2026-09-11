@@ -204,7 +204,7 @@
         </div>
     </div>
 
-    <button id="btn-sim" onclick="runSim()">RUN SIMULATION</button>
+    <button id="btn-sim" type="button" onclick="runSim()">RUN SIMULATION</button>
     <div id="suggestions"></div>
 
     <h2 class="purple-heading">Train Algorithm: Log Catch</h2>
@@ -225,10 +225,10 @@
             <input type="time" id="log-time">
         </div>
     </div>
-    <button id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
+    <button id="btn-log" type="button" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
 
     <h2>Log Database</h2>
-    <button id="btn-clear" onclick="tryClearDB()">CLEAR ALL DATA</button>
+    <button id="btn-clear" type="button" onclick="tryClearDB()">CLEAR ALL DATA</button>
     
     <div class="table-wrapper">
         <table id="db-table">
@@ -246,105 +246,128 @@
 </div>
 
 <script>
-    // 1. INITIALIZE SUPABASE WITH YOUR KEYS
-    const supabaseUrl = 'https://pztcfsqifbfkjvosygcy.supabase.co';
-    const supabaseKey = 'sb_publishable_CJcIKTHTSUGSFkw6POK6XA_tNfo37Gr';
-    const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+    // 1. INITIALIZE SUPABASE
+    var supabaseUrl = 'https://pztcfsqifbfkjvosygcy.supabase.co';
+    var supabaseKey = 'sb_publishable_CJcIKTHTSUGSFkw6POK6XA_tNfo37Gr';
+    
+    var sbClient = null;
+    try {
+        if (window.supabase && supabaseKey.indexOf('PASTE_') === -1) {
+            sbClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        }
+    } catch(e) {
+        console.error("Supabase init error:", e);
+    }
 
-    let currentStats = null;
-    let targetHgtMin = 4.0;
-    let targetHgtMax = 12.0;
-    let aiDragModifier = 0.005; 
-    let aiHeightBias = 0.0; 
+    var currentStats = null;
+    var cachedDb = [];
+    var targetHgtMin = 4.0;
+    var targetHgtMax = 12.0;
+    var aiDragModifier = 0.005; 
+    var aiHeightBias = 0.0; 
     
     function getNum(id) {
-        let val = parseFloat(document.getElementById(id).value);
+        var el = document.getElementById(id);
+        var val = el ? parseFloat(el.value) : 0;
         return isNaN(val) ? 0 : val;
     }
     
     function getStr(id) {
-        return document.getElementById(id).value;
+        var el = document.getElementById(id);
+        return el ? el.value : '';
     }
 
-    const d = new Date();
-    const hh = d.getHours().toString().padStart(2, '0');
-    const mm = d.getMinutes().toString().padStart(2, '0');
-    document.getElementById('log-time').value = `${hh}:${mm}`;
+    var d = new Date();
+    var hh = d.getHours() < 10 ? '0' + d.getHours() : d.getHours();
+    var mm = d.getMinutes() < 10 ? '0' + d.getMinutes() : d.getMinutes();
+    var timeEl = document.getElementById('log-time');
+    if (timeEl) timeEl.value = hh + ':' + mm;
 
     window.onload = function() {
         loadDatabase();
     };
 
-    async function loadDatabase() {
-        const { data, error } = await supabase
+    function loadDatabase() {
+        if (!sbClient) return;
+        
+        sbClient
             .from('catches')
             .select('*')
-            .order('created_at', { ascending: true }); // Process chronologically for ML
-            
-        if (error) {
-            console.error('Data error:', error);
-            return;
-        }
-        
-        const tbody = document.getElementById('db-body');
+            .order('created_at', { ascending: true })
+            .then(function(res) {
+                if (res.error) {
+                    console.error('Fetch error:', res.error);
+                    return;
+                }
+                cachedDb = res.data || [];
+                renderTable(cachedDb);
+                processAiLearningAndStrikeZone(cachedDb);
+            });
+    }
+
+    function renderTable(data) {
+        var tbody = document.getElementById('db-body');
+        if (!tbody) return;
         tbody.innerHTML = '';
         
-        processAiLearningAndStrikeZone(data);
+        var displayData = data.slice().reverse();
 
-        // Reverse to show newest catches at the top of the UI
-        const displayData = [...data].reverse();
-
-        displayData.forEach(row => {
-            const tr = document.createElement('tr');
-            if (row.loc.indexOf('Fair') === -1) tr.className = 'foul-hook';
+        for (var i = 0; i < displayData.length; i++) {
+            var row = displayData[i];
+            var tr = document.createElement('tr');
+            if (row.loc && row.loc.indexOf('Fair') === -1) tr.className = 'foul-hook';
             
-            tr.innerHTML = `
-                <td>${row.flow}</td>
-                <td>${row.spc}</td>
-                <td>${row.time || '--:--'}</td>
-                <td>${row.loc}</td>
-                <td>${row.ldLen}'</td>
-                <td>${row.hook === 0 ? "1/0" : "Sz " + row.hook}</td>
-                <td>${row.yarn === 0 ? "None" : row.yarn + '"'}</td>
-                <td>${row.corky === 0 ? "None" : "Sz " + row.corky}</td>
-                <td>${row.bdMat === 'none' ? "None" : (row.bdMat === 'hard' ? "Plas" : "Soft")}</td>
-                <td>${row.bdSz === 0 ? "None" : row.bdSz + "mm"}</td>
-            `;
+            tr.innerHTML = 
+                '<td>' + (row.flow || '--') + '</td>' +
+                '<td>' + (row.spc || '--') + '</td>' +
+                '<td>' + (row.time || '--:--') + '</td>' +
+                '<td>' + (row.loc || '--') + '</td>' +
+                '<td>' + (row.ldlen || row.ldLen || '--') + "'</td>' +
+                '<td>' + (row.hook === 0 ? "1/0" : "Sz " + row.hook) + '</td>' +
+                '<td>' + (row.yarn === 0 ? "None" : row.yarn + '"') + '</td>' +
+                '<td>' + (row.corky === 0 ? "None" : "Sz " + row.corky) + '</td>' +
+                '<td>' + (row.bdmat || row.bdMat === 'none' ? "None" : ((row.bdmat || row.bdMat) === 'hard' ? "Plas" : "Soft")) + '</td>' +
+                '<td>' + (row.bdsz || row.bdSz === 0 ? "None" : (row.bdsz || row.bdSz) + "mm") + '</td>';
             tbody.appendChild(tr);
-        });
+        }
     }
 
     function processAiLearningAndStrikeZone(dbArray) {
-        let curFlow = getNum('flow');
-        let curSpecies = getStr('species');
-        let minH = 999; let maxH = -999;
-        let found = false;
-        let blowoutFrictionLearnings = 0;
+        var curFlow = getNum('flow');
+        var curSpecies = getStr('species');
+        var minH = 999; 
+        var maxH = -999;
+        var found = false;
+        var blowoutFrictionLearnings = 0;
         
         aiHeightBias = 0.0; 
 
-        for(let i=0; i<dbArray.length; i++) {
-            let item = dbArray[i];
+        for (var i = 0; i < dbArray.length; i++) {
+            var item = dbArray[i];
+            var loc = item.loc || '';
             
-            if(item.loc.indexOf('Back') !== -1) {
+            if (loc.indexOf('Back') !== -1) {
                 aiHeightBias -= 0.4; 
-            } else if(item.loc.indexOf('Belly') !== -1) {
+            } else if (loc.indexOf('Belly') !== -1) {
                 aiHeightBias += 0.4; 
             }
 
-            if(item.flow >= 1040 && item.loc.indexOf('Fair') !== -1) {
+            if (item.flow >= 1040 && loc.indexOf('Fair') !== -1) {
                 blowoutFrictionLearnings++;
             }
 
-            if(item.loc.indexOf('Fair') !== -1 && item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
+            if (loc.indexOf('Fair') !== -1 && item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
                 found = true;
-                let histHgt = calcHistoricHeight(item.ldLen, item.yarn, item.corky, item.bdMat, item.bdSz, item.flow);
-                if(histHgt < minH) minH = histHgt;
-                if(histHgt > maxH) maxH = histHgt;
+                var len = item.ldlen || item.ldLen || 8;
+                var bMat = item.bdmat || item.bdMat || 'hard';
+                var bSz = item.bdsz || item.bdSz || 4;
+                var histHgt = calcHistoricHeight(len, item.yarn, item.corky, bMat, bSz, item.flow);
+                if (histHgt < minH) minH = histHgt;
+                if (histHgt > maxH) maxH = histHgt;
             }
         }
         
-        if(found) {
+        if (found) {
             targetHgtMin = minH - 1.0;
             targetHgtMax = maxH + 1.0;
         } else {
@@ -355,41 +378,43 @@
         aiDragModifier = 0.005 - (blowoutFrictionLearnings * 0.0001);
         if (aiDragModifier < 0.002) aiDragModifier = 0.002;
 
-        document.getElementById('hud-tgt').innerText = targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
+        var tgtEl = document.getElementById('hud-tgt');
+        if (tgtEl) tgtEl.innerText = targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
     }
     
     function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow) {
-        let baseLift = (ldLen * 0.5); 
+        var baseLift = (ldLen * 0.5); 
         if (corky === 14) baseLift += 2;
         else if (corky === 12) baseLift += 3.5;
         else if (corky === 10) baseLift += 5;
         baseLift += (yarn * 1.5);
         if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
         if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
-        let flowSuppression = (flow / 1000) * 0.5;
+        var flowSuppression = (flow / 1000) * 0.5;
         return Math.max(0.1, baseLift - flowSuppression + aiHeightBias);
     }
 
     function runSim() {
-        // Trigger UI rebuild just to prep logic
-        let flow = getNum('flow');
-        let dist = getNum('distance');
-        let wt = getNum('weight');
-        let mlLb = getNum('ml-lb');
-        let mlDia = mlLb * 0.0003; 
+        processAiLearningAndStrikeZone(cachedDb);
+
+        var flow = getNum('flow');
+        var dist = getNum('distance');
+        var wt = getNum('weight');
+        var mlLb = getNum('ml-lb');
+        var mlDia = mlLb * 0.0003; 
         
-        let ldLen = getNum('ld-len');
-        let ldMat = getStr('ld-mat');
-        let yarn = getNum('yarn');
-        let corky = getNum('corky');
-        let bdMat = getStr('bd-mat');
-        let bdSz = getNum('bd-sz');
+        var ldLen = getNum('ld-len');
+        var ldMat = getStr('ld-mat');
+        var yarn = getNum('yarn');
+        var corky = getNum('corky');
+        var bdMat = getStr('bd-mat');
+        var bdSz = getNum('bd-sz');
         
-        let drag = flow * dist * mlDia * aiDragModifier;
-        let friction = wt * 20; 
-        let blownOut = (drag > friction * 1.05);
+        var drag = flow * dist * mlDia * aiDragModifier;
+        var friction = wt * 20; 
+        var blownOut = (drag > friction * 1.05);
         
-        let baseLift = (ldLen * 0.5); 
+        var baseLift = (ldLen * 0.5); 
         if (ldMat === 'braid') baseLift += 1.0;
         if (ldMat === 'copoly' || ldMat === 'fluoro') baseLift -= 0.5;
         
@@ -402,11 +427,11 @@
         if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
         if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
         
-        let flowSuppression = (flow / 1000) * 0.5;
-        let hgt = Math.max(0.1, baseLift - flowSuppression + aiHeightBias);
+        var flowSuppression = (flow / 1000) * 0.5;
+        var hgt = Math.max(0.1, baseLift - flowSuppression + aiHeightBias);
         
-        let score = 5.0;
-        let sugs = [];
+        var score = 5.0;
+        var sugs = [];
         
         if (blownOut) {
             score = 0.0;
@@ -423,20 +448,27 @@
     }
     
     function updateUI(score, hgt, blownOut, sugs) {
-        let color = 'var(--accent-green)';
+        var color = 'var(--accent-green)';
         if (score <= 2.5) color = 'var(--accent-yellow)';
         if (score === 0.0) color = 'var(--accent-red)';
         
-        document.getElementById('stars').innerText = '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
-        document.getElementById('stars').style.color = color;
+        var starsEl = document.getElementById('stars');
+        var starCount = Math.round(score);
+        var starStr = '';
+        for (var i = 0; i < 5; i++) {
+            starStr += (i < starCount) ? '★' : '☆';
+        }
+        starsEl.innerText = starStr;
+        starsEl.style.color = color;
+        
         document.getElementById('score-bar').style.backgroundColor = color;
         document.getElementById('hud-msg').innerText = "Score: " + score.toFixed(1) + " / 5.0";
         
-        let eHgt = document.getElementById('hud-hgt'); 
+        var eHgt = document.getElementById('hud-hgt'); 
         eHgt.innerText = hgt.toFixed(1) + '"'; 
         eHgt.style.color = color;
         
-        let btnLog = document.getElementById('btn-log');
+        var btnLog = document.getElementById('btn-log');
         if (blownOut) {
             btnLog.innerText = "LOG ANYWAY (FORCE)";
             btnLog.className = 'force';
@@ -445,7 +477,7 @@
             btnLog.className = 'ready';
         }
         
-        let sugBox = document.getElementById('suggestions');
+        var sugBox = document.getElementById('suggestions');
         if (score < 4.7 && sugs.length > 0) {
             sugBox.style.display = 'block';
             sugBox.innerHTML = "<strong>Rig Suggestions:</strong><br>- " + sugs.join("<br>- ");
@@ -454,43 +486,52 @@
         }
     }
     
-    async function logData() {
+    function logData() {
         if (!currentStats) return;
         
-        let payload = {
+        var payload = {
             flow: currentStats.flow,
             spc: getStr('species'),
             time: getStr('log-time'),
             loc: getStr('hook-loc'),
-            ldLen: getNum('ld-len'),
+            ldlen: getNum('ld-len'),
             hook: getNum('hook'),
             yarn: getNum('yarn'),
             corky: getNum('corky'),
-            bdMat: getStr('bd-mat'),
-            bdSz: getNum('bd-sz')
+            bdmat: getStr('bd-mat'),
+            bdsz: getNum('bd-sz')
         };
         
-        let btnLog = document.getElementById('btn-log');
+        var btnLog = document.getElementById('btn-log');
         btnLog.innerText = "SAVING...";
         
-        const { error } = await supabase.from('catches').insert([payload]);
-        if (error) {
-            alert("Error saving data!");
-            console.error(error);
-        } else {
-            loadDatabase();
+        if (!sbClient) {
+            cachedDb.push(payload);
+            renderTable(cachedDb);
+            btnLog.innerText = "FEED DATA (RUN SIM FIRST)";
+            btnLog.className = '';
+            currentStats = null;
+            return;
         }
-        
-        btnLog.innerText = "FEED DATA (RUN SIM FIRST)";
-        btnLog.className = '';
-        currentStats = null;
+
+        sbClient.from('catches').insert([payload]).then(function(res) {
+            if (res.error) {
+                alert("Error saving: " + res.error.message);
+                console.error(res.error);
+            } else {
+                loadDatabase();
+            }
+            btnLog.innerText = "FEED DATA (RUN SIM FIRST)";
+            btnLog.className = '';
+            currentStats = null;
+        });
     }
     
-    let clearTaps = 0;
-    let clearTimer = null;
-    async function tryClearDB() {
+    var clearTaps = 0;
+    var clearTimer = null;
+    function tryClearDB() {
         clearTaps++;
-        let btn = document.getElementById('btn-clear');
+        var btn = document.getElementById('btn-clear');
         if (clearTaps === 1) {
             btn.innerText = "TAP AGAIN TO CONFIRM CLEAR";
             clearTimer = setTimeout(function() {
@@ -502,10 +543,17 @@
             clearTaps = 0;
             btn.innerText = "CLEARING...";
             
-            const { error } = await supabase.from('catches').delete().neq('id', 0);
-            if (!error) loadDatabase();
-            
-            btn.innerText = "CLEAR ALL DATA";
+            if (!sbClient) {
+                cachedDb = [];
+                renderTable([]);
+                btn.innerText = "CLEAR ALL DATA";
+                return;
+            }
+
+            sbClient.from('catches').delete().neq('id', 0).then(function(res) {
+                if (!res.error) loadDatabase();
+                btn.innerText = "CLEAR ALL DATA";
+            });
         }
     }
 </script>

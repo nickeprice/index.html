@@ -78,6 +78,8 @@
     .card-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2c2c2e; padding-bottom: 6px; margin-bottom: 6px; }
     .tag-pill { background-color: #2c2c2e; color: #30d158; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
     .card-date { color: #ffffff; font-size: 15px; margin: 2px 0 0 0; font-weight: 800; }
+    .card-legal-hours { font-size: 11px; color: #8e8e93; font-weight: 600; margin-top: 3px; }
+    .legal-hours-val { color: #ffffff; font-weight: 700; }
     .peak-box { text-align: right; }
     .peak-num { font-size: 20px; font-weight: 900; line-height: 1; }
     .peak-lbl { color: #8e8e93; font-size: 8px; font-weight: 700; margin-top: 2px; }
@@ -85,15 +87,42 @@
     .data-row { display: flex; align-items: flex-start; margin-bottom: 3px; }
     .k { color: #8e8e93; flex: 0 0 90px; font-size: 11px; font-weight: 500; }
     .v { color: #f2f2f7; flex: 1; font-size: 11px; font-weight: 500; }
-    .highlight-legal { background-color: #2c2c2e; padding: 4px 8px; border-radius: 6px; margin: 4px 0; align-items: center; }
-    .highlight-legal .k, .highlight-legal .v { color: #ffffff; font-weight: 700; font-size: 11px; margin: 0; }
-    .tide-row { background-color: #000000; color: #64d2ff; padding: 6px; border-radius: 6px; font-size: 10px; text-align: center; font-weight: 600; margin: 4px 0; border: 1px solid #1c1c1e; }
     .fmi-caption { font-size: 8px; color: #636366; font-style: italic; margin-top: 2px; }
     .window-box { background-color: #000000; border-radius: 6px; padding: 6px 10px; margin-top: 4px; border: 1px solid #2c2c2e; }
     .window-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
     .window-time { color: #ffffff; font-size: 12px; font-weight: 700; }
     .window-score { font-size: 14px; font-weight: 900; }
     .window-triggers { color: #98989d; font-size: 10px; line-height: 1.2; }
+
+    /* CONSOLIDATED RIVER & ENVIRONMENTAL CONDITIONS */
+    .seasonal-warning { background-color: #ff453a; color: #fff; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 10px; text-align: center; margin: 4px 0 6px 0; border: 1px solid #fff; line-height: 1.3; }
+    
+    /* 1. Telemetry Row (USGS) */
+    .env-telemetry-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 7px 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 4px 0 6px 0; }
+    .telemetry-main { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+    .telemetry-label { color: #8e8e93; font-weight: 600; }
+    .telemetry-val { color: #ffffff; font-weight: 700; }
+    .telemetry-updated { color: #8e8e93; font-size: 10px; font-weight: 600; }
+
+    /* 2. Weather & Solunar Row */
+    .env-weather-solunar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+    .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .env-badge { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 6px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+    .env-badge-val { font-size: 11px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; margin-bottom: 2px; width: 100%; }
+    .env-badge-lbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; }
+
+    /* 3. Marine / Tide Row */
+    .env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 6px 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-around; gap: 6px; margin-bottom: 6px; }
+    .tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 6px; padding: 5px 8px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; flex: 1 1 calc(50% - 6px); min-width: 120px; box-sizing: border-box; }
+    .tide-type { color: #64d2ff; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tide-time { color: #ffffff; font-weight: 700; font-size: 11px; }
+    .tide-level { color: #64d2ff; font-weight: 600; font-size: 10px; }
+    .tide-empty { color: #8e8e93; font-size: 10px; font-weight: 600; text-align: center; width: 100%; padding: 4px 0; }
+
+    @media (min-width: 600px) {
+        .tide-pill { flex: 1 1 0; }
+        .env-badge-val { font-size: 12px; }
+    }
 
     /* DEBUG MATRIX */
     #debug-console { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 40vh; background: rgba(0,0,0,0.9); border-top: 2px solid var(--accent-green); z-index: 3000; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; color: #0f0; }
@@ -117,12 +146,6 @@
     .search-row { display: flex; gap: 10px; margin: 15px 0 25px 0; }
     .search-row input { flex: 1; }
     .search-row button { padding: 10px 20px; font-size: 14px; font-weight: bold; background: var(--accent-blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
-    
-    /* WEATHER GRID STYLE */
-    .weather-grid { display: flex; gap: 6px; margin: 10px 0; }
-    .weather-badge { flex: 1; background-color: #1c1c1e; border: 1px solid #2c2c2e; border-radius: 8px; padding: 8px; text-align: center; }
-    .weather-val { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
-    .weather-lbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -389,6 +412,32 @@
         }
     }
 
+    function formatTideRow(tideStr) {
+        if (!tideStr || tideStr.indexOf('Syncing') !== -1) {
+            return '<div class="env-tide-row"><span class="tide-empty">' + (tideStr || 'Tide Data Syncing...') + '</span></div>';
+        }
+        var items = tideStr.split(' | ');
+        var html = '<div class="env-tide-row">';
+        for (var k = 0; k < items.length; k++) {
+            var item = items[k].trim();
+            var match = item.match(/^(High|Low):\s*([0-9:AMP\s]+)\s*\(([0-9.-]+\s*ft)\)/i);
+            if (match) {
+                var type = match[1].toUpperCase();
+                var time = match[2].trim();
+                var height = match[3].trim();
+                html += '<div class="tide-pill">' +
+                    '<span class="tide-type">' + type + '</span>' +
+                    '<span class="tide-time">' + time + '</span>' +
+                    '<span class="tide-level">(' + height + ')</span>' +
+                '</div>';
+            } else {
+                html += '<div class="tide-pill"><span class="tide-time" style="color: #64d2ff;">' + item + '</span></div>';
+            }
+        }
+        html += '</div>';
+        return html;
+    }
+
     function showDay(dayId) {
         var cards = document.getElementsByClassName('day-card');
         for(var i = 0; i < cards.length; i++) { cards[i].style.display = 'none'; }
@@ -469,18 +518,22 @@
                 var fColor = getFMIColor(rep.flow_idx);
                 var dStyle = (i === 0) ? "block" : "none";
 
+                var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
+                var pArr = (rep.press_delta > 0) ? '↗' : ((rep.press_delta < 0) ? '↘' : '→');
+
+                var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? rep.cfs + ' CFS' : '-- CFS';
+                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gage Height' : '-- Gage Height';
+                var seasonalWarn = (!rep.is_active) ? '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>' : '';
+
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                     '<div class="card">' +
                     '<div class="card-top">' +
                       '<div style="flex: 1; min-width: 0;">' +
-                        '<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">' +
+                        '<div style="margin-bottom: 2px;">' +
                           '<span class="tag-pill">'+rep.tag+'</span>' +
-                          '<span style="font-size: 10px; color: var(--accent-blue); font-weight: 700; text-transform: uppercase;">USGS '+(rep.site_id || station.id)+'</span>' +
                         '</div>' +
                         '<h1 class="card-date">'+rep.title+'</h1>' +
-                        '<div style="font-size: 11px; color: #8e8e93; font-weight: 600; margin-top: 3px; word-break: break-word;">' +
-                          '📍 '+(rep.site_name || station.name)+' <span style="color: var(--accent-blue); font-weight: 700;">(USGS '+(rep.site_id || station.id)+')</span>' +
-                        '</div>' +
+                        '<div class="card-legal-hours">Legal Hours: <span class="legal-hours-val">'+rep.lines_in+' &ndash; '+rep.lines_out+'</span></div>' +
                       '</div>' +
                       '<div class="peak-box" style="flex-shrink: 0; text-align: right; margin-left: 8px;">' +
                         '<div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div>' +
@@ -488,48 +541,47 @@
                       '</div>' +
                     '</div>' +
                     
-                    // 1. SOLAR & LEGAL HOURS (At the very top)
-                    '<div class="sec-hdr">[ SOLAR &amp; LEGAL HOURS ]</div>' +
-                    '<div class="data-row"><span class="k">Civil Twilight:</span> <div class="v">'+rep.civil_in+' to '+rep.civil_out+'</div></div>' +
-                    '<div class="data-row"><span class="k">Sunlight:</span> <div class="v">'+rep.sunrise+' to '+rep.sunset+'</div></div>' +
-                    '<div class="data-row highlight-legal"><span class="k">LEGAL HRS:</span> <div class="v">IN: '+rep.lines_in+' &bull; OUT: '+rep.lines_out+'</div></div>' +
-                    
-                    // 2. METEOROLOGY (Separated visually)
-                    '<div class="sec-hdr">[ METEOROLOGY ]</div>' +
-                    '<div class="weather-grid">' +
-                      '<div class="weather-badge">' +
-                        '<div class="weather-val">☁️ '+rep.cloud_pct+'%</div>' +
-                        '<div class="weather-lbl">Cloud Cover</div>' +
+                    // RIVER & ENVIRONMENTAL CONDITIONS (Consolidated)
+                    '<div class="sec-hdr">[ RIVER &amp; ENVIRONMENTAL CONDITIONS ]</div>' +
+                    seasonalWarn +
+                    '<div class="env-telemetry-row">' +
+                      '<div class="telemetry-main">' +
+                        '<span class="telemetry-label">Discharge:</span> ' +
+                        '<span class="telemetry-val">' + cfsVal + ' &bull; ' + gageVal + '</span>' +
                       '</div>' +
-                      '<div class="weather-badge">' +
-                        '<div class="weather-val">🌧️ '+rep.rain.toFixed(2)+' in</div>' +
-                        '<div class="weather-lbl">Precipitation</div>' +
-                      '</div>' +
-                      '<div class="weather-badge">' +
-                        '<div class="weather-val" style="color:'+(rep.press_delta > 0 ? 'var(--accent-green)' : (rep.press_delta < 0 ? 'var(--accent-red)' : '#fff'))+';">' +
-                          rep.pressure.toFixed(2)+' '+(rep.press_delta > 0 ? '↗' : (rep.press_delta < 0 ? '↘' : '→')) +
+                      '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
+                    '</div>' +
+                    '<div class="env-weather-solunar">' +
+                      '<div class="env-stat-grid">' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val">☁️ ' + rep.cloud_pct + '%</div>' +
+                          '<div class="env-badge-lbl">Cloud Cover</div>' +
                         '</div>' +
-                        '<div class="weather-lbl">Pressure</div>' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val">🌧️ ' + rep.rain.toFixed(2) + ' in</div>' +
+                          '<div class="env-badge-lbl">Precipitation</div>' +
+                        '</div>' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:9px; font-weight:600; opacity:0.85;">inHg</span> ' + pArr + '</div>' +
+                          '<div class="env-badge-lbl">Pressure</div>' +
+                        '</div>' +
+                      '</div>' +
+                      '<div class="env-stat-grid">' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val" style="color:#ffffff;">' + rep.lunar_icon + '</div>' +
+                          '<div class="env-badge-lbl">Moon Phase</div>' +
+                        '</div>' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val" style="color:#ffd60a;">' + rep.moon_upper + '</div>' +
+                          '<div class="env-badge-lbl">Overhead</div>' +
+                        '</div>' +
+                        '<div class="env-badge">' +
+                          '<div class="env-badge-val" style="color:#54b2ff;">' + rep.moon_lower + '</div>' +
+                          '<div class="env-badge-lbl">Underfoot</div>' +
+                        '</div>' +
                       '</div>' +
                     '</div>' +
-                    
-                    // 3. LUNAR SECTION & SOLUNAR TRANSITS
-                    '<div class="sec-hdr">[ LUNAR &amp; SOLUNAR TRANSITS ]</div>' +
-                    '<div class="data-row"><span class="k">Moon Phase:</span> <div class="v" style="font-size:12px; font-weight:700;">'+rep.lunar_icon+'</div></div>' +
-                    '<div class="data-row"><span class="k">Overhead:</span> <div class="v" style="font-weight:700; color:#ffd60a;">'+rep.moon_upper+'</div></div>' +
-                    '<div class="data-row"><span class="k">Underfoot:</span> <div class="v" style="font-weight:700; color:#54b2ff;">'+rep.moon_lower+'</div></div>' +
-                    
-                    // 4. HYDROLOGY & WATER QUALITY
-                    '<div class="sec-hdr">[ HYDROLOGY &amp; WATER QUALITY ]</div>' +
-                    '<div style="margin: -4px 0 6px 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; font-size: 10px; font-weight: bold;">' +
-                      '<span style="color: var(--accent-blue);">'+(rep.site_name || station.name)+' (USGS '+(rep.site_id || station.id)+')</span>' +
-                      '<span style="color: var(--text-muted);">'+rep.updated_time+'</span>' +
-                    '</div>' +
-                    (rep.is_active ? '' : '<div style="background-color: #ff453a; color: #fff; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-align: center; margin: 8px 0 12px 0; border: 1px solid #fff; line-height: 1.4;">⚠️ Station currently seasonal / not reporting live discharge</div>') +
-                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+(rep.cfs !== null && rep.cfs !== undefined ? rep.cfs + ' CFS' : '--')+' &bull; '+(rep.gage !== null && rep.gage !== undefined ? rep.gage.toFixed(2) + ' ft Gage Height' : '--')+'</div></div>' +
-                    
-                    // 5. DAILY TIDE CHART
-                    '<div class="sec-hdr">[ DAILY TIDE CHART (BAY) ]</div><div class="tide-row">'+rep.tide_chart+'</div>' +
+                    formatTideRow(rep.tide_chart) +
                     
                     // 6. MIGRATION ROUTING & ESCAPEMENT
                     '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +

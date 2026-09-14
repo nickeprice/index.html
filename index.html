@@ -99,6 +99,30 @@
     #debug-console { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 40vh; background: rgba(0,0,0,0.9); border-top: 2px solid var(--accent-green); z-index: 3000; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; color: #0f0; }
     #debug-console.open { display: block; }
     .log-entry { border-bottom: 1px solid #333; padding: 4px 0; }
+
+    /* STATION SELECTOR */
+    #station-header { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1; text-align: center; }
+    .station-badge { background-color: #2c2c2e; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-top: 2px; }
+    .badge-gps { color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-manual { color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+    
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 4000; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+    .modal-content { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 20px; max-width: 450px; margin: 40px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+    .modal-title { font-size: 1.2rem; font-weight: 800; color: var(--accent-blue); margin-top: 0; margin-bottom: 15px; text-transform: uppercase; }
+    .modal-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px; font-weight: bold; }
+    .preset-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; }
+    .preset-btn { width: 100%; text-align: left; padding: 12px 15px; font-size: 14px; font-weight: bold; background: #2c2c2e; border: 1px solid #38383a; border-radius: 8px; color: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+    .preset-btn:active { background-color: #3a3a3c; }
+    .preset-id { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+    .search-row { display: flex; gap: 10px; margin: 15px 0 25px 0; }
+    .search-row input { flex: 1; }
+    .search-row button { padding: 10px 20px; font-size: 14px; font-weight: bold; background: var(--accent-blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+    
+    /* WEATHER GRID STYLE */
+    .weather-grid { display: flex; gap: 6px; margin: 10px 0; }
+    .weather-badge { flex: 1; background-color: #1c1c1e; border: 1px solid #2c2c2e; border-radius: 8px; padding: 8px; text-align: center; }
+    .weather-val { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+    .weather-lbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -106,8 +130,49 @@
 <!-- NAVIGATION -->
 <div id="top-nav">
     <button class="nav-btn" onclick="toggleMenu()">☰</button>
-    <span style="font-weight: 800; color: #fff;">PUYALLUP RIVER</span>
+    <div id="station-header" onclick="openStationModal()">
+        <span id="active-station-name" style="font-weight: 800; color: #fff; font-size: 14px;">PUYALLUP RIVER</span>
+        <span id="active-station-badge" class="station-badge badge-manual">📌 Manual: Puyallup</span>
+    </div>
     <span style="width: 20px;"></span> <!-- spacer -->
+</div>
+
+<!-- STATION SELECTION MODAL -->
+<div id="station-modal" class="modal">
+    <div class="modal-content">
+        <h2 class="modal-title">Select River Station</h2>
+        
+        <button class="btn-main" onclick="useGPS()" style="background-color: var(--accent-blue); color: #fff; margin-top: 0; min-height: 44px;">📍 Use My GPS (Nearest River)</button>
+        <div id="gps-status" style="font-size: 11px; color: var(--accent-yellow); margin-top: 8px; text-align: center; font-weight: bold; min-height: 14px;"></div>
+        
+        <h3 class="modal-subtitle" style="margin-top: 25px;">Quick Regional Presets</h3>
+        <div class="preset-list">
+            <button class="preset-btn" onclick="selectPreset('12096500', 47.2007, -122.2897, 'Puyallup River at Puyallup')">
+                <span>Puyallup River at Puyallup</span> <span class="preset-id">12096500</span>
+            </button>
+            <button class="preset-btn" onclick="selectPreset('12093500', 47.1005, -122.2133, 'Puyallup River near Orting')">
+                <span>Puyallup River near Orting</span> <span class="preset-id">12093500</span>
+            </button>
+            <button class="preset-btn" onclick="selectPreset('12094000', 47.0177, -122.0197, 'Carbon River near Fairfax')">
+                <span>Carbon River near Fairfax</span> <span class="preset-id">12094000</span>
+            </button>
+            <button class="preset-btn" onclick="selectPreset('12113000', 47.3115, -122.2265, 'Green River at Auburn')">
+                <span>Green River at Auburn</span> <span class="preset-id">12113000</span>
+            </button>
+            <button class="preset-btn" onclick="selectPreset('12089500', 46.9365, -122.5483, 'Nisqually River at McKenna')">
+                <span>Nisqually River at McKenna</span> <span class="preset-id">12089500</span>
+            </button>
+        </div>
+        
+        <h3 class="modal-subtitle" style="margin-top: 25px;">Station Search / ID Lookup</h3>
+        <div class="search-row">
+            <input type="text" id="station-search" placeholder="Search by name (e.g. Carbon) or 8-digit ID" style="min-height: 44px;">
+            <button onclick="searchStation()" style="min-height: 44px; padding: 10px 15px;">Search</button>
+        </div>
+        <div id="search-results" style="max-height: 200px; overflow-y: auto; display: none; margin-bottom: 20px; border: 1px solid #333; border-radius: 8px; padding: 5px;"></div>
+        
+        <button class="btn-main" onclick="closeStationModal()" style="background-color: #333; color: #fff; margin-top: 10px; min-height: 44px;">CANCEL</button>
+    </div>
 </div>
 <div id="menu-drawer" class="menu-drawer">
     <button onclick="switchTab('tab-water-report')">1. Water Report</button>
@@ -335,9 +400,24 @@
     }
 
     async function loadWaterReport() {
-        logDebug("Fetching Water API...", "NET");
+        var active = localStorage.getItem('active_station');
+        var station = active ? JSON.parse(active) : { id: '12096500', lat: 47.2007, lon: -122.2897, name: 'Puyallup River at Puyallup', isGps: false };
+        
+        // Update header & badge
+        document.getElementById('active-station-name').innerText = station.name.toUpperCase();
+        var badge = document.getElementById('active-station-badge');
+        if (station.isGps) {
+            badge.innerText = "📍 Live GPS";
+            badge.className = "station-badge badge-gps";
+        } else {
+            var shortName = station.name.split(' ')[0] || "Manual";
+            badge.innerText = "📌 Manual: " + shortName;
+            badge.className = "station-badge badge-manual";
+        }
+
+        logDebug("Fetching Water API for " + station.name + " (" + station.id + ")...", "NET");
         try {
-            var res = await fetch('/api/water_report');
+            var res = await fetch('/api/water_report?site=' + station.id + '&lat=' + station.lat + '&lon=' + station.lon);
             var reports = await res.json();
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
             
@@ -372,32 +452,65 @@
                         '<div class="window-triggers">&rarr; '+w.triggers+'</div></div>';
                 }
 
-                var tIcon = (rep.press_delta <= -0.04) ? "&darr;" : (rep.press_delta >= 0.04) ? "&uarr;" : "&rarr;";
                 var nColor = rep.is_netting ? "#ff453a" : "#30d158";
                 var pColor = getFMIColor(rep.peak);
                 var fColor = getFMIColor(rep.flow_idx);
                 var dStyle = (i === 0) ? "block" : "none";
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
-                    '<div class="card"><div class="card-top"><div><span class="tag-pill">'+rep.tag+'</span><h1 class="card-date">'+rep.title+'</h1></div>' +
+                    '<div class="card">' +
+                    '<div class="card-top"><div><span class="tag-pill">'+rep.tag+'</span><h1 class="card-date">'+rep.title+'</h1></div>' +
                     '<div class="peak-box"><div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div><div class="peak-lbl">MAX POTENTIAL</div></div></div>' +
-                    '<div class="sec-hdr">[ METEOROLOGY &amp; LUNAR ]</div>' +
-                    '<div class="data-row"><span class="k">Lunar:</span> <div class="v">'+rep.lunar_icon+' &bull; '+rep.cloud_pct+'% Clouds</div></div>' +
-                    '<div class="data-row"><span class="k">Atmosphere:</span> <div class="v">'+rep.pressure.toFixed(2)+' inHg ('+tIcon+' '+Math.abs(rep.press_delta).toFixed(2)+') &bull; '+rep.rain.toFixed(2)+' in Rain</div></div>' +
+                    
+                    // 1. SOLAR & LEGAL HOURS (At the very top)
+                    '<div class="sec-hdr">[ SOLAR &amp; LEGAL HOURS ]</div>' +
+                    '<div class="data-row"><span class="k">Civil Twilight:</span> <div class="v">'+rep.civil_in+' to '+rep.civil_out+'</div></div>' +
+                    '<div class="data-row"><span class="k">Sunlight:</span> <div class="v">'+rep.sunrise+' to '+rep.sunset+'</div></div>' +
+                    '<div class="data-row highlight-legal"><span class="k">LEGAL HRS:</span> <div class="v">IN: '+rep.lines_in+' &bull; OUT: '+rep.lines_out+'</div></div>' +
+                    
+                    // 2. METEOROLOGY (Separated visually)
+                    '<div class="sec-hdr">[ METEOROLOGY ]</div>' +
+                    '<div class="weather-grid">' +
+                      '<div class="weather-badge">' +
+                        '<div class="weather-val">☁️ '+rep.cloud_pct+'%</div>' +
+                        '<div class="weather-lbl">Cloud Cover</div>' +
+                      '</div>' +
+                      '<div class="weather-badge">' +
+                        '<div class="weather-val">🌧️ '+rep.rain.toFixed(2)+' in</div>' +
+                        '<div class="weather-lbl">Precipitation</div>' +
+                      '</div>' +
+                      '<div class="weather-badge">' +
+                        '<div class="weather-val" style="color:'+(rep.press_delta > 0 ? 'var(--accent-green)' : (rep.press_delta < 0 ? 'var(--accent-red)' : '#fff'))+';">' +
+                          rep.pressure.toFixed(2)+' '+(rep.press_delta > 0 ? '↗' : (rep.press_delta < 0 ? '↘' : '→')) +
+                        '</div>' +
+                        '<div class="weather-lbl">Pressure</div>' +
+                      '</div>' +
+                    '</div>' +
+                    
+                    // 3. LUNAR SECTION & SOLUNAR TRANSITS
+                    '<div class="sec-hdr">[ LUNAR &amp; SOLUNAR TRANSITS ]</div>' +
+                    '<div class="data-row"><span class="k">Moon Phase:</span> <div class="v" style="font-size:12px; font-weight:700;">'+rep.lunar_icon+'</div></div>' +
+                    '<div class="data-row"><span class="k">Overhead (Peak):</span> <div class="v" style="font-weight:700; color:#ffd60a;">'+rep.moon_upper+'</div></div>' +
+                    '<div class="data-row"><span class="k">Underfoot:</span> <div class="v" style="font-weight:700; color:#54b2ff;">'+rep.moon_lower+'</div></div>' +
+                    
+                    // 4. HYDROLOGY & WATER QUALITY
                     '<div class="sec-hdr">[ HYDROLOGY &amp; WATER QUALITY ]</div>' +
                     '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+rep.cfs+' CFS &bull; '+rep.gage.toFixed(2)+' ft Gauge</div></div>' +
                     '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+rep.ntu.toFixed(1)+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
                     '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+rep.do.toFixed(1)+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
+                    
+                    // 5. DAILY TIDE CHART
                     '<div class="sec-hdr">[ DAILY TIDE CHART (BAY) ]</div><div class="tide-row">'+rep.tide_chart+'</div>' +
-                    '<div class="sec-hdr">[ SOLAR &amp; LEGAL HOURS ]</div>' +
-                    '<div class="data-row"><span class="k">Sunlight:</span> <div class="v">'+rep.sunrise+' to '+rep.sunset+'</div></div>' +
-                    '<div class="data-row highlight-legal"><span class="k">LEGAL HRS:</span> <div class="v">IN: '+rep.lines_in+' &bull; OUT: '+rep.lines_out+'</div></div>' +
+                    
+                    // 6. MIGRATION ROUTING & ESCAPEMENT
                     '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +
                     '<div class="data-row" style="margin-bottom:4px;"><span class="k">Escapement:</span> <div class="v" style="color:#ffffff;">'+rep.active_fish+'</div></div>' +
                     '<div class="data-row"><span class="k">Tribal Nets:</span> <div class="v" style="color:'+nColor+'; font-weight:700;">'+rep.net_status+'</div></div>' +
                     '<div class="data-row"><span class="k">FMI*:</span> <div class="v"><span style="color:'+fColor+'; font-weight:800; font-size:12px;">'+rep.flow_idx+'/100</span> <span style="color:#ffd60a; margin-left:6px; font-weight:600;">('+rep.push_status+')</span></div></div>' +
                     '<div class="data-row"><span class="k">Transit Math:</span> <div class="v">Kinematic Simulation via Tide/CFS Interaction</div></div>' +
                     '<div class="fmi-caption">*FMI (Flow Migration Index): 1-100 scale of optimal water velocity for upstream movement.</div>' +
+                    
+                    // 7. LEGAL HOURS TIMELINE
                     '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
             }
             document.getElementById('water-report-cards').innerHTML = cardsHtml;
@@ -666,6 +779,211 @@
             localStorage.removeItem('catch_db');
             loadDatabase();
             logDebug("DB Cleared", "DB");
+        }
+    }
+
+    // --- STATION SELECTOR MODAL & GPS FUNCTIONS ---
+    function openStationModal() {
+        document.getElementById('station-modal').style.display = 'block';
+        document.getElementById('gps-status').innerText = '';
+        document.getElementById('search-results').style.display = 'none';
+        document.getElementById('station-search').value = '';
+    }
+
+    function closeStationModal() {
+        document.getElementById('station-modal').style.display = 'none';
+    }
+
+    function selectPreset(id, lat, lon, name, isGps) {
+        var station = { id: id, lat: lat, lon: lon, name: name, isGps: !!isGps };
+        localStorage.setItem('active_station', JSON.stringify(station));
+        logDebug("Selected Station: " + name + " (" + id + ")", "STATE");
+        closeStationModal();
+        loadWaterReport();
+    }
+
+    // Haversine distance in miles
+    function calcDistance(lat1, lon1, lat2, lon2) {
+        var R = 3958.8; // Radius of Earth in miles
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+        var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    function fallbackStation() {
+        selectPreset('12096500', 47.2007, -122.2897, 'Puyallup River at Puyallup', false);
+    }
+
+    function useGPS() {
+        var status = document.getElementById('gps-status');
+        status.innerText = "Capturing device coordinates...";
+        
+        if (!navigator.geolocation) {
+            status.innerText = "❌ Geolocation not supported. Falling back.";
+            setTimeout(fallbackStation, 1500);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(async function(pos) {
+            var lat = pos.coords.latitude;
+            var lon = pos.coords.longitude;
+            status.innerText = `📍 Captured: ${lat.toFixed(4)}, ${lon.toFixed(4)}. Searching USGS...`;
+            
+            // Build a bounding box (approx 20-30 miles is ~0.4 degrees)
+            var latDiff = 0.4;
+            var lonDiff = 0.4;
+            var minLat = lat - latDiff;
+            var maxLat = lat + latDiff;
+            var minLon = lon - lonDiff;
+            var maxLon = lon + lonDiff;
+            var bBox = `${minLon.toFixed(5)},${minLat.toFixed(5)},${maxLon.toFixed(5)},${maxLat.toFixed(5)}`;
+            
+            // ParameterCd=00060 (Discharge) or 00065 (Gage height)
+            var url = `https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=${bBox}&parameterCd=00060,00065&siteStatus=all`;
+            logDebug("Querying USGS GPS Box: " + bBox, "NET");
+            
+            try {
+                var response = await fetch(url);
+                var data = await response.json();
+                var timeSeries = data.value.timeSeries;
+                if (!timeSeries || timeSeries.length === 0) {
+                    status.innerText = "❌ No active USGS stations found in range. Falling back.";
+                    setTimeout(fallbackStation, 2000);
+                    return;
+                }
+                
+                // Group by site and calculate distance
+                var stationsMap = {};
+                timeSeries.forEach(function(ts) {
+                    var sCode = ts.sourceInfo.siteCode[0].value;
+                    var sName = ts.sourceInfo.siteName;
+                    var sLoc = ts.sourceInfo.geoLocation.geogLocation;
+                    var sLat = sLoc.latitude;
+                    var sLon = sLoc.longitude;
+                    
+                    if (!stationsMap[sCode]) {
+                        var dist = calcDistance(lat, lon, sLat, sLon);
+                        stationsMap[sCode] = {
+                            id: sCode,
+                            name: sName,
+                            lat: sLat,
+                            lon: sLon,
+                            distance: dist
+                        };
+                    }
+                });
+                
+                // Sort by distance and pick closest
+                var stationsList = Object.values(stationsMap);
+                stationsList.sort(function(a, b) { return a.distance - b.distance; });
+                
+                if (stationsList.length > 0) {
+                    var closest = stationsList[0];
+                    status.innerText = `📍 Found: ${closest.name} (${closest.distance.toFixed(1)} mi)`;
+                    setTimeout(function() {
+                        selectPreset(closest.id, closest.lat, closest.lon, closest.name, true);
+                    }, 1500);
+                } else {
+                    status.innerText = "❌ No active gauge stations in range. Falling back.";
+                    setTimeout(fallbackStation, 2000);
+                }
+            } catch(e) {
+                status.innerText = "❌ USGS API Error. Falling back.";
+                logDebug("USGS GPS box error: " + e.message, "ERR");
+                setTimeout(fallbackStation, 2000);
+            }
+        }, function(err) {
+            status.innerText = "❌ GPS Access Denied. Falling back.";
+            logDebug("Geolocation error: " + err.message, "ERR");
+            setTimeout(fallbackStation, 1500);
+        });
+    }
+
+    async function searchStation() {
+        var term = document.getElementById('station-search').value.trim();
+        var resultsBox = document.getElementById('search-results');
+        
+        if (!term) return;
+        resultsBox.style.display = 'block';
+        resultsBox.innerHTML = '<div style="color:var(--accent-yellow); font-weight:bold; padding:8px;">Searching...</div>';
+        
+        // If exact 8 digit gauge ID
+        if (term.match(/^\d{8}$/)) {
+            resultsBox.innerHTML = '<div style="color:var(--accent-yellow); font-weight:bold; padding:8px;">Fetching metadata...</div>';
+            var url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=' + term + '&parameterCd=00060,00065&siteStatus=all';
+            try {
+                var response = await fetch(url);
+                var data = await response.json();
+                var timeSeries = data.value.timeSeries;
+                if (timeSeries && timeSeries.length > 0) {
+                    var info = timeSeries[0].sourceInfo;
+                    var name = info.siteName;
+                    var sLoc = info.geoLocation.geogLocation;
+                    var lat = sLoc.latitude;
+                    var lon = sLoc.longitude;
+                    
+                    resultsBox.innerHTML = '<button class="preset-btn" onclick="selectPreset(\''+term+'\', '+lat+', '+lon+', \''+name.replace(/'/g, "\\'")+'\')" style="margin:5px 0;">' +
+                        '<span>'+name+'</span> <span class="preset-id">'+term+'</span></button>';
+                } else {
+                    resultsBox.innerHTML = '<div style="color:var(--accent-red); font-weight:bold; padding:8px;">❌ USGS Station ID not found or inactive.</div>';
+                }
+            } catch(e) {
+                resultsBox.innerHTML = '<div style="color:var(--accent-red); font-weight:bold; padding:8px;">❌ Search Error.</div>';
+                logDebug("USGS Search error: " + e.message, "ERR");
+            }
+            return;
+        }
+
+        // Search by river name in Washington State (stateCd=wa)
+        resultsBox.innerHTML = '<div style="color:var(--accent-yellow); font-weight:bold; padding:8px;">Searching Washington rivers...</div>';
+        var url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&stateCd=wa&parameterCd=00060,00065&siteStatus=all';
+        try {
+            var response = await fetch(url);
+            var data = await response.json();
+            var timeSeries = data.value.timeSeries;
+            if (!timeSeries || timeSeries.length === 0) {
+                resultsBox.innerHTML = '<div style="color:var(--accent-red); font-weight:bold; padding:8px;">❌ No active stations found.</div>';
+                return;
+            }
+            
+            var stationsMap = {};
+            var searchTermLower = term.toLowerCase();
+            timeSeries.forEach(function(ts) {
+                var sCode = ts.sourceInfo.siteCode[0].value;
+                var sName = ts.sourceInfo.siteName;
+                var sLoc = ts.sourceInfo.geoLocation.geogLocation;
+                var sLat = sLoc.latitude;
+                var sLon = sLoc.longitude;
+                
+                if (sName.toLowerCase().indexOf(searchTermLower) !== -1) {
+                    stationsMap[sCode] = {
+                        id: sCode,
+                        name: sName,
+                        lat: sLat,
+                        lon: sLon
+                    };
+                }
+            });
+            
+            var results = Object.values(stationsMap);
+            if (results.length === 0) {
+                resultsBox.innerHTML = '<div style="color:var(--accent-red); font-weight:bold; padding:8px;">❌ No matching active stations found.</div>';
+            } else {
+                resultsBox.innerHTML = '<div style="color:var(--text-muted); font-size:10px; padding:4px;">Showing top ' + Math.min(10, results.length) + ' matches:</div>';
+                // Show up to 10 results
+                results.slice(0, 10).forEach(function(s) {
+                    var safeName = s.name.replace(/'/g, "\\'");
+                    resultsBox.innerHTML += '<button class="preset-btn" onclick="selectPreset(\''+s.id+'\', '+s.lat+', '+s.lon+', \''+safeName+'\')" style="margin:5px 0;">' +
+                        '<span>'+s.name+'</span> <span class="preset-id">'+s.id+'</span></button>';
+                });
+            }
+        } catch(e) {
+            resultsBox.innerHTML = '<div style="color:var(--accent-red); font-weight:bold; padding:8px;">❌ Search Error.</div>';
+            logDebug("USGS search error: " + e.message, "ERR");
         }
     }
 

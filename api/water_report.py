@@ -3,6 +3,7 @@ import math
 import urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 USGS_SITE = "12101500"   
 NOAA_STATION = "9446484" 
@@ -20,8 +21,8 @@ def c_to_f(c): return (c * 9/5) + 32
 def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
-def fetch_usgs_telemetry():
-    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={USGS_SITE}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
+def fetch_usgs_telemetry(site_id=USGS_SITE):
+    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     data_dict = {"cfs": 1450.0, "gage": 10.20, "temp_c": 12.0, "ntu": None, "do": None}
     try:
@@ -65,9 +66,9 @@ def fetch_noaa_tides_bulletproof(start_date, days):
                     extremes.append({'type': 'L', 'dt': pt['dt'], 'height': pt['height']})
     return curve, extremes
 
-def fetch_meteorological_data():
-    meteo_url = (f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}"
-                 f"&daily=sunrise,sunset,cloudcover_mean,precipitation_sum"
+def fetch_meteorological_data(lat=LAT, lon=LON):
+    meteo_url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+                 f"&daily=sunrise,sunset,moonrise,moonset,cloudcover_mean,precipitation_sum"
                  f"&hourly=surface_pressure,temperature_2m&timezone=America%2FLos_Angeles")
     req = urllib.request.Request(meteo_url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
@@ -217,9 +218,17 @@ def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         now = datetime.now()
+        qs = parse_qs(urlparse(self.path).query)
+        site = qs.get('site', [USGS_SITE])[0]
+        try:
+            req_lat = float(qs.get('lat', [str(LAT)])[0])
+            req_lon = float(qs.get('lon', [str(LON)])[0])
+        except:
+            req_lat, req_lon = LAT, LON
+
         forecast_dates = [now + timedelta(days=d) for d in range(FORECAST_DAYS)]
-        usgs_data = fetch_usgs_telemetry() 
-        met_data = fetch_meteorological_data()
+        usgs_data = fetch_usgs_telemetry(site) 
+        met_data = fetch_meteorological_data(req_lat, req_lon)
         all_tides_curve, all_tides_extremes = fetch_noaa_tides_bulletproof(now, FORECAST_DAYS)
 
         arrivals = []
@@ -235,20 +244,32 @@ class handler(BaseHTTPRequestHandler):
                     if arr_dt: arrivals.append({"dt": arr_dt, "swing": swing})
 
         reports = []
+        prev_upper = None
         for i, dt in enumerate(forecast_dates):
             day_extremes = [t for t in all_tides_extremes if t["dt"].date() == dt.date()]
             known_new = datetime(2000, 1, 6)
             days_since = (dt - known_new).days + (dt - known_new).seconds / 86400.0
             lunar_val = (days_since % 29.530588853) / 29.530588853
-            lunar_icon = "🌕" if 0.45 <= lunar_val <= 0.55 else "🌑" if lunar_val < 0.05 or lunar_val > 0.95 else "🌗"
+            
+            if lunar_val < 0.05 or lunar_val > 0.95: lunar_icon = "🌑 New Moon"
+            elif lunar_val < 0.20: lunar_icon = "🌒 Waxing Crescent"
+            elif lunar_val < 0.30: lunar_icon = "🌓 First Quarter"
+            elif lunar_val < 0.45: lunar_icon = "🌔 Waxing Gibbous"
+            elif lunar_val < 0.55: lunar_icon = "🌕 Full Moon"
+            elif lunar_val < 0.70: lunar_icon = "🌖 Waning Gibbous"
+            elif lunar_val < 0.80: lunar_icon = "🌗 Last Quarter"
+            else: lunar_icon = "🌘 Waning Crescent"
             
             sunrise_dt, sunset_dt = dt.replace(hour=6, minute=35), dt.replace(hour=19, minute=30)
+            moonrise_str, moonset_str = None, None
             cloud_pct, rain_mm, press_curr_hpa, press_prev_hpa = 50, 0.0, 1013.25, 1013.25
             
             if met_data and 'daily' in met_data and 'hourly' in met_data:
                 try:
                     sunrise_dt = datetime.fromisoformat(met_data['daily']['sunrise'][i])
                     sunset_dt = datetime.fromisoformat(met_data['daily']['sunset'][i])
+                    moonrise_str = met_data['daily']['moonrise'][i] if 'moonrise' in met_data['daily'] else None
+                    moonset_str = met_data['daily']['moonset'][i] if 'moonset' in met_data['daily'] else None
                     cloud_pct = met_data['daily']['cloudcover_mean'][i]
                     rain_mm = met_data['daily']['precipitation_sum'][i]
                     time_arr = met_data['hourly']['time']
@@ -273,7 +294,29 @@ class handler(BaseHTTPRequestHandler):
             active_str, stock_base = calculate_escapement_curve(dt)
             env_score, flow_mult, push_status = calculate_macro_environment(flow_index, press_curr_inHg, press_prev_inHg, rain_in, lunar_val, ntu_mult, do_mult, is_netting_day)
             
+            civil_in, civil_out = sunrise_dt - timedelta(minutes=35), sunset_dt + timedelta(minutes=35)
             lines_in, lines_out = sunrise_dt - timedelta(hours=1), sunset_dt + timedelta(hours=1)
+            
+            upper_dt, lower_dt = None, None
+            if moonrise_str and moonset_str:
+                try:
+                    mr = datetime.fromisoformat(moonrise_str)
+                    ms = datetime.fromisoformat(moonset_str)
+                    if ms < mr: ms += timedelta(days=1)
+                    upper_dt = mr + (ms - mr)/2
+                except: pass
+            elif prev_upper:
+                upper_dt = prev_upper + timedelta(minutes=50)
+                
+            if upper_dt:
+                prev_upper = upper_dt
+                lower_dt = upper_dt + timedelta(hours=12, minutes=25)
+                if lower_dt.date() > dt.date():
+                    lower_dt = upper_dt - timedelta(hours=12, minutes=25)
+                    
+            moon_upper_str = upper_dt.strftime('%-I:%M %p') if upper_dt else "--"
+            moon_lower_str = lower_dt.strftime('%-I:%M %p') if lower_dt else "--"
+            
             tide_strs = [f"{'High' if ext['type'] == 'H' else 'Low'}: {ext['dt'].strftime('%-I:%M %p')} ({ext['height']:.1f} ft)" for ext in day_extremes]
             tide_chart_str = " | ".join(tide_strs) if tide_strs else "Tide Data Syncing..."
 
@@ -289,6 +332,8 @@ class handler(BaseHTTPRequestHandler):
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
                 "lunar_icon": lunar_icon, "cloud_pct": cloud_pct,
                 "sunrise": sunrise_dt.strftime('%-I:%M %p'), "sunset": sunset_dt.strftime('%-I:%M %p'),
+                "civil_in": civil_in.strftime('%-I:%M %p'), "civil_out": civil_out.strftime('%-I:%M %p'),
+                "moon_upper": moon_upper_str, "moon_lower": moon_lower_str,
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
                 "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day

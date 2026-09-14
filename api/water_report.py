@@ -25,33 +25,51 @@ def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
 def fetch_usgs_telemetry(site_id=USGS_SITE):
+    # Puyallup River defaults strictly to USGS 12101500 (Puyallup River at Puyallup)
+    if not site_id or site_id == "12096500":
+        site_id = USGS_SITE
+
     url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-    })
-    data_dict = {"cfs": None, "gage": None, "temp_c": 12.0, "ntu": None, "do": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    default_name = "Puyallup River at Puyallup, WA" if site_id == USGS_SITE else f"USGS Station {site_id}"
+    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "temp_c": 12.0, "ntu": None, "do": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
     try:
-        with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as response:
-            data = json.loads(response.read().decode('utf-8'))
+        with urllib.request.urlopen(req, timeout=8, context=SSL_CONTEXT) as response:
+            try:
+                raw = response.read().decode('utf-8')
+            except Exception as e:
+                raw = getattr(e, 'partial', b'').decode('utf-8', errors='ignore')
+            data = json.loads(raw)
             time_series = data.get('value', {}).get('timeSeries', [])
             if not time_series:
                 return data_dict
             
+            data_dict["site_name"] = time_series[0]['sourceInfo']['siteName']
+            
             has_fresh_discharge_or_gage = False
             latest_time = None
             latest_dt_str = ""
+            latest_cfs_time = None
+            latest_gage_time = None
 
             for ts in time_series:
                 param_code = ts['variable']['variableCode'][0]['value']
                 try:
-                    val_str = ts['values'][0]['value'][0]['value']
-                    dt_str = ts['values'][0]['value'][0]['dateTime']
+                    records = ts['values'][0]['value']
+                    if not records:
+                        continue
                     
-                    # Numerical Value Check
+                    # Ensure the latest timeValue selected is the most recent record from the timeseries
+                    records_sorted = sorted(records, key=lambda x: datetime.fromisoformat(x['dateTime']), reverse=True)
+                    latest_record = records_sorted[0]
+                    
+                    val_str = latest_record['value']
+                    dt_str = latest_record['dateTime']
+                    
+                    # Numerical Value Check (disregard missing/error values like -999999)
                     val = float(val_str)
+                    if val < -900000:
+                        continue
                     
                     # 24-Hour Freshness Check
                     reading_dt = datetime.fromisoformat(dt_str)
@@ -66,11 +84,18 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
                             latest_time = reading_dt
                             latest_dt_str = dt_str
                             
-                    if param_code == "00060": data_dict["cfs"] = val
-                    elif param_code == "00065": data_dict["gage"] = val
-                    elif param_code == "00010": data_dict["temp_c"] = val
-                    elif param_code == "63680": data_dict["ntu"] = val
-                    elif param_code == "00300": data_dict["do"] = val
+                        # Parameter 00060 = Discharge (CFS), Parameter 00065 = Gage Height (ft)
+                        if param_code == "00060":
+                            if latest_cfs_time is None or reading_dt >= latest_cfs_time:
+                                latest_cfs_time = reading_dt
+                                data_dict["cfs"] = val
+                        elif param_code == "00065":
+                            if latest_gage_time is None or reading_dt >= latest_gage_time:
+                                latest_gage_time = reading_dt
+                                data_dict["gage"] = val
+                        elif param_code == "00010": data_dict["temp_c"] = val
+                        elif param_code == "63680": data_dict["ntu"] = val
+                        elif param_code == "00300": data_dict["do"] = val
                 except:
                     continue
 
@@ -269,6 +294,8 @@ class handler(BaseHTTPRequestHandler):
         now = datetime.now()
         qs = parse_qs(urlparse(self.path).query)
         site = qs.get('site', [USGS_SITE])[0]
+        if not site or site == "12096500":
+            site = USGS_SITE
         try:
             req_lat = float(qs.get('lat', [str(LAT)])[0])
             req_lon = float(qs.get('lon', [str(LON)])[0])
@@ -375,7 +402,7 @@ class handler(BaseHTTPRequestHandler):
             reports.append({
                 "id": f"day-{i}",
                 "title": dt.strftime('%A, %b %d'), "tag": "TODAY" if i == 0 else "TOMORROW" if i == 1 else dt.strftime('%A').upper(),
-                "peak": peak_potential, "cfs": int(usgs_data["cfs"]), "gage": usgs_data["gage"],
+                "peak": peak_potential, "cfs": int(round(usgs_data["cfs"])) if usgs_data["cfs"] is not None else None, "gage": round(usgs_data["gage"], 2) if usgs_data["gage"] is not None else None,
                 "temp_f": round(temp_f, 1), "ntu": round(ntu, 1), "ntu_src": ntu_src, "ntu_desc": ntu_desc,
                 "do": round(do_mgl, 1), "do_src": do_src, "do_desc": do_desc, "flow_idx": flow_index,
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
@@ -386,7 +413,8 @@ class handler(BaseHTTPRequestHandler):
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
                 "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day,
-                "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"]
+                "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"],
+                "site_name": usgs_data["site_name"], "site_id": site
             })
 
         self.send_response(200)

@@ -131,8 +131,8 @@
 <div id="top-nav">
     <button class="nav-btn" onclick="toggleMenu()">☰</button>
     <div id="station-header" onclick="openStationModal()">
-        <span id="active-station-name" style="font-weight: 800; color: #fff; font-size: 14px;">PUYALLUP RIVER</span>
-        <span id="active-station-badge" class="station-badge badge-manual">📌 Manual: Puyallup</span>
+        <span id="active-station-name" style="font-weight: 800; color: #fff; font-size: 14px;">PUYALLUP RIVER AT PUYALLUP, WA</span>
+        <span id="active-station-badge" class="station-badge badge-manual">📌 USGS: 12101500</span>
     </div>
     <span style="width: 20px;"></span> <!-- spacer -->
 </div>
@@ -147,8 +147,8 @@
         
         <h3 class="modal-subtitle" style="margin-top: 25px;">Quick Regional Presets</h3>
         <div class="preset-list">
-            <button class="preset-btn" onclick="selectPreset('12096500', 47.2007, -122.2897, 'Puyallup River at Puyallup')">
-                <span>Puyallup River at Puyallup</span> <span class="preset-id">12096500</span>
+            <button class="preset-btn" onclick="selectPreset('12101500', 47.1950, -122.3020, 'Puyallup River at Puyallup, WA')">
+                <span>Puyallup River at Puyallup, WA</span> <span class="preset-id">12101500</span>
             </button>
             <button class="preset-btn" onclick="selectPreset('12093500', 47.1005, -122.2133, 'Puyallup River near Orting')">
                 <span>Puyallup River near Orting</span> <span class="preset-id">12093500</span>
@@ -401,17 +401,23 @@
 
     async function loadWaterReport() {
         var active = localStorage.getItem('active_station');
-        var station = active ? JSON.parse(active) : { id: '12096500', lat: 47.2007, lon: -122.2897, name: 'Puyallup River at Puyallup', isGps: false };
+        var station = null;
+        try {
+            if (active) station = JSON.parse(active);
+        } catch(e) {}
+        if (!station || station.id === '12096500' || !station.id) {
+            station = { id: '12101500', lat: 47.1950, lon: -122.3020, name: 'Puyallup River at Puyallup, WA', isGps: false };
+            localStorage.setItem('active_station', JSON.stringify(station));
+        }
         
         // Update header & badge
         document.getElementById('active-station-name').innerText = station.name.toUpperCase();
         var badge = document.getElementById('active-station-badge');
         if (station.isGps) {
-            badge.innerText = "📍 Live GPS";
+            badge.innerText = "📍 GPS: " + station.id;
             badge.className = "station-badge badge-gps";
         } else {
-            var shortName = station.name.split(' ')[0] || "Manual";
-            badge.innerText = "📌 Manual: " + shortName;
+            badge.innerText = "📌 USGS: " + station.id;
             badge.className = "station-badge badge-manual";
         }
 
@@ -422,6 +428,15 @@
             });
             var reports = await res.json();
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
+
+            if (reports.length > 0) {
+                var first = reports[0];
+                if (first.site_name) {
+                    document.getElementById('active-station-name').innerText = first.site_name.toUpperCase();
+                }
+                var actId = first.site_id || station.id;
+                badge.innerText = (station.isGps ? "📍 GPS: " : "📌 USGS: ") + actId;
+            }
             
             var sel = document.getElementById('day-selector');
             sel.innerHTML = '';
@@ -461,8 +476,22 @@
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                     '<div class="card">' +
-                    '<div class="card-top"><div><span class="tag-pill">'+rep.tag+'</span><h1 class="card-date">'+rep.title+'</h1></div>' +
-                    '<div class="peak-box"><div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div><div class="peak-lbl">MAX POTENTIAL</div></div></div>' +
+                    '<div class="card-top">' +
+                      '<div style="flex: 1; min-width: 0;">' +
+                        '<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">' +
+                          '<span class="tag-pill">'+rep.tag+'</span>' +
+                          '<span style="font-size: 10px; color: var(--accent-blue); font-weight: 700; text-transform: uppercase;">USGS '+(rep.site_id || station.id)+'</span>' +
+                        '</div>' +
+                        '<h1 class="card-date">'+rep.title+'</h1>' +
+                        '<div style="font-size: 11px; color: #8e8e93; font-weight: 600; margin-top: 3px; word-break: break-word;">' +
+                          '📍 '+(rep.site_name || station.name)+' <span style="color: var(--accent-blue); font-weight: 700;">(USGS '+(rep.site_id || station.id)+')</span>' +
+                        '</div>' +
+                      '</div>' +
+                      '<div class="peak-box" style="flex-shrink: 0; text-align: right; margin-left: 8px;">' +
+                        '<div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div>' +
+                        '<div class="peak-lbl">MAX POTENTIAL</div>' +
+                      '</div>' +
+                    '</div>' +
                     
                     // 1. SOLAR & LEGAL HOURS (At the very top)
                     '<div class="sec-hdr">[ SOLAR &amp; LEGAL HOURS ]</div>' +
@@ -497,9 +526,12 @@
                     
                     // 4. HYDROLOGY & WATER QUALITY
                     '<div class="sec-hdr">[ HYDROLOGY &amp; WATER QUALITY ]</div>' +
+                    '<div style="margin: -4px 0 6px 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; font-size: 10px; font-weight: bold;">' +
+                      '<span style="color: var(--accent-blue);">'+(rep.site_name || station.name)+' (USGS '+(rep.site_id || station.id)+')</span>' +
+                      '<span style="color: var(--text-muted);">'+rep.updated_time+'</span>' +
+                    '</div>' +
                     (rep.is_active ? '' : '<div style="background-color: #ff453a; color: #fff; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-align: center; margin: 8px 0 12px 0; border: 1px solid #fff; line-height: 1.4;">⚠️ Station currently seasonal / not reporting live discharge</div>') +
-                    '<div style="font-size: 10px; color: var(--text-muted); margin: -4px 0 8px 0; text-align: right; font-weight: bold;">'+rep.updated_time+'</div>' +
-                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+(rep.cfs !== null && rep.cfs !== undefined ? rep.cfs + ' CFS' : '--')+' &bull; '+(rep.gage !== null && rep.gage !== undefined ? rep.gage.toFixed(2) + ' ft Gauge' : '--')+'</div></div>' +
+                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+(rep.cfs !== null && rep.cfs !== undefined ? rep.cfs + ' CFS' : '--')+' &bull; '+(rep.gage !== null && rep.gage !== undefined ? rep.gage.toFixed(2) + ' ft Gage Height' : '--')+'</div></div>' +
                     '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+(rep.ntu !== null && rep.ntu !== undefined ? rep.ntu.toFixed(1) : '--')+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
                     '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+(rep.do !== null && rep.do !== undefined ? rep.do.toFixed(1) : '--')+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
                     
@@ -819,7 +851,7 @@
     }
 
     function fallbackStation() {
-        selectPreset('12096500', 47.2007, -122.2897, 'Puyallup River at Puyallup', false);
+        selectPreset('12101500', 47.1950, -122.3020, 'Puyallup River at Puyallup, WA', false);
     }
 
     function useGPS() {

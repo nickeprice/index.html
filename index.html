@@ -104,20 +104,20 @@
     .telemetry-val { color: #ffffff; font-weight: 700; }
     .telemetry-updated { color: #8e8e93; font-size: 10px; font-weight: 600; }
 
-    /* 2. Weather & Solunar Row */
-    .env-weather-solunar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
-    .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .env-badge { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 6px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
-    .env-badge-val { font-size: 11px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; margin-bottom: 2px; width: 100%; }
-    .env-badge-lbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; }
-
-    /* 3. Marine / Tide Row */
+    /* 2. Marine / Tide Row */
     .env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 6px 8px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-around; gap: 6px; margin-bottom: 6px; }
     .tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 6px; padding: 5px 8px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; flex: 1 1 calc(50% - 6px); min-width: 120px; box-sizing: border-box; }
     .tide-type { color: #64d2ff; font-weight: 800; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
     .tide-time { color: #ffffff; font-weight: 700; font-size: 11px; }
     .tide-level { color: #64d2ff; font-weight: 600; font-size: 10px; }
     .tide-empty { color: #8e8e93; font-size: 10px; font-weight: 600; text-align: center; width: 100%; padding: 4px 0; }
+
+    /* 3. Weather & Moon Conditions */
+    .env-weather-solunar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+    .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .env-badge { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 6px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+    .env-badge-val { font-size: 11px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; margin-bottom: 2px; width: 100%; }
+    .env-badge-lbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 700; letter-spacing: 0.2px; line-height: 1.1; }
 
     @media (min-width: 600px) {
         .tide-pill { flex: 1 1 0; }
@@ -551,6 +551,7 @@
                       '</div>' +
                       '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                     '</div>' +
+                    formatTideRow(rep.tide_chart) +
                     '<div class="env-weather-solunar">' +
                       '<div class="env-stat-grid">' +
                         '<div class="env-badge">' +
@@ -573,15 +574,14 @@
                         '</div>' +
                         '<div class="env-badge">' +
                           '<div class="env-badge-val" style="color:#ffd60a;">' + rep.moon_upper + '</div>' +
-                          '<div class="env-badge-lbl">Overhead</div>' +
+                          '<div class="env-badge-lbl">Moon Overhead</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
                           '<div class="env-badge-val" style="color:#54b2ff;">' + rep.moon_lower + '</div>' +
-                          '<div class="env-badge-lbl">Underfoot</div>' +
+                          '<div class="env-badge-lbl">Moon Underfoot</div>' +
                         '</div>' +
                       '</div>' +
                     '</div>' +
-                    formatTideRow(rep.tide_chart) +
                     
                     // 6. MIGRATION ROUTING & ESCAPEMENT
                     '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +

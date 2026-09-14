@@ -334,9 +334,6 @@
 <div id="debug-console"></div>
 
 <script>
-    // --- GLOBAL WATER STATE (For Logging NTU/Temp Delta) ---
-    var globalEnv = { ntu: null, temp_delta: null };
-
     // --- DEBUG MATRIX (Double Tap Header) ---
     var lastTap = 0;
     document.getElementById('top-nav').addEventListener('touchend', function(e) {
@@ -442,13 +439,11 @@
             sel.innerHTML = '';
             var cardsHtml = '';
 
-            // Automatically push Live CFS to Gear Sim and track global environmental states
-            if(reports.length > 0) {
+            // Automatically push Live CFS to Gear Sim
+            if(reports.length > 0 && reports[0].cfs) {
                 var cfsInput = document.getElementById('flow');
                 cfsInput.value = reports[0].cfs;
                 syncSelect('flow');
-                globalEnv.ntu = reports[0].ntu;
-                globalEnv.temp_delta = reports[0].press_delta; // Repurposed for general metric tracking
                 logDebug("Auto-synced CFS to Gear Sim: " + reports[0].cfs, "STATE");
             }
 
@@ -532,8 +527,6 @@
                     '</div>' +
                     (rep.is_active ? '' : '<div style="background-color: #ff453a; color: #fff; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-align: center; margin: 8px 0 12px 0; border: 1px solid #fff; line-height: 1.4;">⚠️ Station currently seasonal / not reporting live discharge</div>') +
                     '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+(rep.cfs !== null && rep.cfs !== undefined ? rep.cfs + ' CFS' : '--')+' &bull; '+(rep.gage !== null && rep.gage !== undefined ? rep.gage.toFixed(2) + ' ft Gage Height' : '--')+'</div></div>' +
-                    '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+(rep.ntu !== null && rep.ntu !== undefined ? rep.ntu.toFixed(1) : '--')+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
-                    '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+(rep.do !== null && rep.do !== undefined ? rep.do.toFixed(1) : '--')+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
                     
                     // 5. DAILY TIDE CHART
                     '<div class="sec-hdr">[ DAILY TIDE CHART (BAY) ]</div><div class="tide-row">'+rep.tide_chart+'</div>' +
@@ -748,7 +741,6 @@
             time: getStr('log-datetime'),
             gps: getStr('log-gps'),
             flow: currentStats.flow,
-            ntu: globalEnv.ntu, // OVERHAUL: Secretly logging water clarity
             spc: getStr('species'),
             loc: getStr('hook-loc'),
             ldLen: getNum('ld-len'),
@@ -763,7 +755,7 @@
         var dbArray = jStr ? JSON.parse(jStr) : [];
         dbArray.push(payload);
         localStorage.setItem('catch_db', JSON.stringify(dbArray));
-        logDebug("Catch Logged Locally (NTU tracking active)", "DB");
+        logDebug("Catch Logged Locally", "DB");
         
         loadDatabase();
         document.getElementById('btn-log').innerText = "FEED DATA (RUN SIM FIRST)";

@@ -20,7 +20,6 @@ STOCK_BASELINES = {
 NETTING_DAYS = [6, 0, 1] 
 FORECAST_DAYS = 4 
 
-def c_to_f(c): return (c * 9/5) + 32
 def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
@@ -29,10 +28,10 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
     if not site_id or site_id == "12096500":
         site_id = USGS_SITE
 
-    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
+    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065&siteStatus=all"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     default_name = "Puyallup River at Puyallup, WA" if site_id == USGS_SITE else f"USGS Station {site_id}"
-    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "temp_c": 12.0, "ntu": None, "do": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
+    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
     try:
         with urllib.request.urlopen(req, timeout=8, context=SSL_CONTEXT) as response:
             try:
@@ -44,7 +43,16 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
             if not time_series:
                 return data_dict
             
-            data_dict["site_name"] = time_series[0]['sourceInfo']['siteName']
+            site_raw = time_series[0]['sourceInfo']['siteName']
+            if site_raw.isupper():
+                parts = site_raw.title().rsplit(', ', 1)
+                if len(parts) == 2 and len(parts[1]) == 2:
+                    formatted_name = f"{parts[0]}, {parts[1].upper()}"
+                else:
+                    formatted_name = site_raw.title()
+                data_dict["site_name"] = formatted_name.replace(" At ", " at ").replace(" Near ", " near ")
+            else:
+                data_dict["site_name"] = site_raw
             
             has_fresh_discharge_or_gage = False
             latest_time = None
@@ -93,9 +101,6 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
                             if latest_gage_time is None or reading_dt >= latest_gage_time:
                                 latest_gage_time = reading_dt
                                 data_dict["gage"] = val
-                        elif param_code == "00010": data_dict["temp_c"] = val
-                        elif param_code == "63680": data_dict["ntu"] = val
-                        elif param_code == "00300": data_dict["do"] = val
                 except:
                     continue
 
@@ -109,9 +114,6 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
                 data_dict["updated_time"] = f"Updated: {day_prefix}{time_str} {tz_name}"
     except:
         pass
-
-    if data_dict["cfs"] is None: data_dict["cfs"] = 1450.0
-    if data_dict["gage"] is None: data_dict["gage"] = 10.20
 
     return data_dict
 
@@ -143,7 +145,7 @@ def fetch_noaa_tides_bulletproof(start_date, days):
 def fetch_meteorological_data(lat=LAT, lon=LON):
     meteo_url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
                  f"&daily=sunrise,sunset,moonrise,moonset,cloudcover_mean,precipitation_sum"
-                 f"&hourly=surface_pressure,temperature_2m&timezone=America%2FLos_Angeles")
+                 f"&hourly=surface_pressure&timezone=America%2FLos_Angeles")
     req = urllib.request.Request(meteo_url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as res:
@@ -167,57 +169,35 @@ def calculate_escapement_curve(target_date):
             if score > base_score: base_score = score
     return " &bull; ".join(active_stocks) if active_stocks else "Resident / Pre-Run", base_score
 
-def calculate_water_quality(cfs, temp_c, rain_mm, actual_ntu, actual_do, cloud_pct):
-    if actual_ntu is not None: ntu, ntu_src = actual_ntu, "Live"
-    else:
-        ntu = 12.0 + ((cfs - 1000) / 100) * 1.5 + (rain_mm * 3.5)
-        # OVERHAUL: Glacial Melt threshold adjusted for UV index/cloud cover
-        if temp_c > 16.0 and cloud_pct < 40 and rain_mm < 1.0: ntu += (temp_c - 16.0) * 5.0
-        ntu = max(5.0, min(150.0, ntu))
-        ntu_src = "Est"
-
-    if ntu < 12.0: vis_state, ntu_mult = "High Clarity", 0.90
-    elif ntu <= 28.0: vis_state, ntu_mult = "Optimal (Green)", 1.00
-    elif ntu <= 45.0: vis_state, ntu_mult = "Stained", 0.75
-    else: vis_state, ntu_mult = "Blown Out", 0.25
-
-    if actual_do is not None: do_mgl, do_src = actual_do, "Live"
-    else:
-        do_mgl = max(4.0, min(14.0, 14.6 - (0.36 * temp_c) + (min(cfs, 2500) / 1000.0) * 0.4 + (rain_mm * 0.1)))
-        do_src = "Est"
-    if do_mgl > 8.5: do_state, do_mult = "Hyper-Oxygenated", 1.02
-    elif do_mgl > 6.5: do_state, do_mult = "Adequate O2", 1.00
-    else: do_state, do_mult = "Low DO", 0.70
-    return ntu, vis_state, ntu_mult, ntu_src, do_mgl, do_state, do_mult, do_src
-
-def calculate_transit_time_and_flow(cfs, temp_c, is_netting_day):
+def calculate_transit_time_and_flow(cfs, is_netting_day):
     dist_miles = 6.0 
-    if cfs < 800: flow_idx = max(1, int((cfs / 800) * 15)); base_speed = 0.10
+    if cfs is None:
+        flow_idx = 50
+        base_speed = 0.50
+    elif cfs < 800: flow_idx = max(1, int((cfs / 800) * 15)); base_speed = 0.10
     elif cfs <= 1700: progress = (cfs - 800) / 900; flow_idx = int(15 + (progress * 80)); base_speed = 0.10 + (progress * 0.90) 
     elif cfs <= 2400: progress = (cfs - 1700) / 700; flow_idx = int(95 + (progress * 5)); base_speed = 1.00 + (progress * 0.20) 
     elif cfs <= 3200: progress = (cfs - 2400) / 800; flow_idx = int(100 - (progress * 40)); base_speed = 1.20 - (progress * 0.55) 
     else: flow_idx = max(1, int(60 - ((cfs - 3200) / 1000) * 50)); base_speed = max(0.10, 0.65 - ((cfs - 3200)/1000) * 0.45)
         
-    if 10.0 <= temp_c <= 13.0: therm_mult, temp_st = 1.0, "Optimal Temp"
-    elif temp_c > 13.0: therm_mult = max(0.4, 1.0 - ((temp_c - 13.0) * 0.08)); temp_st = "Warm Stress"
-    else: therm_mult = max(0.6, 1.0 - ((10.0 - temp_c) * 0.06)); temp_st = "Cold Lethargy"
-
-    actual_speed = base_speed * therm_mult
+    actual_speed = base_speed
     if is_netting_day:
         actual_speed = 0.01 
         state = "RIVER CORKED (Nets In)"
         flow_idx = int(flow_idx * 0.1) 
-    elif flow_idx >= 80: state = f"High Velocity Push"
-    elif flow_idx >= 50: state = f"Steady Migration"
-    elif cfs < 1300: state = f"Bay Staging / Slow Push"
-    else: state = f"Bank Hugging / Resistance"
+    elif flow_idx >= 80: state = "High Velocity Push"
+    elif flow_idx >= 50: state = "Steady Migration"
+    elif cfs is not None and cfs < 1300: state = "Bay Staging / Slow Push"
+    else: state = "Bank Hugging / Resistance"
     
     hrs = dist_miles / max(actual_speed, 0.01) 
     time_str = "BLOCKED" if is_netting_day else "48+ hrs" if hrs > 48 else f"{int(hrs)} to {int(hrs)+2} hrs"
-    return time_str, f"{state} | {temp_st}", flow_idx, hrs
+    return time_str, state, flow_idx, hrs
 
-def simulate_fish_transit(spawn_time, tide_curve, cfs, temp_c):
-    dist, curr_dt, base, step_hrs = 0.0, spawn_time, (0.5 if 1100 <= cfs <= 2800 else 0.2), 0.25 
+def simulate_fish_transit(spawn_time, tide_curve, cfs):
+    if not tide_curve or not spawn_time: return None
+    dist, curr_dt, step_hrs = 0.0, spawn_time, 0.25
+    base = 0.5 if (cfs is not None and 1100 <= cfs <= 2800) else 0.2
     while dist < 6.0:
         closest = min(tide_curve, key=lambda x: abs((x['dt'] - curr_dt).total_seconds()))
         future = min(tide_curve, key=lambda x: abs((x['dt'] - (curr_dt + timedelta(hours=1))).total_seconds()))
@@ -229,11 +209,12 @@ def simulate_fish_transit(spawn_time, tide_curve, cfs, temp_c):
         curr_dt += timedelta(hours=step_hrs)
         if (curr_dt - spawn_time).total_seconds() > 96 * 3600: return None
     return curr_dt
+    return curr_dt
 
-def calculate_macro_environment(flow_idx, press_curr_inHg, press_prev_inHg, rain_in, lunar_phase, ntu_mult, do_mult, is_netting):
+def calculate_macro_environment(flow_idx, press_curr_inHg, press_prev_inHg, rain_in, lunar_phase, is_netting):
     env_score, conditions = 0.0, []
     net_mult = 0.15 if is_netting else 1.00
-    flow_mult = (flow_idx / 100.0) * ntu_mult * do_mult * net_mult
+    flow_mult = (flow_idx / 100.0) * net_mult
     delta_inHg = press_curr_inHg - press_prev_inHg
     if delta_inHg <= -0.04:
         env_score += min(12, abs(delta_inHg * 100) * 1.2); conditions.append(f"Pressure Drop ({delta_inHg:+.2f} inHg)")
@@ -316,7 +297,7 @@ class handler(BaseHTTPRequestHandler):
                         if t["dt"] < ext["dt"] and t["type"] == "L":
                             prev_low = t["height"]; break
                     swing = ext["height"] - prev_low
-                    arr_dt = simulate_fish_transit(ext["dt"], all_tides_curve, usgs_data["cfs"], usgs_data["temp_c"])
+                    arr_dt = simulate_fish_transit(ext["dt"], all_tides_curve, usgs_data["cfs"])
                     if arr_dt: arrivals.append({"dt": arr_dt, "swing": swing})
 
         reports = []
@@ -358,17 +339,16 @@ class handler(BaseHTTPRequestHandler):
                     if target_minus6 in time_arr: press_prev_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_minus6)]
                 except: pass
 
-            temp_f, rain_in = c_to_f(usgs_data["temp_c"]), mm_to_in(rain_mm)
+            rain_in = mm_to_in(rain_mm)
             press_curr_inHg, press_prev_inHg = hpa_to_inhg(press_curr_hpa), hpa_to_inhg(press_prev_hpa)
 
             is_netting_day = dt.weekday() in NETTING_DAYS
             net_status = "NETS IN (Severe Migration Block)" if is_netting_day else "River Open (Nets Out)"
             angler_desc, angler_mult = ("High (Weekend)", 0.80) if dt.weekday() in [5, 6] else ("Low/Moderate (Weekday)", 1.0)
             
-            ntu, ntu_desc, ntu_mult, ntu_src, do_mgl, do_desc, do_mult, do_src = calculate_water_quality(usgs_data["cfs"], usgs_data["temp_c"], rain_mm, usgs_data["ntu"], usgs_data["do"], cloud_pct)
-            transit_time, transit_state, flow_index, transit_hrs = calculate_transit_time_and_flow(usgs_data["cfs"], usgs_data["temp_c"], is_netting_day)
+            transit_time, transit_state, flow_index, transit_hrs = calculate_transit_time_and_flow(usgs_data["cfs"], is_netting_day)
             active_str, stock_base = calculate_escapement_curve(dt)
-            env_score, flow_mult, push_status = calculate_macro_environment(flow_index, press_curr_inHg, press_prev_inHg, rain_in, lunar_val, ntu_mult, do_mult, is_netting_day)
+            env_score, flow_mult, push_status = calculate_macro_environment(flow_index, press_curr_inHg, press_prev_inHg, rain_in, lunar_val, is_netting_day)
             
             civil_in, civil_out = sunrise_dt - timedelta(minutes=35), sunset_dt + timedelta(minutes=35)
             lines_in, lines_out = sunrise_dt - timedelta(hours=1), sunset_dt + timedelta(hours=1)
@@ -403,8 +383,7 @@ class handler(BaseHTTPRequestHandler):
                 "id": f"day-{i}",
                 "title": dt.strftime('%A, %b %d'), "tag": "TODAY" if i == 0 else "TOMORROW" if i == 1 else dt.strftime('%A').upper(),
                 "peak": peak_potential, "cfs": int(round(usgs_data["cfs"])) if usgs_data["cfs"] is not None else None, "gage": round(usgs_data["gage"], 2) if usgs_data["gage"] is not None else None,
-                "temp_f": round(temp_f, 1), "ntu": round(ntu, 1), "ntu_src": ntu_src, "ntu_desc": ntu_desc,
-                "do": round(do_mgl, 1), "do_src": do_src, "do_desc": do_desc, "flow_idx": flow_index,
+                "flow_idx": flow_index,
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
                 "lunar_icon": lunar_icon, "cloud_pct": cloud_pct,
                 "sunrise": sunrise_dt.strftime('%-I:%M %p'), "sunset": sunset_dt.strftime('%-I:%M %p'),

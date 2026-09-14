@@ -4,6 +4,9 @@ import urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+import ssl
+
+SSL_CONTEXT = ssl._create_unverified_context()
 
 USGS_SITE = "12101500"   
 NOAA_STATION = "9446484" 
@@ -23,22 +26,68 @@ def hpa_to_inhg(hpa): return hpa * 0.02953
 
 def fetch_usgs_telemetry(site_id=USGS_SITE):
     url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065,00010,63680,00300&siteStatus=all"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    data_dict = {"cfs": 1450.0, "gage": 10.20, "temp_c": 12.0, "ntu": None, "do": None}
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    })
+    data_dict = {"cfs": None, "gage": None, "temp_c": 12.0, "ntu": None, "do": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
     try:
-        with urllib.request.urlopen(req, timeout=5) as response:
+        with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as response:
             data = json.loads(response.read().decode('utf-8'))
-            for ts in data['value']['timeSeries']:
+            time_series = data.get('value', {}).get('timeSeries', [])
+            if not time_series:
+                return data_dict
+            
+            has_fresh_discharge_or_gage = False
+            latest_time = None
+            latest_dt_str = ""
+
+            for ts in time_series:
                 param_code = ts['variable']['variableCode'][0]['value']
                 try:
-                    val = float(ts['values'][0]['value'][0]['value'])
+                    val_str = ts['values'][0]['value'][0]['value']
+                    dt_str = ts['values'][0]['value'][0]['dateTime']
+                    
+                    # Numerical Value Check
+                    val = float(val_str)
+                    
+                    # 24-Hour Freshness Check
+                    reading_dt = datetime.fromisoformat(dt_str)
+                    from datetime import timezone
+                    now_aware = datetime.now(timezone.utc)
+                    age_seconds = (now_aware - reading_dt).total_seconds()
+                    
+                    if age_seconds <= 24 * 3600:
+                        if param_code in ["00060", "00065"]:
+                            has_fresh_discharge_or_gage = True
+                        if latest_time is None or reading_dt > latest_time:
+                            latest_time = reading_dt
+                            latest_dt_str = dt_str
+                            
                     if param_code == "00060": data_dict["cfs"] = val
                     elif param_code == "00065": data_dict["gage"] = val
                     elif param_code == "00010": data_dict["temp_c"] = val
                     elif param_code == "63680": data_dict["ntu"] = val
                     elif param_code == "00300": data_dict["do"] = val
-                except: continue
-    except: pass
+                except:
+                    continue
+
+            if has_fresh_discharge_or_gage and latest_time:
+                data_dict["is_active"] = True
+                day_prefix = "Today at "
+                if latest_time.date() != datetime.now().date():
+                    day_prefix = latest_time.strftime("%A at ")
+                tz_name = "PDT" if "-07:00" in latest_dt_str else "PST" if "-08:00" in latest_dt_str else "Local"
+                time_str = latest_time.strftime("%-I:%M %p")
+                data_dict["updated_time"] = f"Updated: {day_prefix}{time_str} {tz_name}"
+    except:
+        pass
+
+    if data_dict["cfs"] is None: data_dict["cfs"] = 1450.0
+    if data_dict["gage"] is None: data_dict["gage"] = 10.20
+
     return data_dict
 
 def fetch_noaa_tides_bulletproof(start_date, days):
@@ -49,7 +98,7 @@ def fetch_noaa_tides_bulletproof(start_date, days):
     curve, extremes = [], []
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=5) as res:
+        with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as res:
             for item in json.loads(res.read().decode('utf-8')).get('predictions', []):
                 curve.append({"dt": datetime.strptime(item['t'], "%Y-%m-%d %H:%M"), "height": float(item['v'])})
     except: pass
@@ -72,7 +121,7 @@ def fetch_meteorological_data(lat=LAT, lon=LON):
                  f"&hourly=surface_pressure,temperature_2m&timezone=America%2FLos_Angeles")
     req = urllib.request.Request(meteo_url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
-        with urllib.request.urlopen(req, timeout=5) as res:
+        with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as res:
             return json.loads(res.read().decode('utf-8'))
     except: return None
 
@@ -336,7 +385,8 @@ class handler(BaseHTTPRequestHandler):
                 "moon_upper": moon_upper_str, "moon_lower": moon_lower_str,
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
-                "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day
+                "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day,
+                "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"]
             })
 
         self.send_response(200)

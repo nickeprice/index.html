@@ -417,7 +417,9 @@
 
         logDebug("Fetching Water API for " + station.name + " (" + station.id + ")...", "NET");
         try {
-            var res = await fetch('/api/water_report?site=' + station.id + '&lat=' + station.lat + '&lon=' + station.lon);
+            var res = await fetch('/api/water_report?site=' + station.id + '&lat=' + station.lat + '&lon=' + station.lon + '&_t=' + Date.now(), {
+                cache: 'no-store'
+            });
             var reports = await res.json();
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
             
@@ -490,14 +492,16 @@
                     // 3. LUNAR SECTION & SOLUNAR TRANSITS
                     '<div class="sec-hdr">[ LUNAR &amp; SOLUNAR TRANSITS ]</div>' +
                     '<div class="data-row"><span class="k">Moon Phase:</span> <div class="v" style="font-size:12px; font-weight:700;">'+rep.lunar_icon+'</div></div>' +
-                    '<div class="data-row"><span class="k">Overhead (Peak):</span> <div class="v" style="font-weight:700; color:#ffd60a;">'+rep.moon_upper+'</div></div>' +
+                    '<div class="data-row"><span class="k">Overhead:</span> <div class="v" style="font-weight:700; color:#ffd60a;">'+rep.moon_upper+'</div></div>' +
                     '<div class="data-row"><span class="k">Underfoot:</span> <div class="v" style="font-weight:700; color:#54b2ff;">'+rep.moon_lower+'</div></div>' +
                     
                     // 4. HYDROLOGY & WATER QUALITY
                     '<div class="sec-hdr">[ HYDROLOGY &amp; WATER QUALITY ]</div>' +
-                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+rep.cfs+' CFS &bull; '+rep.gage.toFixed(2)+' ft Gauge</div></div>' +
-                    '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+rep.ntu.toFixed(1)+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
-                    '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+rep.do.toFixed(1)+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
+                    (rep.is_active ? '' : '<div style="background-color: #ff453a; color: #fff; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 11px; text-align: center; margin: 8px 0 12px 0; border: 1px solid #fff; line-height: 1.4;">⚠️ Station currently seasonal / not reporting live discharge</div>') +
+                    '<div style="font-size: 10px; color: var(--text-muted); margin: -4px 0 8px 0; text-align: right; font-weight: bold;">'+rep.updated_time+'</div>' +
+                    '<div class="data-row"><span class="k">Discharge:</span> <div class="v">'+(rep.cfs !== null && rep.cfs !== undefined ? rep.cfs + ' CFS' : '--')+' &bull; '+(rep.gage !== null && rep.gage !== undefined ? rep.gage.toFixed(2) + ' ft Gauge' : '--')+'</div></div>' +
+                    '<div class="data-row"><span class="k">Turbidity:</span> <div class="v">'+(rep.ntu !== null && rep.ntu !== undefined ? rep.ntu.toFixed(1) : '--')+' NTU ('+rep.ntu_src+') &bull; '+rep.ntu_desc+'</div></div>' +
+                    '<div class="data-row"><span class="k">O2 &amp; Temp:</span> <div class="v">'+(rep.do !== null && rep.do !== undefined ? rep.do.toFixed(1) : '--')+' mg/L &bull; '+rep.temp_f.toFixed(1)+'&deg;F &bull; '+rep.do_desc+'</div></div>' +
                     
                     // 5. DAILY TIDE CHART
                     '<div class="sec-hdr">[ DAILY TIDE CHART (BAY) ]</div><div class="tide-row">'+rep.tide_chart+'</div>' +
@@ -847,7 +851,7 @@
             logDebug("Querying USGS GPS Box: " + bBox, "NET");
             
             try {
-                var response = await fetch(url);
+                var response = await fetch(url, { cache: "no-store" });
                 var data = await response.json();
                 var timeSeries = data.value.timeSeries;
                 if (!timeSeries || timeSeries.length === 0) {
@@ -864,17 +868,38 @@
                     var sLoc = ts.sourceInfo.geoLocation.geogLocation;
                     var sLat = sLoc.latitude;
                     var sLon = sLoc.longitude;
+                    var paramCode = ts.variable.variableCode[0].value;
                     
-                    if (!stationsMap[sCode]) {
-                        var dist = calcDistance(lat, lon, sLat, sLon);
-                        stationsMap[sCode] = {
-                            id: sCode,
-                            name: sName,
-                            lat: sLat,
-                            lon: sLon,
-                            distance: dist
-                        };
-                    }
+                    try {
+                        var valuesBlock = ts.values[0].value;
+                        if (!valuesBlock || valuesBlock.length === 0) return;
+                        
+                        var latestEntry = valuesBlock[0];
+                        var latestValStr = latestEntry.value;
+                        var latestDtStr = latestEntry.dateTime;
+                        
+                        // 1. Numerical Value Check
+                        var latestVal = parseFloat(latestValStr);
+                        if (isNaN(latestVal)) return; // Discards null, empty, "Seasonal", "Ice", "Discontinued" etc.
+                        
+                        // 2. 24-Hour Freshness Check
+                        var readingTime = new Date(latestDtStr).getTime();
+                        var ageMs = Date.now() - readingTime;
+                        if (ageMs > 24 * 3600 * 1000) return; // Discards readings older than 24 hours
+                        
+                        if (paramCode === "00060" || paramCode === "00065") {
+                            if (!stationsMap[sCode]) {
+                                var dist = calcDistance(lat, lon, sLat, sLon);
+                                stationsMap[sCode] = {
+                                    id: sCode,
+                                    name: sName,
+                                    lat: sLat,
+                                    lon: sLon,
+                                    distance: dist
+                                };
+                            }
+                        }
+                    } catch(err) {}
                 });
                 
                 // Sort by distance and pick closest

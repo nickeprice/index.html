@@ -215,7 +215,7 @@
     .telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
     .cfs-val, .gage-val { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: #ffffff; }
     .telemetry-sep { font-size: 18px; font-weight: 800; color: #64748b; }
-    .cfs-trend-badge { font-weight: 700; margin-left: 6px; margin-right: 4px; font-size: 12px; display: inline-block; }
+    .cfs-trend-badge { font-weight: 700; font-size: 12px; display: inline-block; }
     /* Quiet background timestamp — smaller and muted so it never competes with the data */
     .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
 
@@ -783,7 +783,7 @@
                     seasonalWarn +
                     '<div class="env-telemetry-row">' +
                       '<div class="telemetry-main">' +
-                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">/</span><span class="gage-val">' + gageVal + '</span></span>' +
+                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">&bull;</span><span class="gage-val">' + gageVal + '</span></span>' +
                       '</div>' +
                       '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                     '</div>' +

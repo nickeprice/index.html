@@ -213,9 +213,9 @@
     .telemetry-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 2px; font-size: 14px; }
     /* Primary readouts: CFS flow and gauge height share one centered line */
     .telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
-    .cfs-val, .gage-val { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #ffffff; }
-    .telemetry-sep { font-size: 15px; font-weight: 700; color: #64748b; }
-    .cfs-trend-badge { font-weight: 700; font-size: 12px; display: inline-block; }
+    .cfs-val, .gage-val { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: #ffffff; }
+    .telemetry-sep { font-size: 13px; font-weight: 700; color: #64748b; }
+    .cfs-trend-badge { font-weight: 700; font-size: 11px; display: inline-block; }
     /* Quiet background timestamp — smaller and muted so it never competes with the data */
     .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
 
@@ -775,7 +775,7 @@
                 var pArr = (rep.press_delta > 0) ? '\u2191' : ((rep.press_delta < 0) ? '\u2193' : '\u2014');
 
                 var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
-                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? 'Gauge: ' + rep.gage.toFixed(2) + ' ft' : 'Gauge: -- ft';
+                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gauge Height' : '-- ft Gauge Height';
                 var seasonalWarn = (!rep.is_active) ? '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>' : '';
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +

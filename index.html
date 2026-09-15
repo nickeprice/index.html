@@ -85,8 +85,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        /* Tight, even vertical rhythm for the Date > Status > Legal Hours stack */
-        gap: 3px;
+        /* Breathable, even vertical rhythm for the Date > Status > Legal Hours stack */
+        gap: 10px;
         background-color: var(--bg-panel);
         border: 1px solid #2c2c2e;
         border-radius: 12px;
@@ -841,14 +841,14 @@
             updateActiveDateUI();
 
             // Wire up live USGS telemetry (CFS momentum trend & proxy water temp)
-            fetchCFSMomentum(actId);
-            fetchProxyWaterTemp();
+            fetchCFSMomentum(actId || station.id);
+            fetchProxyWaterTemp(actId || station.id);
             // Live surface conditions (air temp, wind, precipitation probability)
             fetchWeatherConditions(station.lat, station.lon);
         } catch(e) {
             logDebug("API Error: " + e.message, "ERR");
             updateActiveDateUI();
-            fetchProxyWaterTemp();
+            fetchProxyWaterTemp(station.id);
             fetchWeatherConditions(station.lat, station.lon);
         }
     }
@@ -859,52 +859,88 @@
             const url = `https://waterservices.usgs.gov/nwis/iv/?format=json&sites=${siteId}&parameterCd=00060&period=PT4H&siteStatus=all`;
             const response = await fetch(url);
             const data = await response.json();
-            const readings = data.value.timeSeries[0].values[0].value;
-            if (readings && readings.length > 0) {
-                const delta = readings[readings.length - 1].value - readings[0].value;
-                let trendText = "— Stable";
-                let trendColor = "#94a3b8";
-                if (delta > 15) {
-                    trendText = "↑ Rising";
-                    trendColor = "#ef4444";
-                } else if (delta < -15) {
-                    trendText = "↓ Dropping";
-                    trendColor = "#22c55e";
-                }
-                document.querySelectorAll('.cfs-val').forEach(function(el) {
-                    const existing = el.parentElement.querySelector('.cfs-trend-badge');
-                    if (existing) existing.remove();
-                    const span = document.createElement('span');
-                    span.className = 'cfs-trend-badge';
-                    span.style.color = trendColor;
-                    span.innerText = trendText;
-                    el.insertAdjacentElement('afterend', span);
-                });
+            const series = data && data.value ? data.value.timeSeries : null;
+            const readings = (series && series[0] && series[0].values && series[0].values[0]) ? series[0].values[0].value : null;
+            if (!readings || readings.length < 2) return;
+
+            // 4-hour delta: latest reading minus oldest reading in the PT4H window.
+            const oldest = parseFloat(readings[0].value);
+            const latest = parseFloat(readings[readings.length - 1].value);
+            if (isNaN(oldest) || isNaN(latest)) return;
+            const delta = latest - oldest;
+
+            // Salmon fishing logic: a rise means blowout risk (red),
+            // a drop means the river is clearing (green), otherwise neutral (gray).
+            let trendText = "— Stable";
+            let trendColor = "#94a3b8";
+            if (delta > 15) {
+                trendText = "↑ Rising";
+                trendColor = "#ef4444";
+            } else if (delta < -15) {
+                trendText = "↓ Dropping";
+                trendColor = "#22c55e";
             }
+
+            document.querySelectorAll('.cfs-val').forEach(function(el) {
+                const existing = el.parentElement.querySelector('.cfs-trend-badge');
+                if (existing) existing.remove();
+                const span = document.createElement('span');
+                span.className = 'cfs-trend-badge';
+                span.style.color = trendColor;
+                span.innerText = trendText;
+                el.insertAdjacentElement('afterend', span);
+            });
+            logDebug("CFS momentum (" + siteId + "): " + oldest + " -> " + latest + " (delta " + delta.toFixed(0) + ") " + trendText, "NET");
         } catch(e) {
             logDebug("CFS Momentum error: " + e.message, "ERR");
         }
     }
 
-    async function fetchProxyWaterTemp() {
+    // Proxy water-temp map: active river gauge ID -> trusted USGS temp-proxy gauge ID.
+    // Most discharge gauges do not report water temperature (00010), so we borrow it from
+    // a nearby spring-fed gauge in the same basin. Gauges absent from this map render "--".
+    const waterTempProxies = {
+        '12101500': '12102078', // Puyallup River at Puyallup -> Clarks Creek (spring-fed)
+        '12093500': '12102078'  // Puyallup River near Orting -> Clarks Creek (spring-fed)
+    };
+
+    function setWaterTempPlaceholder() {
+        document.querySelectorAll('.water-temp').forEach(function(el) {
+            el.innerText = '--';
+        });
+    }
+
+    // Resolve the active river's proxy gauge, then pull 00010 (water temp) for it.
+    // Rivers with no mapping fall back to "--" without throwing.
+    async function fetchProxyWaterTemp(activeSiteId) {
+        var proxyId = activeSiteId ? waterTempProxies[String(activeSiteId)] : null;
+
+        if (!proxyId) {
+            logDebug("No water temp proxy for " + (activeSiteId || 'unknown') + " — showing --", "NET");
+            setWaterTempPlaceholder();
+            return;
+        }
+
         try {
-            const url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=12102078&parameterCd=00010&siteStatus=all';
+            const url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=' + proxyId + '&parameterCd=00010&siteStatus=all';
             const response = await fetch(url);
             const data = await response.json();
-            const celsius = parseFloat(data.value.timeSeries[0].values[0].value[0].value);
-            if (!isNaN(celsius)) {
-                const fahrenheit = Math.round((celsius * 9/5) + 32);
-                document.querySelectorAll('.water-temp').forEach(function(el) {
-                    el.innerText = fahrenheit;
-                });
-            } else {
-                throw new Error("Invalid water temp");
+            const series = data && data.value ? data.value.timeSeries : null;
+            const readings = (series && series[0] && series[0].values && series[0].values[0]) ? series[0].values[0].value : null;
+            const celsius = (readings && readings.length > 0) ? parseFloat(readings[0].value) : NaN;
+
+            if (isNaN(celsius)) {
+                throw new Error("Invalid water temp from proxy " + proxyId);
             }
+
+            const fahrenheit = Math.round((celsius * 9/5) + 32);
+            document.querySelectorAll('.water-temp').forEach(function(el) {
+                el.innerText = fahrenheit;
+            });
+            logDebug("Water temp proxy " + proxyId + " -> " + fahrenheit + "F", "NET");
         } catch(e) {
             logDebug("Proxy water temp error: " + e.message, "ERR");
-            document.querySelectorAll('.water-temp').forEach(function(el) {
-                el.innerText = '--';
-            });
+            setWaterTempPlaceholder();
         }
     }
 

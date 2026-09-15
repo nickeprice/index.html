@@ -211,10 +211,10 @@
     /* 1. Telemetry Row (USGS) — centered stack with the flow readout as primary data */
     .env-telemetry-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin: 0 auto 6px auto; width: 100%; gap: 4px; box-sizing: border-box; }
     .telemetry-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 2px; font-size: 14px; }
-    .telemetry-val { color: #ffffff; font-weight: 700; font-size: 14px; }
-    /* Primary readouts: enlarged CFS value with a clean gauge-height subtext */
-    .cfs-val { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
-    .gage-val { font-size: 15px; font-weight: 600; color: #d1d5db; }
+    /* Primary readouts: CFS flow and gauge height share one centered line */
+    .telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
+    .cfs-val, .gage-val { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: #ffffff; }
+    .telemetry-sep { font-size: 18px; font-weight: 800; color: #64748b; }
     .cfs-trend-badge { font-weight: 700; margin-left: 6px; margin-right: 4px; font-size: 12px; display: inline-block; }
     /* Quiet background timestamp — smaller and muted so it never competes with the data */
     .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
@@ -772,8 +772,8 @@
 
                 var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
 
-                var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? rep.cfs + ' CFS' : '-- CFS';
-                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gage Height' : '-- Gage Height';
+                var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
+                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft' : '-- ft';
                 var seasonalWarn = (!rep.is_active) ? '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>' : '';
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
@@ -783,8 +783,7 @@
                     seasonalWarn +
                     '<div class="env-telemetry-row">' +
                       '<div class="telemetry-main">' +
-                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span></span>' +
-                        '<span class="gage-val">' + gageVal + '</span>' +
+                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">/</span><span class="gage-val">' + gageVal + '</span></span>' +
                       '</div>' +
                       '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                     '</div>' +

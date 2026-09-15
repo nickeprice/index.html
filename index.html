@@ -872,10 +872,10 @@
             let trendText = "Stable";
             let trendColor = "#94a3b8";
             if (delta > 15) {
-                trendText = "Rising";
+                trendText = "\u2191 Rising";
                 trendColor = "#ef4444";
             } else if (delta < -15) {
-                trendText = "Dropping";
+                trendText = "\u2193 Dropping";
                 trendColor = "#22c55e";
             }
 
@@ -949,6 +949,14 @@
         return dirs[idx];
     }
 
+    // 8-point compass glyph for a wind bearing in degrees (e.g. 315 -> NW).
+    // Retained as the tactical wind-direction indicator in the Wind card.
+    function compassArrow(deg) {
+        var arrows = ['\u2191','\u2197','\u2192','\u2198','\u2193','\u2199','\u2190','\u2196']; // N, NE, E, SE, S, SW, W, NW
+        var idx = Math.round((((Number(deg) % 360) + 360) % 360) / 45) % 8;
+        return arrows[idx];
+    }
+
     // Live surface conditions via Open-Meteo.
     // NOTE: /api/water_report only exposes pressure/rain/cloud_pct, and its Open-Meteo
     // request never asks for wind or precipitation probability. So we request them here:
@@ -997,7 +1005,7 @@
             var wSpeed = (cur && cur.wind_speed_10m != null) ? cur.wind_speed_10m : hourlyVal('wind_speed_10m');
             var wDir = (cur && cur.wind_direction_10m != null) ? cur.wind_direction_10m : hourlyVal('wind_direction_10m');
             if (wSpeed != null) {
-                var windTxt = ((wDir != null) ? compassDir(wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
+                var windTxt = ((wDir != null) ? compassDir(wDir) + ' ' + compassArrow(wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
                 document.querySelectorAll('.wind-val').forEach(function(el) {
                     el.innerText = windTxt;
                 });

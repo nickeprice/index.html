@@ -85,7 +85,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        /* Tight, even vertical rhythm for the Date > Status > Legal Hours stack */
+        gap: 3px;
         background-color: var(--bg-panel);
         border: 1px solid #2c2c2e;
         border-radius: 12px;
@@ -93,9 +94,11 @@
         text-align: center;
     }
     .date-nav-btn {
+        /* Pinned to the outer margins of the header box, vertically centered */
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
+        margin: 0;
         background-color: #2c2c2e;
         color: #ffffff;
         border: 1px solid #3a3a3c;
@@ -328,17 +331,17 @@
     <div id="date-reg-header" class="date-reg-header">
         <button class="date-nav-btn date-nav-prev" id="btn-prev-date" onclick="stepDate(-1)" aria-label="Previous day">&lt;</button>
 
-        <!-- 1. Status Pill -->
+        <!-- 1. Date Text -->
+        <div class="date-nav-center">
+            <span id="date-nav-text" class="date-nav-text">Loading date...</span>
+            <span id="date-today-badge" class="date-today-badge" style="display:none;">(Today)</span>
+        </div>
+
+        <!-- 2. Status Pill -->
         <div class="status-pill-row">
             <div id="river-status-pill" class="reg-status-pill status-pill-closed">
                 ● RIVER CLOSED
             </div>
-        </div>
-
-        <!-- 2. Date Text -->
-        <div class="date-nav-center">
-            <span id="date-nav-text" class="date-nav-text">Loading date...</span>
-            <span id="date-today-badge" class="date-today-badge" style="display:none;">(Today)</span>
         </div>
 
         <!-- 3. Legal Hours Text -->
@@ -792,7 +795,7 @@
                           '<div class="env-badge-lbl">Barometer</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val">🌧️ ' + rep.rain.toFixed(2) + ' in</div>' +
+                          '<div class="env-badge-val">🌧️ <span class="precip-pop">--</span>% &middot; <span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
                           '<div class="env-badge-lbl">Precipitation</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
@@ -805,7 +808,7 @@
                           '<div class="env-badge-lbl">Temperature</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val">💨 ' + (rep.wind || (rep.wind_speed ? rep.wind_speed + ' mph' : '-- mph')) + '</div>' +
+                          '<div class="env-badge-val">💨 <span class="wind-val">' + (rep.wind || '-- mph') + '</span></div>' +
                           '<div class="env-badge-lbl">Wind</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
@@ -840,10 +843,13 @@
             // Wire up live USGS telemetry (CFS momentum trend & proxy water temp)
             fetchCFSMomentum(actId);
             fetchProxyWaterTemp();
+            // Live surface conditions (air temp, wind, precipitation probability)
+            fetchWeatherConditions(station.lat, station.lon);
         } catch(e) {
             logDebug("API Error: " + e.message, "ERR");
             updateActiveDateUI();
             fetchProxyWaterTemp();
+            fetchWeatherConditions(station.lat, station.lon);
         }
     }
 
@@ -899,6 +905,86 @@
             document.querySelectorAll('.water-temp').forEach(function(el) {
                 el.innerText = '--';
             });
+        }
+    }
+
+    // 16-point compass label for a wind bearing in degrees (e.g. 225 -> "SW")
+    function compassDir(deg) {
+        var dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+        var idx = Math.round((((Number(deg) % 360) + 360) % 360) / 22.5) % 16;
+        return dirs[idx];
+    }
+
+    // Live surface conditions via Open-Meteo.
+    // NOTE: /api/water_report only exposes pressure/rain/cloud_pct, and its Open-Meteo
+    // request never asks for wind or precipitation probability. So we request them here:
+    // temperature_2m + wind_speed_10m + wind_direction_10m are pulled from `current`,
+    // while `precipitation_probability` is hourly-only (per Open-Meteo docs) and is
+    // sampled from the hour nearest to `current.time`.
+    async function fetchWeatherConditions(lat, lon) {
+        if (lat == null || lon == null) return;
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+            '&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation' +
+            '&hourly=precipitation_probability,temperature_2m,wind_speed_10m,wind_direction_10m' +
+            '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch' +
+            '&timezone=America%2FLos_Angeles&forecast_days=1';
+        try {
+            const response = await fetch(url, { cache: 'no-store' });
+            const data = await response.json();
+            const cur = (data && data.current) ? data.current : null;
+
+            // Align the hourly precipitation-probability sample with the current observation.
+            var hIdx = -1;
+            if (data && data.hourly && data.hourly.time && data.hourly.time.length > 0) {
+                var stamp = (cur && cur.time) ? cur.time : data.hourly.time[0];
+                var refMs = new Date(stamp).getTime();
+                var bestDiff = Infinity;
+                for (var i = 0; i < data.hourly.time.length; i++) {
+                    var diff = Math.abs(new Date(data.hourly.time[i]).getTime() - refMs);
+                    if (diff < bestDiff) { bestDiff = diff; hIdx = i; }
+                }
+            }
+            function hourlyVal(key) {
+                if (hIdx < 0 || !data || !data.hourly || !data.hourly[key]) return null;
+                var v = data.hourly[key][hIdx];
+                return (v == null) ? null : v;
+            }
+
+            // 1. Air Temp -> ".air-temp" span (renders as "{temp}° Air · {waterTemp}° H₂O")
+            var airTemp = (cur && cur.temperature_2m != null) ? cur.temperature_2m : hourlyVal('temperature_2m');
+            if (airTemp != null) {
+                airTemp = Math.round(airTemp);
+                document.querySelectorAll('.air-temp').forEach(function(el) {
+                    el.innerText = airTemp;
+                });
+            }
+
+            // 2. Wind speed + direction -> Wind card value field
+            var wSpeed = (cur && cur.wind_speed_10m != null) ? cur.wind_speed_10m : hourlyVal('wind_speed_10m');
+            var wDir = (cur && cur.wind_direction_10m != null) ? cur.wind_direction_10m : hourlyVal('wind_direction_10m');
+            if (wSpeed != null) {
+                var windTxt = ((wDir != null) ? compassDir(wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
+                document.querySelectorAll('.wind-val').forEach(function(el) {
+                    el.innerText = windTxt;
+                });
+            }
+
+            // 3. Precip probability + volume -> Precipitation card ("{pop}% · {volume}\"")
+            var pop = hourlyVal('precipitation_probability');
+            if (pop == null && cur && cur.precipitation_probability != null) pop = cur.precipitation_probability;
+            var vol = (cur && cur.precipitation != null) ? cur.precipitation : hourlyVal('precipitation');
+            document.querySelectorAll('.precip-pop').forEach(function(el) {
+                el.innerText = (pop != null) ? Math.round(pop) : '--';
+            });
+            if (vol != null) {
+                document.querySelectorAll('.precip-vol').forEach(function(el) {
+                    el.innerText = Number(vol).toFixed(2);
+                });
+            }
+
+            logDebug("Weather synced: Air " + airTemp + "F, Wind " + wSpeed + " mph, PoP " + pop + "%", "NET");
+        } catch(e) {
+            logDebug("Weather conditions error: " + e.message, "ERR");
         }
     }
 

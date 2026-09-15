@@ -768,7 +768,6 @@
                 var dStyle = (i === activeDateOffset) ? "block" : "none";
 
                 var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
-                var pArr = (rep.press_delta > 0) ? '↗' : ((rep.press_delta < 0) ? '↘' : '→');
 
                 var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? rep.cfs + ' CFS' : '-- CFS';
                 var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gage Height' : '-- Gage Height';
@@ -788,18 +787,18 @@
                     formatTideRow(rep.tide_chart) +
                     '<div class="env-weather-solunar">' +
                       '<div class="env-stat-grid">' +
-                        // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, SKY COVER
+                        // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, CLOUD COVER
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span> ' + pArr + '</div>' +
+                          '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span></div>' +
                           '<div class="env-badge-lbl">Barometer</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val">🌧️ <span class="precip-pop">--</span>% &middot; <span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
+                          '<div class="env-badge-val"><span class="precip-pop">--</span>% &middot; <span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
                           '<div class="env-badge-lbl">Precipitation</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val">☁️ ' + rep.cloud_pct + '%</div>' +
-                          '<div class="env-badge-lbl">Sky Cover</div>' +
+                          '<div class="env-badge-val">' + rep.cloud_pct + '%</div>' +
+                          '<div class="env-badge-lbl">Cloud Cover</div>' +
                         '</div>' +
                         // Row 2 (Tactical): TEMPERATURE, WIND, SOLUNAR
                         '<div class="env-badge">' +
@@ -807,7 +806,7 @@
                           '<div class="env-badge-lbl">Temperature</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val">💨 <span class="wind-val">' + (rep.wind || '-- mph') + '</span></div>' +
+                          '<div class="env-badge-val"><span class="wind-val">' + (rep.wind || '-- mph') + '</span></div>' +
                           '<div class="env-badge-lbl">Wind</div>' +
                         '</div>' +
                         '<div class="env-badge">' +
@@ -870,13 +869,13 @@
 
             // Salmon fishing logic: a rise means blowout risk (red),
             // a drop means the river is clearing (green), otherwise neutral (gray).
-            let trendText = "— Stable";
+            let trendText = "Stable";
             let trendColor = "#94a3b8";
             if (delta > 15) {
-                trendText = "↑ Rising";
+                trendText = "Rising";
                 trendColor = "#ef4444";
             } else if (delta < -15) {
-                trendText = "↓ Dropping";
+                trendText = "Dropping";
                 trendColor = "#22c55e";
             }
 

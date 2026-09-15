@@ -241,6 +241,25 @@
     .solunar-val { font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
     .solunar-sublbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 600; line-height: 1; margin-top: 1px; }
 
+    /* 4. Phase 2: Hatchery Escapement (collapsible, sits below the 3x2 conditions grid) */
+    .esc-section { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px 10px; margin: 4px 0 6px 0; box-sizing: border-box; }
+    .esc-section > summary { list-style: none; cursor: pointer; color: #a1a1aa; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: space-between; }
+    .esc-section > summary::-webkit-details-marker { display: none; }
+    .esc-section > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; margin-left: 6px; }
+    .esc-section[open] > summary::after { content: '\25BE'; }
+    .esc-body { margin-top: 6px; }
+    .esc-meta { color: #8e8e93; font-size: 10px; font-weight: 600; text-align: center; margin-bottom: 6px; line-height: 1.3; }
+    .esc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .esc-card { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 8px; box-sizing: border-box; min-width: 0; }
+    .esc-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; border-bottom: 1px solid #27272a; padding-bottom: 4px; }
+    .esc-species { color: #ffffff; font-size: 12px; font-weight: 800; }
+    .esc-trend { font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .esc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; line-height: 1.6; }
+    .esc-row-lbl { color: #94a3b8; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .esc-row-val { color: #ffffff; font-weight: 700; font-size: 12px; }
+    .esc-empty { color: #8e8e93; font-size: 11px; font-weight: 600; text-align: center; padding: 6px 0 2px 0; line-height: 1.35; }
+    .esc-caption { font-size: 10px; color: #8e8e93; font-style: italic; margin-top: 6px; line-height: 1.3; }
+
     @media (min-width: 600px) {
         .tide-pill { flex: 1 1 0; min-width: 0; }
         .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -744,6 +763,9 @@
                 badge.innerText = (station.isGps ? "📍 GPS: " : "📌 USGS: ") + actId;
             }
             
+            // Phase 2: hatchery escapement block (built once for the active river, injected into the card)
+            var escapementHtml = '<div class="esc-slot" data-site="' + (actId || station.id) + '">' + buildEscapementSection(actId || station.id) + '</div>';
+
             var cardsHtml = '';
 
             // Automatically push Live CFS to Gear Sim
@@ -830,6 +852,9 @@
                       '</div>' +
                     '</div>' +
                     
+                    // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid)
+                    escapementHtml +
+
                     // 6. MIGRATION ROUTING & ESCAPEMENT
                     '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +
                     '<div class="data-row" style="margin-bottom:4px;"><span class="k">Escapement:</span> <div class="v" style="color:#ffffff;">'+rep.active_fish+'</div></div>' +
@@ -842,6 +867,8 @@
             }
             document.getElementById('water-report-cards').innerHTML = cardsHtml;
             updateActiveDateUI();
+            // Phase 2: optional live escapement feed (no-op unless ESCAPEMENT_ENDPOINT is configured)
+            refreshEscapement(actId || station.id);
 
             // Wire up live USGS telemetry (CFS momentum trend & proxy water temp)
             fetchCFSMomentum(actId || station.id);
@@ -1033,6 +1060,115 @@
         } catch(e) {
             logDebug("Weather conditions error: " + e.message, "ERR");
         }
+    }
+
+    // --- PHASE 2: HATCHERY ESCAPEMENT TRACKING ---
+    // Run-return registry keyed by the active USGS river gauge ID. Metrics WDFW has not
+    // published are left null so the UI renders "--" instead of inventing a number.
+    // Rivers absent from this map degrade to a clean "not tracked" state.
+    var hatcheryEscapement = {
+        '12101500': { system: 'Puyallup / White River', source: 'WDFW Puyallup Hatchery', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        ]},
+        '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Puyallup Hatchery', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        ]},
+        '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Puyallup Hatchery', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null }
+        ]},
+        '12113000': { system: 'Green River', source: 'WDFW Soos Creek Hatchery', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        ]},
+        '12200500': { system: 'Skagit River', source: 'WDFW Skagit Hatcheries', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Chum',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        ]}
+    };
+
+    // Optional live feed. Left blank on purpose: WDFW does not serve a CORS-enabled public
+    // escapement API, so the browser cannot read one directly. Point this at a same-origin
+    // proxy (e.g. '/api/escapement?site=') returning the same record shape to go live.
+    const ESCAPEMENT_ENDPOINT = '';
+
+    // Counts render as "--" until a published figure exists.
+    function escNum(v) {
+        return (v === null || v === undefined || isNaN(v)) ? '--' : Number(v).toLocaleString('en-US');
+    }
+
+    // Seasonal trend indicator: cumulative return vs. 5-year average (green above, red below).
+    function escTrend(totalReturn, fiveYrAvg) {
+        if (totalReturn == null || fiveYrAvg == null || !fiveYrAvg) return { text: '\u2014', color: '#94a3b8' };
+        var pct = ((totalReturn - fiveYrAvg) / fiveYrAvg) * 100;
+        if (pct >= 5) return { text: '\u2191 ' + Math.round(pct) + '%', color: '#22c55e' };
+        if (pct <= -5) return { text: '\u2193 ' + Math.abs(Math.round(pct)) + '%', color: '#ef4444' };
+        return { text: '\u2014 ' + Math.round(pct) + '%', color: '#94a3b8' };
+    }
+
+    // Modular card layout: one card per stock, each carrying the three key metrics.
+    function buildEscapementSection(siteId) {
+        var rec = siteId ? hatcheryEscapement[String(siteId)] : null;
+        var html = '<details class="esc-section"' + (rec ? ' open' : '') + '>' +
+            '<summary>[ HATCHERY ESCAPEMENT ]</summary>' +
+            '<div class="esc-body">';
+
+        if (!rec) {
+            return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div></details>';
+        }
+
+        html += '<div class="esc-meta">' + rec.system + ' &middot; ' + rec.source + '</div>' +
+            '<div class="esc-grid">';
+
+        for (var s = 0; s < rec.stocks.length; s++) {
+            var st = rec.stocks[s];
+            var trend = escTrend(st.totalReturn, st.fiveYrAvg);
+            html += '<div class="esc-card">' +
+                    '<div class="esc-card-hdr">' +
+                      '<span class="esc-species">' + st.name + '</span>' +
+                      '<span class="esc-trend" style="color:' + trend.color + ';">' + trend.text + '</span>' +
+                    '</div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Total Return</span><span class="esc-row-val">' + escNum(st.totalReturn) + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Trap Count</span><span class="esc-row-val">' + escNum(st.trapCount) + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">5-Yr Avg</span><span class="esc-row-val">' + escNum(st.fiveYrAvg) + '</span></div>' +
+                '</div>';
+        }
+
+        return html + '</div>' +
+            '<div class="esc-caption">Cumulative hatchery return vs. 5-year average. "--" = no published WDFW figure yet.</div>' +
+            '</div></details>';
+    }
+
+    // Resolve the record for a river: live feed when configured, else the local registry.
+    // Never throws - any failure degrades to the static map (and then to "--").
+    async function loadEscapementData(siteId) {
+        var key = siteId ? String(siteId) : '';
+        if (!key) return null;
+        if (!ESCAPEMENT_ENDPOINT) return hatcheryEscapement[key] || null;
+        try {
+            var res = await fetch(ESCAPEMENT_ENDPOINT + encodeURIComponent(key) + '&_t=' + Date.now(), { cache: 'no-store' });
+            var live = await res.json();
+            if (live && live.stocks && live.stocks.length) {
+                hatcheryEscapement[key] = live;
+                logDebug("Escapement feed synced: " + key, "NET");
+                return live;
+            }
+        } catch(e) {
+            logDebug("Escapement feed unavailable, using local registry: " + e.message, "ERR");
+        }
+        return hatcheryEscapement[key] || null;
+    }
+
+    // Re-paint the escapement slot(s) after an optional live refresh (no-op when unconfigured).
+    async function refreshEscapement(siteId) {
+        if (!ESCAPEMENT_ENDPOINT) return;
+        await loadEscapementData(siteId);
+        var key = siteId ? String(siteId) : '';
+        document.querySelectorAll('.esc-slot').forEach(function(el) {
+            if (el.getAttribute('data-site') === key) el.innerHTML = buildEscapementSection(key);
+        });
     }
 
     // --- GEAR SIM & LOG MATH (OVERHAULED AI & BOUNDARY PHYSICS) ---

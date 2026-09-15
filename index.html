@@ -264,6 +264,7 @@
         .tide-pill { flex: 1 1 0; min-width: 0; }
         .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .env-badge { padding: 8px 6px; }
+        .esc-card { padding: 8px 6px; }
     }
     @media (min-width: 840px) {
         .env-stat-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
@@ -867,7 +868,7 @@
             }
             document.getElementById('water-report-cards').innerHTML = cardsHtml;
             updateActiveDateUI();
-            // Phase 2: optional live escapement feed (no-op unless ESCAPEMENT_ENDPOINT is configured)
+            // Phase 2: refresh escapement figures from the live Socrata feed (graceful -- on failure)
             refreshEscapement(actId || station.id);
 
             // Wire up live USGS telemetry (CFS momentum trend & proxy water temp)
@@ -1067,32 +1068,51 @@
     // published are left null so the UI renders "--" instead of inventing a number.
     // Rivers absent from this map degrade to a clean "not tracked" state.
     var hatcheryEscapement = {
-        '12101500': { system: 'Puyallup / White River', source: 'WDFW Puyallup Hatchery', stocks: [
+        '12101500': { system: 'Puyallup / White River', source: 'WDFW Voights Creek Hatchery', stocks: [
             { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
-        '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Puyallup Hatchery', stocks: [
+        '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Voights Creek Hatchery', stocks: [
             { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
-        '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Puyallup Hatchery', stocks: [
-            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null }
+        '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Voights Creek Hatchery', stocks: [
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
         '12113000': { system: 'Green River', source: 'WDFW Soos Creek Hatchery', stocks: [
             { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
-        '12200500': { system: 'Skagit River', source: 'WDFW Skagit Hatcheries', stocks: [
+        '12200500': { system: 'Skagit River', source: 'WDFW Marblemount Hatchery', stocks: [
             { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Chum',    totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]}
     };
 
-    // Optional live feed. Left blank on purpose: WDFW does not serve a CORS-enabled public
-    // escapement API, so the browser cannot read one directly. Point this at a same-origin
-    // proxy (e.g. '/api/escapement?site=') returning the same record shape to go live.
-    const ESCAPEMENT_ENDPOINT = '';
+    // Live feed: Socrata (data.wa.gov) "WDFW-Hatchery Adult Salmon Returns". This endpoint
+    // is CORS-enabled, so the browser can query it directly with no proxy.
+    const ESCAPEMENT_SOCRATA = 'https://data.wa.gov/resource/9q4e-xhag.json';
+    // Only the event that represents adults physically RETURNING to the facility. The other
+    // events (Adult Plant / Mortality / Surplus / Parent Spawn / EggTake) re-count those very
+    // same fish, so summing every event would inflate the total several times over.
+    const ESCAPEMENT_EVENT = 'Trap Estimate';
+    // Active USGS river gauge ID -> WDFW `facility` string(s) exactly as spelled in the dataset.
+    // PUYALLUP HATCHERY exists in the data but stopped reporting in 2000, so the Puyallup /
+    // Carbon system maps to VOIGHTS CR HATCHERY, which is the facility actively reporting.
+    // Anything unmapped (e.g. Nisqually 12089500) renders the "no tracking" state.
+    var escapementFacilities = {
+        '12101500': ['VOIGHTS CR HATCHERY'], // Puyallup River at Puyallup
+        '12093500': ['VOIGHTS CR HATCHERY'], // Puyallup River near Orting
+        '12094000': ['VOIGHTS CR HATCHERY'], // Carbon River (Puyallup system)
+        '12113000': ['SOOS CREEK HATCHERY'], // Green River at Auburn
+        '12200500': ['MARBLEMOUNT HATCHERY'] // Skagit River
+    };
 
     // Counts render as "--" until a published figure exists.
     function escNum(v) {
@@ -1108,19 +1128,19 @@
         return { text: '\u2014 ' + Math.round(pct) + '%', color: '#94a3b8' };
     }
 
-    // Modular card layout: one card per stock, each carrying the three key metrics.
+    // Fixed (non-collapsible) section: section header + one card per stock, laid out on the
+    // same .env-stat-grid tracks and card shell as the 3x2 conditions grid above it.
     function buildEscapementSection(siteId) {
         var rec = siteId ? hatcheryEscapement[String(siteId)] : null;
-        var html = '<details class="esc-section"' + (rec ? ' open' : '') + '>' +
-            '<summary>[ HATCHERY ESCAPEMENT ]</summary>' +
-            '<div class="esc-body">';
+        var html = '<div class="esc-section">' +
+            '<div class="sec-hdr">[ HATCHERY ESCAPEMENT ]</div>';
 
         if (!rec) {
-            return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div></details>';
+            return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div>';
         }
 
         html += '<div class="esc-meta">' + rec.system + ' &middot; ' + rec.source + '</div>' +
-            '<div class="esc-grid">';
+            '<div class="env-stat-grid">';
 
         for (var s = 0; s < rec.stocks.length; s++) {
             var st = rec.stocks[s];
@@ -1137,35 +1157,104 @@
         }
 
         return html + '</div>' +
-            '<div class="esc-caption">Cumulative hatchery return vs. 5-year average. "--" = no published WDFW figure yet.</div>' +
-            '</div></details>';
+            '<div class="esc-caption">Live WDFW trap counts for the current calendar year; the 5-yr avg uses the same calendar window. "--" = no published figure yet.</div>' +
+            '</div>';
     }
 
-    // Resolve the record for a river: live feed when configured, else the local registry.
-    // Never throws - any failure degrades to the static map (and then to "--").
+    // Query the Socrata dataset for the mapped facility and derive, per species:
+    //   Total Return = sum of adult_count in the current calendar year
+    //   Trap Count   = the most recent single-day count
+    //   5-Yr Avg     = mean of the same calendar window across the prior 5 years
+    // Returns null (never throws) when the river is unmapped or the feed has no rows.
+    async function fetchEscapementLive(siteId) {
+        var facilities = escapementFacilities[siteId ? String(siteId) : ''];
+        if (!facilities || !facilities.length) return null;
+
+        var year = new Date().getFullYear();
+        var quoted = facilities.map(function(f) { return "'" + f + "'"; }).join(',');
+        var where = "event='" + ESCAPEMENT_EVENT + "' AND facility in(" + quoted + ")" +
+            " AND date >= '" + (year - 5) + "-01-01T00:00:00.000'";
+        var url = ESCAPEMENT_SOCRATA +
+            '?$select=date_trunc_y(date) AS yr,date,species,sum(adult_count) AS total' +
+            '&$group=yr,date,species' +
+            '&$where=' + encodeURIComponent(where) +
+            '&$order=date DESC&$limit=1000';
+
+        var res = await fetch(url, { cache: 'no-store' });
+        var rows = await res.json();
+        if (!rows || !rows.length) return null;
+
+        var today = new Date();
+        var acc = {};
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var dt = new Date(r.date);
+            var sp = r.species || 'Unknown';
+            var n = parseFloat(r.total) || 0;
+            if (!acc[sp]) acc[sp] = { cur: 0, last: null, lastN: 0, prior: {} };
+            var rec = acc[sp];
+            var y = dt.getFullYear();
+            if (y === year) {
+                rec.cur += n;
+                if (!rec.last || dt > rec.last) { rec.last = dt; rec.lastN = n; }
+            } else if (y < year && y >= year - 5) {
+                // Same calendar window as today, so the baseline isn't skewed by season length.
+                if (dt.getMonth() < today.getMonth() ||
+                    (dt.getMonth() === today.getMonth() && dt.getDate() <= today.getDate())) {
+                    rec.prior[y] = (rec.prior[y] || 0) + n;
+                }
+            }
+        }
+
+        var out = {};
+        Object.keys(acc).forEach(function(sp) {
+            var rec = acc[sp];
+            var yrs = Object.keys(rec.prior);
+            var avg = null;
+            if (yrs.length) {
+                var sum = 0;
+                yrs.forEach(function(y) { sum += rec.prior[y]; });
+                avg = Math.round(sum / yrs.length);
+            }
+            out[sp] = { totalReturn: rec.cur, trapCount: rec.lastN, fiveYrAvg: avg };
+        });
+        return out;
+    }
+
+    // Merge live numbers onto the static registry. Never throws - any failure leaves the
+    // existing "--" placeholders in place so the UI stays stable.
     async function loadEscapementData(siteId) {
         var key = siteId ? String(siteId) : '';
-        if (!key) return null;
-        if (!ESCAPEMENT_ENDPOINT) return hatcheryEscapement[key] || null;
+        var rec = hatcheryEscapement[key];
+        if (!rec) return null;
         try {
-            var res = await fetch(ESCAPEMENT_ENDPOINT + encodeURIComponent(key) + '&_t=' + Date.now(), { cache: 'no-store' });
-            var live = await res.json();
-            if (live && live.stocks && live.stocks.length) {
-                hatcheryEscapement[key] = live;
-                logDebug("Escapement feed synced: " + key, "NET");
-                return live;
+            var live = await fetchEscapementLive(key);
+            if (live) {
+                rec.stocks.forEach(function(st) {
+                    var hit = null;
+                    Object.keys(live).forEach(function(sp) {
+                        if (sp.toLowerCase() === String(st.name).toLowerCase()) hit = live[sp];
+                    });
+                    if (hit) {
+                        st.totalReturn = hit.totalReturn;
+                        st.trapCount = hit.trapCount;
+                        st.fiveYrAvg = hit.fiveYrAvg;
+                    }
+                });
+                logDebug("Escapement synced for " + key, "NET");
             }
         } catch(e) {
-            logDebug("Escapement feed unavailable, using local registry: " + e.message, "ERR");
+            logDebug("Escapement feed unavailable, keeping -- placeholders: " + e.message, "ERR");
         }
-        return hatcheryEscapement[key] || null;
+        return rec;
     }
 
-    // Re-paint the escapement slot(s) after an optional live refresh (no-op when unconfigured).
+    // Re-paint the escapement slot once the live numbers land. Rivers with no facility
+    // mapping keep the static "no tracking" state that was rendered synchronously.
     async function refreshEscapement(siteId) {
-        if (!ESCAPEMENT_ENDPOINT) return;
-        await loadEscapementData(siteId);
         var key = siteId ? String(siteId) : '';
+        if (!hatcheryEscapement[key]) return;
+        await loadEscapementData(key);
         document.querySelectorAll('.esc-slot').forEach(function(el) {
             if (el.getAttribute('data-site') === key) el.innerHTML = buildEscapementSection(key);
         });

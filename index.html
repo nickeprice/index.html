@@ -198,7 +198,6 @@
     .data-row { display: flex; align-items: flex-start; margin-bottom: 4px; font-size: 13px; }
     .k { color: #a1a1aa; flex: 0 0 95px; font-size: 13px; font-weight: 600; }
     .v { color: #f2f2f7; flex: 1; font-size: 13px; font-weight: 500; }
-    .fmi-caption { font-size: 10px; color: #8e8e93; font-style: italic; margin-top: 3px; line-height: 1.3; }
     .window-box { background-color: #000000; border-radius: 6px; padding: 8px 10px; margin-top: 5px; border: 1px solid #2c2c2e; }
     .window-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
     .window-time { color: #ffffff; font-size: 13px; font-weight: 700; }
@@ -790,7 +789,6 @@
                         '<div class="window-triggers">&rarr; '+w.triggers+'</div></div>';
                 }
 
-                var fColor = getFMIColor(rep.flow_idx);
                 var dStyle = (i === activeDateOffset) ? "block" : "none";
 
                 var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
@@ -856,14 +854,7 @@
                     // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid)
                     escapementHtml +
 
-                    // 6. MIGRATION ROUTING & ESCAPEMENT
-                    '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +
-                    '<div class="data-row" style="margin-bottom:4px;"><span class="k">Escapement:</span> <div class="v" style="color:#ffffff;">'+rep.active_fish+'</div></div>' +
-                    '<div class="data-row"><span class="k">FMI*:</span> <div class="v"><span style="color:'+fColor+'; font-weight:800; font-size:13px;">'+rep.flow_idx+'/100</span> <span style="color:#ffd60a; margin-left:6px; font-weight:600; font-size:13px;">('+rep.push_status+')</span></div></div>' +
-                    '<div class="data-row"><span class="k">Transit Math:</span> <div class="v">Kinematic Simulation via Tide/CFS Interaction</div></div>' +
-                    '<div class="fmi-caption">*FMI (Flow Migration Index): 1-100 scale of optimal water velocity for upstream movement.</div>' +
-                    
-                    // 7. LEGAL HOURS TIMELINE
+                    // 6. LEGAL HOURS TIMELINE
                     '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
             }
             document.getElementById('water-report-cards').innerHTML = cardsHtml;
@@ -1068,20 +1059,20 @@
     // published are left null so the UI renders "--" instead of inventing a number.
     // Rivers absent from this map degrade to a clean "not tracked" state.
     var hatcheryEscapement = {
-        '12101500': { system: 'Puyallup / White River', source: 'WDFW Voights Creek Hatchery', stocks: [
-            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        '12101500': { system: 'Puyallup / White River', source: 'WDFW Puyallup Basin Facilities', stocks: [
+            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
-        '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Voights Creek Hatchery', stocks: [
-            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Puyallup Basin Facilities', stocks: [
+            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
-        '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Voights Creek Hatchery', stocks: [
-            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Coho',    totalReturn: null, trapCount: null, fiveYrAvg: null },
-            { name: 'Pink',    totalReturn: null, trapCount: null, fiveYrAvg: null }
+        '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Puyallup Basin Facilities', stocks: [
+            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
         '12113000': { system: 'Green River', source: 'WDFW Soos Creek Hatchery', stocks: [
             { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
@@ -1102,16 +1093,22 @@
     // events (Adult Plant / Mortality / Surplus / Parent Spawn / EggTake) re-count those very
     // same fish, so summing every event would inflate the total several times over.
     const ESCAPEMENT_EVENT = 'Trap Estimate';
-    // Active USGS river gauge ID -> WDFW `facility` string(s) exactly as spelled in the dataset.
-    // PUYALLUP HATCHERY exists in the data but stopped reporting in 2000, so the Puyallup /
-    // Carbon system maps to VOIGHTS CR HATCHERY, which is the facility actively reporting.
+    // Active USGS river gauge ID -> WDFW `facility` string(s) exactly as spelled in the
+    // dataset. The whole Puyallup / White River basin is pooled into one query per gauge:
+    // today only VOIGHTS CR HATCHERY actively reports Trap Estimates (PUYALLUP HATCHERY's
+    // stopped in 2000, and CLARKS CR / WHITE RIVER / BUCKLEY TRAP / DIRU CREEK have no rows
+    // yet), so they ride along in the IN clause and light up automatically if WDFW adds them.
     // Anything unmapped (e.g. Nisqually 12089500) renders the "no tracking" state.
+    var PUYALLUP_BASIN_FACILITIES = [
+        'VOIGHTS CR HATCHERY', 'PUYALLUP HATCHERY', 'CLARKS CR HATCHERY',
+        'WHITE RIVER HATCHERY', 'BUCKLEY TRAP', 'DIRU CREEK'
+    ];
     var escapementFacilities = {
-        '12101500': ['VOIGHTS CR HATCHERY'], // Puyallup River at Puyallup
-        '12093500': ['VOIGHTS CR HATCHERY'], // Puyallup River near Orting
-        '12094000': ['VOIGHTS CR HATCHERY'], // Carbon River (Puyallup system)
-        '12113000': ['SOOS CREEK HATCHERY'], // Green River at Auburn
-        '12200500': ['MARBLEMOUNT HATCHERY'] // Skagit River
+        '12101500': PUYALLUP_BASIN_FACILITIES, // Puyallup River at Puyallup
+        '12093500': PUYALLUP_BASIN_FACILITIES, // Puyallup River near Orting
+        '12094000': PUYALLUP_BASIN_FACILITIES, // Carbon River (Puyallup system)
+        '12113000': ['SOOS CREEK HATCHERY'],   // Green River at Auburn
+        '12200500': ['MARBLEMOUNT HATCHERY']   // Skagit River
     };
 
     // Counts render as "--" until a published figure exists.
@@ -1119,21 +1116,37 @@
         return (v === null || v === undefined || isNaN(v)) ? '--' : Number(v).toLocaleString('en-US');
     }
 
-    // Seasonal trend indicator: cumulative return vs. 5-year average (green above, red below).
-    function escTrend(totalReturn, fiveYrAvg) {
-        if (totalReturn == null || fiveYrAvg == null || !fiveYrAvg) return { text: '\u2014', color: '#94a3b8' };
-        var pct = ((totalReturn - fiveYrAvg) / fiveYrAvg) * 100;
-        if (pct >= 5) return { text: '\u2191 ' + Math.round(pct) + '%', color: '#22c55e' };
-        if (pct <= -5) return { text: '\u2193 ' + Math.abs(Math.round(pct)) + '%', color: '#ef4444' };
-        return { text: '\u2014 ' + Math.round(pct) + '%', color: '#94a3b8' };
+    // Maps a dataset row's species + run into a display bucket, e.g.
+    // species 'Chinook' + run 'Fall' -> 'Fall Chinook'. Jacks are pooled separately
+    // from the dataset's dedicated jack_count column.
+    function escBucketName(species, run) {
+        var sp = String(species || '').trim();
+        var rn = String(run || '').trim().toLowerCase();
+        if (sp.toLowerCase().indexOf('chinook') !== -1 && rn) {
+            return rn.charAt(0).toUpperCase() + rn.slice(1) + ' Chinook';
+        }
+        return sp || 'Unknown';
     }
 
-    // Fixed (non-collapsible) section: section header + one card per stock, laid out on the
-    // same .env-stat-grid tracks and card shell as the 3x2 conditions grid above it.
+    // Week-over-Week (WoW) momentum badge: last 7 days of returns vs the prior 7 days.
+    // Green = building push, Red = slowing, Muted = flat.
+    function escWowBadge(wow) {
+        if (!wow || (wow.cur === 0 && wow.prior === 0)) return { text: '\u2014 Stable', color: '#94a3b8' };
+        if (wow.delta > 0) {
+            return { text: '\u25B2 +' + wow.delta + ((wow.pct !== null) ? ' (+' + wow.pct + '%)' : ''), color: '#22c55e' };
+        }
+        if (wow.delta < 0) {
+            return { text: '\u25BC ' + Math.abs(wow.delta) + ((wow.pct !== null) ? ' (' + wow.pct + '%)' : ''), color: '#ef4444' };
+        }
+        return { text: '\u2014 Stable', color: '#94a3b8' };
+    }
+
+    // Fixed (non-collapsible) section: header + one card per life stage, on the same
+    // .env-stat-grid tracks and card shell as the 3x2 conditions grid above it.
     function buildEscapementSection(siteId) {
         var rec = siteId ? hatcheryEscapement[String(siteId)] : null;
         var html = '<div class="esc-section">' +
-            '<div class="sec-hdr">[ HATCHERY ESCAPEMENT ]</div>';
+            '<div class="sec-hdr">[ HATCHERY ESCAPEMENT &amp; RUN MOMENTUM ]</div>';
 
         if (!rec) {
             return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div>';
@@ -1144,11 +1157,11 @@
 
         for (var s = 0; s < rec.stocks.length; s++) {
             var st = rec.stocks[s];
-            var trend = escTrend(st.totalReturn, st.fiveYrAvg);
+            var badge = escWowBadge(st.wow);
             html += '<div class="esc-card">' +
                     '<div class="esc-card-hdr">' +
                       '<span class="esc-species">' + st.name + '</span>' +
-                      '<span class="esc-trend" style="color:' + trend.color + ';">' + trend.text + '</span>' +
+                      '<span class="esc-trend" style="color:' + badge.color + ';">' + badge.text + '</span>' +
                     '</div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">Total Return</span><span class="esc-row-val">' + escNum(st.totalReturn) + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">Trap Count</span><span class="esc-row-val">' + escNum(st.trapCount) + '</span></div>' +
@@ -1157,14 +1170,17 @@
         }
 
         return html + '</div>' +
-            '<div class="esc-caption">Live WDFW trap counts for the current calendar year; the 5-yr avg uses the same calendar window. "--" = no published figure yet.</div>' +
+            '<div class="esc-caption">Live WDFW trap counts pooled across basin facilities for the current calendar year. Badge = Week-over-Week momentum: last 7 days of returns vs the prior 7. "--" = no published figure yet.</div>' +
             '</div>';
     }
 
-    // Query the Socrata dataset for the mapped facility and derive, per species:
+    // Query the Socrata dataset for EVERY facility mapped to the river (dynamic IN clause)
+    // and derive, per life stage:
     //   Total Return = sum of adult_count in the current calendar year
     //   Trap Count   = the most recent single-day count
     //   5-Yr Avg     = mean of the same calendar window across the prior 5 years
+    //   WoW          = last 7 days vs the prior 7 days (delta + percent change)
+    // Adults come from adult_count; jacks are pooled from the dataset's jack_count column.
     // Returns null (never throws) when the river is unmapped or the feed has no rows.
     async function fetchEscapementLive(siteId) {
         var facilities = escapementFacilities[siteId ? String(siteId) : ''];
@@ -1175,54 +1191,85 @@
         var where = "event='" + ESCAPEMENT_EVENT + "' AND facility in(" + quoted + ")" +
             " AND date >= '" + (year - 5) + "-01-01T00:00:00.000'";
         var url = ESCAPEMENT_SOCRATA +
-            '?$select=date_trunc_y(date) AS yr,date,species,sum(adult_count) AS total' +
-            '&$group=yr,date,species' +
+            '?$select=date,species,run,sum(adult_count) AS adults,sum(jack_count) AS jacks' +
+            '&$group=date,species,run' +
             '&$where=' + encodeURIComponent(where) +
-            '&$order=date DESC&$limit=1000';
+            '&$order=date DESC&$limit=5000';
 
         var res = await fetch(url, { cache: 'no-store' });
         var rows = await res.json();
         if (!rows || !rows.length) return null;
 
         var today = new Date();
-        var acc = {};
+        var DAY = 86400000;
+        var acc = {};   // display bucket -> { days: { 'YYYY-MM-DD': adultSum } }
+        var jacc = {};  // pooled jacks across every species and run
         for (var i = 0; i < rows.length; i++) {
             var r = rows[i];
-            var dt = new Date(r.date);
-            var sp = r.species || 'Unknown';
-            var n = parseFloat(r.total) || 0;
-            if (!acc[sp]) acc[sp] = { cur: 0, last: null, lastN: 0, prior: {} };
-            var rec = acc[sp];
-            var y = dt.getFullYear();
-            if (y === year) {
-                rec.cur += n;
-                if (!rec.last || dt > rec.last) { rec.last = dt; rec.lastN = n; }
-            } else if (y < year && y >= year - 5) {
-                // Same calendar window as today, so the baseline isn't skewed by season length.
-                if (dt.getMonth() < today.getMonth() ||
-                    (dt.getMonth() === today.getMonth() && dt.getDate() <= today.getDate())) {
-                    rec.prior[y] = (rec.prior[y] || 0) + n;
-                }
-            }
+            var key = String(r.date || '').slice(0, 10);
+            if (!key) continue;
+            var bucket = escBucketName(r.species, r.run);
+            var a = parseFloat(r.adults) || 0;
+            var j = parseFloat(r.jacks) || 0;
+            if (!acc[bucket]) acc[bucket] = { days: {} };
+            acc[bucket].days[key] = (acc[bucket].days[key] || 0) + a;
+            jacc[key] = (jacc[key] || 0) + j;
         }
+        acc['Jacks'] = { days: jacc };
 
         var out = {};
         Object.keys(acc).forEach(function(sp) {
-            var rec = acc[sp];
-            var yrs = Object.keys(rec.prior);
-            var avg = null;
-            if (yrs.length) {
+            var days = acc[sp].days;
+            var keys = Object.keys(days);
+            if (!keys.length) return;
+
+            // Freshest trap date anchors the WoW windows so WDFW reporting lag can't skew it.
+            var latestKey = keys[0];
+            keys.forEach(function(k) { if (k > latestKey) latestKey = k; });
+            var maxT = new Date(latestKey + 'T00:00:00').getTime();
+            var anchorYear = parseInt(latestKey.slice(0, 4), 10);
+
+            var total = 0, cur = 0, prev = 0, byYear = {};
+            keys.forEach(function(k) {
+                var n = days[k];
+                if (parseInt(k.slice(0, 4), 10) === anchorYear) total += n;
+                var t = new Date(k + 'T00:00:00').getTime();
+                // Week-over-Week: [max-6 .. max] vs [max-13 .. max-7]
+                if (t > maxT - 6 * DAY && t <= maxT) cur += n;
+                else if (t > maxT - 13 * DAY && t <= maxT - 7 * DAY) prev += n;
+                // 5-yr average over the same calendar window (month/day <= today)
+                var d = new Date(k + 'T00:00:00');
+                var y = d.getFullYear();
+                if (y < year && y >= year - 5) {
+                    if (d.getMonth() < today.getMonth() ||
+                        (d.getMonth() === today.getMonth() && d.getDate() <= today.getDate())) {
+                        byYear[y] = (byYear[y] || 0) + n;
+                    }
+                }
+            });
+
+            var delta = cur - prev;
+            var pct = (prev > 0) ? Math.round((delta / prev) * 100) : null;
+            var avg = null, ys = Object.keys(byYear);
+            if (ys.length) {
                 var sum = 0;
-                yrs.forEach(function(y) { sum += rec.prior[y]; });
-                avg = Math.round(sum / yrs.length);
+                ys.forEach(function(y) { sum += byYear[y]; });
+                avg = Math.round(sum / ys.length);
             }
-            out[sp] = { totalReturn: rec.cur, trapCount: rec.lastN, fiveYrAvg: avg };
+            out[sp] = {
+                totalReturn: total,
+                trapCount: days[latestKey] || 0,
+                fiveYrAvg: avg,
+                wow: { delta: delta, pct: pct, cur: cur, prior: prev }
+            };
         });
         return out;
     }
 
-    // Merge live numbers onto the static registry. Never throws - any failure leaves the
-    // existing "--" placeholders in place so the UI stays stable.
+    // Merge live numbers onto the static registry. Species matching is exact first, then by
+    // base species, so a 'Chinook' card also picks up the 'Fall Chinook' bucket. Never
+    // throws - any failure leaves the existing "--" placeholders in place so the UI stays
+    // stable.
     async function loadEscapementData(siteId) {
         var key = siteId ? String(siteId) : '';
         var rec = hatcheryEscapement[key];
@@ -1231,14 +1278,18 @@
             var live = await fetchEscapementLive(key);
             if (live) {
                 rec.stocks.forEach(function(st) {
+                    var want = String(st.name).toLowerCase();
+                    var base = want.replace(/^(fall|spring|summer|winter)\s+/, '');
                     var hit = null;
                     Object.keys(live).forEach(function(sp) {
-                        if (sp.toLowerCase() === String(st.name).toLowerCase()) hit = live[sp];
+                        var l = sp.toLowerCase().replace(/^(fall|spring|summer|winter)\s+/, '');
+                        if (!hit && (sp.toLowerCase() === want || l === base)) hit = live[sp];
                     });
                     if (hit) {
                         st.totalReturn = hit.totalReturn;
                         st.trapCount = hit.trapCount;
                         st.fiveYrAvg = hit.fiveYrAvg;
+                        st.wow = hit.wow;
                     }
                 });
                 logDebug("Escapement synced for " + key, "NET");

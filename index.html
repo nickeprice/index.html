@@ -208,10 +208,13 @@
     /* CONSOLIDATED RIVER & ENVIRONMENTAL CONDITIONS */
     .seasonal-warning { background-color: #ff453a; color: #fff; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 11px; text-align: center; margin: 4px 0 6px 0; border: 1px solid #fff; line-height: 1.3; }
     
-    /* 1. Telemetry Row (USGS) */
-    .env-telemetry-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 4px 0 6px 0; box-sizing: border-box; }
-    .telemetry-main { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
+    /* 1. Telemetry Row (USGS) — centered stack with the flow readout as primary data */
+    .env-telemetry-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin: 0 auto 6px auto; width: 100%; gap: 4px; box-sizing: border-box; }
+    .telemetry-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 2px; font-size: 14px; }
     .telemetry-val { color: #ffffff; font-weight: 700; font-size: 14px; }
+    /* Primary readouts: enlarged CFS value with a clean gauge-height subtext */
+    .cfs-val { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .gage-val { font-size: 15px; font-weight: 600; color: #d1d5db; }
     .cfs-trend-badge { font-weight: 700; margin-left: 6px; margin-right: 4px; font-size: 12px; display: inline-block; }
     /* Quiet background timestamp — smaller and muted so it never competes with the data */
     .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
@@ -780,7 +783,8 @@
                     seasonalWarn +
                     '<div class="env-telemetry-row">' +
                       '<div class="telemetry-main">' +
-                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span> &bull; ' + gageVal + '</span>' +
+                        '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span></span>' +
+                        '<span class="gage-val">' + gageVal + '</span>' +
                       '</div>' +
                       '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                     '</div>' +

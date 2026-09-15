@@ -75,14 +75,22 @@
 
     /* WATER REPORT EXACT STYLING */
     .card { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
-    .card-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2c2c2e; padding-bottom: 6px; margin-bottom: 6px; }
-    .tag-pill { background-color: #2c2c2e; color: #30d158; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
-    .card-date { color: #ffffff; font-size: 15px; margin: 2px 0 0 0; font-weight: 800; }
-    .card-legal-hours { font-size: 11px; color: #8e8e93; font-weight: 600; margin-top: 3px; }
-    .legal-hours-val { color: #ffffff; font-weight: 700; }
-    .peak-box { text-align: right; }
-    .peak-num { font-size: 20px; font-weight: 900; line-height: 1; }
-    .peak-lbl { color: #8e8e93; font-size: 8px; font-weight: 700; margin-top: 2px; }
+    
+    /* Centered Date Switcher & Regulations Header */
+    .date-reg-header { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 14px 12px 12px 12px; margin-bottom: 8px; text-align: center; }
+    .date-nav-row { display: flex; justify-content: center; align-items: center; gap: 14px; }
+    .date-nav-btn { background-color: #2c2c2e; color: #ffffff; border: 1px solid #3a3a3c; border-radius: 8px; width: 36px; height: 36px; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; transition: background-color 0.15s ease, opacity 0.15s ease; padding: 0; line-height: 1; }
+    .date-nav-btn:active { background-color: #3a3a3c; transform: scale(0.96); }
+    .date-nav-btn.disabled, .date-nav-btn:disabled { opacity: 0.25; cursor: not-allowed; pointer-events: none; }
+    .date-nav-center { display: flex; align-items: center; justify-content: center; min-width: 210px; }
+    .date-nav-text { font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: -0.2px; }
+    .date-today-badge { font-size: 11px; font-weight: 600; color: #8e8e93; margin-left: 6px; }
+    .status-pill-row { display: flex; justify-content: center; align-items: center; margin-top: 10px; }
+    .reg-status-pill { display: inline-flex; align-items: center; justify-content: center; padding: 5px 14px; border-radius: 9999px; font-weight: 800; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .status-pill-open { background-color: rgba(34, 197, 94, 0.18); color: #22c55e; border: 1px solid #22c55e; }
+    .status-pill-closed { background-color: rgba(239, 68, 68, 0.18); color: #ef4444; border: 1px solid #ef4444; }
+    .hero-legal-hours { font-size: 1.35rem; font-weight: 700; color: #ffffff; text-align: center; margin-top: 10px; margin-bottom: 2px; letter-spacing: -0.2px; }
+
     .sec-hdr { color: #8e8e93; font-size: 9px; font-weight: 700; margin: 10px 0 4px 0; border-bottom: 1px solid #2c2c2e; padding-bottom: 2px; }
     .data-row { display: flex; align-items: flex-start; margin-bottom: 3px; }
     .k { color: #8e8e93; flex: 0 0 90px; font-size: 11px; font-weight: 500; }
@@ -205,10 +213,28 @@
 
 <!-- TOOL 1: WATER REPORT -->
 <div id="tab-water-report" class="tab-content tab-active">
-    <div style="margin-bottom: 6px;">
-        <select id="day-selector" onchange="showDay(this.value)">
-            <option value="loading">Loading live data...</option>
-        </select>
+    <div id="date-reg-header" class="date-reg-header">
+        <!-- 1. Centered Date Navigation Row -->
+        <div class="date-nav-row">
+            <button class="date-nav-btn" id="btn-prev-date" onclick="stepDate(-1)" aria-label="Previous day">&lt;</button>
+            <div class="date-nav-center">
+                <span id="date-nav-text" class="date-nav-text">Loading date...</span>
+                <span id="date-today-badge" class="date-today-badge" style="display:none;">(Today)</span>
+            </div>
+            <button class="date-nav-btn" id="btn-next-date" onclick="stepDate(1)" aria-label="Next day">&gt;</button>
+        </div>
+
+        <!-- 2. Centered Regulation Status Pill -->
+        <div class="status-pill-row">
+            <div id="river-status-pill" class="reg-status-pill status-pill-closed">
+                ● RIVER CLOSED
+            </div>
+        </div>
+
+        <!-- 3. Centered Hero Legal Hours -->
+        <div id="hero-legal-hours" class="hero-legal-hours">
+            Legal Hours: --:-- – --:--
+        </div>
     </div>
     <div id="water-report-cards"></div>
 </div>
@@ -356,6 +382,8 @@
 
 <div id="debug-console"></div>
 
+<script src="src/utils/regulations.js"></script>
+<script src="src/data/riverRegulations.js"></script>
 <script>
     // --- DEBUG MATRIX (Double Tap Header) ---
     var lastTap = 0;
@@ -438,11 +466,119 @@
         return html;
     }
 
+    var activeDateOffset = 0;
+    var reportsData = [];
+
+    function stepDate(delta) {
+        var newOffset = activeDateOffset + delta;
+        if (newOffset < 0) return;
+        var maxOffset = reportsData.length > 0 ? reportsData.length - 1 : 14;
+        if (newOffset > maxOffset) return;
+        activeDateOffset = newOffset;
+        updateActiveDateUI();
+    }
+
     function showDay(dayId) {
         var cards = document.getElementsByClassName('day-card');
         for(var i = 0; i < cards.length; i++) { cards[i].style.display = 'none'; }
         var target = document.getElementById(dayId);
         if(target) target.style.display = 'block';
+    }
+
+    function updateActiveDateUI() {
+        var d = new Date();
+        d.setDate(d.getDate() + activeDateOffset);
+
+        // 1. Centered Date Display: e.g. "Monday, September 14"
+        var options = { weekday: 'long', month: 'long', day: 'numeric' };
+        var dateStr = d.toLocaleDateString('en-US', options);
+        var dateEl = document.getElementById('date-nav-text');
+        if (dateEl) dateEl.innerText = dateStr;
+
+        // Subtle (Today) badge if matches current calendar day
+        var now = new Date();
+        var isToday = (
+            d.getFullYear() === now.getFullYear() &&
+            d.getMonth() === now.getMonth() &&
+            d.getDate() === now.getDate()
+        );
+        var badgeEl = document.getElementById('date-today-badge');
+        if (badgeEl) badgeEl.style.display = isToday ? 'inline' : 'none';
+
+        // Prev/Next button states
+        var prevBtn = document.getElementById('btn-prev-date');
+        if (prevBtn) {
+            if (activeDateOffset <= 0) {
+                prevBtn.classList.add('disabled');
+                prevBtn.disabled = true;
+            } else {
+                prevBtn.classList.remove('disabled');
+                prevBtn.disabled = false;
+            }
+        }
+        var nextBtn = document.getElementById('btn-next-date');
+        if (nextBtn) {
+            var maxOffset = reportsData.length > 0 ? reportsData.length - 1 : 14;
+            if (activeDateOffset >= maxOffset) {
+                nextBtn.classList.add('disabled');
+                nextBtn.disabled = true;
+            } else {
+                nextBtn.classList.remove('disabled');
+                nextBtn.disabled = false;
+            }
+        }
+
+        // 2. Resolve Active Station & GPS
+        var activeStation = null;
+        try {
+            var sStr = localStorage.getItem('active_station');
+            if (sStr) activeStation = JSON.parse(sStr);
+        } catch(e) {}
+        var riverId = activeStation ? activeStation.id : "12101500";
+        var gpsCoords = (activeStation && activeStation.isGps) ? { lat: activeStation.lat, lon: activeStation.lon } : (window.userGPSCoords || null);
+
+        // 3. Dynamic Regulations Engine Evaluation
+        if (typeof checkRiverStatus === 'function') {
+            var reg = checkRiverStatus(d, riverId, gpsCoords);
+            var pill = document.getElementById('river-status-pill');
+            if (pill) {
+                pill.innerText = reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED';
+                pill.className = 'reg-status-pill ' + (reg.isOpen ? 'status-pill-open' : 'status-pill-closed');
+            }
+        }
+
+        // 4. Dynamic Solar / Legal Hours Calculation
+        var stLat = activeStation ? activeStation.lat : 47.1950;
+        var stLon = activeStation ? activeStation.lon : -122.3020;
+        var rep = (activeDateOffset >= 0 && activeDateOffset < reportsData.length) ? reportsData[activeDateOffset] : null;
+        var legalIn = "--:--", legalOut = "--:--";
+
+        if (typeof calculateSolarHours === 'function') {
+            var solar = calculateSolarHours(d, stLat, stLon);
+            if (solar && solar.lines_in && solar.lines_out && solar.lines_in !== '--') {
+                legalIn = solar.lines_in;
+                legalOut = solar.lines_out;
+            }
+        }
+        if (legalIn === "--:--" && rep && rep.lines_in && rep.lines_out) {
+            legalIn = rep.lines_in;
+            legalOut = rep.lines_out;
+        }
+
+        var heroHours = document.getElementById('hero-legal-hours');
+        if (heroHours) {
+            heroHours.innerText = 'Legal Hours: ' + legalIn + ' \u2013 ' + legalOut;
+        }
+
+        // 5. Toggle active day card
+        var cards = document.getElementsByClassName('day-card');
+        for (var i = 0; i < cards.length; i++) {
+            cards[i].style.display = 'none';
+        }
+        if (rep) {
+            var targetCard = document.getElementById(rep.id);
+            if (targetCard) targetCard.style.display = 'block';
+        }
     }
 
     async function loadWaterReport() {
@@ -466,6 +602,11 @@
             badge.innerText = "📌 USGS: " + station.id;
             badge.className = "station-badge badge-manual";
         }
+        updateActiveDateUI();
+
+        if (typeof loadRegulationsRules === 'function') {
+            await loadRegulationsRules();
+        }
 
         logDebug("Fetching Water API for " + station.name + " (" + station.id + ")...", "NET");
         try {
@@ -473,6 +614,7 @@
                 cache: 'no-store'
             });
             var reports = await res.json();
+            reportsData = reports;
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
 
             if (reports.length > 0) {
@@ -484,8 +626,6 @@
                 badge.innerText = (station.isGps ? "📍 GPS: " : "📌 USGS: ") + actId;
             }
             
-            var sel = document.getElementById('day-selector');
-            sel.innerHTML = '';
             var cardsHtml = '';
 
             // Automatically push Live CFS to Gear Sim
@@ -498,10 +638,6 @@
 
             for(var i=0; i<reports.length; i++) {
                 var rep = reports[i];
-                var opt = document.createElement('option');
-                opt.value = rep.id;
-                opt.innerText = (i < 2) ? rep.title + ' (' + rep.tag + ')' : rep.title;
-                sel.appendChild(opt);
 
                 var winHtml = '';
                 for(var j=0; j<rep.windows.length; j++) {
@@ -513,10 +649,8 @@
                         '<div class="window-triggers">&rarr; '+w.triggers+'</div></div>';
                 }
 
-                var nColor = rep.is_netting ? "#ff453a" : "#30d158";
-                var pColor = getFMIColor(rep.peak);
                 var fColor = getFMIColor(rep.flow_idx);
-                var dStyle = (i === 0) ? "block" : "none";
+                var dStyle = (i === activeDateOffset) ? "block" : "none";
 
                 var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
                 var pArr = (rep.press_delta > 0) ? '↗' : ((rep.press_delta < 0) ? '↘' : '→');
@@ -527,20 +661,6 @@
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                     '<div class="card">' +
-                    '<div class="card-top">' +
-                      '<div style="flex: 1; min-width: 0;">' +
-                        '<div style="margin-bottom: 2px;">' +
-                          '<span class="tag-pill">'+rep.tag+'</span>' +
-                        '</div>' +
-                        '<h1 class="card-date">'+rep.title+'</h1>' +
-                        '<div class="card-legal-hours">Legal Hours: <span class="legal-hours-val">'+rep.lines_in+' &ndash; '+rep.lines_out+'</span></div>' +
-                      '</div>' +
-                      '<div class="peak-box" style="flex-shrink: 0; text-align: right; margin-left: 8px;">' +
-                        '<div class="peak-num" style="color: '+pColor+';">'+rep.peak+'%</div>' +
-                        '<div class="peak-lbl">MAX POTENTIAL</div>' +
-                      '</div>' +
-                    '</div>' +
-                    
                     // RIVER & ENVIRONMENTAL CONDITIONS (Consolidated)
                     '<div class="sec-hdr">[ RIVER &amp; ENVIRONMENTAL CONDITIONS ]</div>' +
                     seasonalWarn +
@@ -586,7 +706,6 @@
                     // 6. MIGRATION ROUTING & ESCAPEMENT
                     '<div class="sec-hdr">[ MIGRATION ROUTING &amp; ESCAPEMENT ]</div>' +
                     '<div class="data-row" style="margin-bottom:4px;"><span class="k">Escapement:</span> <div class="v" style="color:#ffffff;">'+rep.active_fish+'</div></div>' +
-                    '<div class="data-row"><span class="k">Tribal Nets:</span> <div class="v" style="color:'+nColor+'; font-weight:700;">'+rep.net_status+'</div></div>' +
                     '<div class="data-row"><span class="k">FMI*:</span> <div class="v"><span style="color:'+fColor+'; font-weight:800; font-size:12px;">'+rep.flow_idx+'/100</span> <span style="color:#ffd60a; margin-left:6px; font-weight:600;">('+rep.push_status+')</span></div></div>' +
                     '<div class="data-row"><span class="k">Transit Math:</span> <div class="v">Kinematic Simulation via Tide/CFS Interaction</div></div>' +
                     '<div class="fmi-caption">*FMI (Flow Migration Index): 1-100 scale of optimal water velocity for upstream movement.</div>' +
@@ -595,9 +714,10 @@
                     '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
             }
             document.getElementById('water-report-cards').innerHTML = cardsHtml;
+            updateActiveDateUI();
         } catch(e) {
             logDebug("API Error: " + e.message, "ERR");
-            document.getElementById('day-selector').innerHTML = '<option>Error loading data</option>';
+            updateActiveDateUI();
         }
     }
 
@@ -616,10 +736,14 @@
             navigator.geolocation.getCurrentPosition(function(pos){
                 var coords = pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
                 document.getElementById('log-gps').value = coords;
+                window.userGPSCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
                 logDebug("GPS Lock: " + coords, "SYS");
+                updateActiveDateUI();
             }, function(err){
                 document.getElementById('log-gps').value = "Denied";
+                window.userGPSCoords = null;
                 logDebug("GPS Error: " + err.message, "ERR");
+                updateActiveDateUI();
             });
         }
     }
@@ -875,6 +999,7 @@
     }
 
     function selectPreset(id, lat, lon, name, isGps) {
+        activeDateOffset = 0;
         var station = { id: id, lat: lat, lon: lon, name: name, isGps: !!isGps };
         localStorage.setItem('active_station', JSON.stringify(station));
         logDebug("Selected Station: " + name + " (" + id + ")", "STATE");

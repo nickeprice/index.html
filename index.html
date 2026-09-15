@@ -86,10 +86,10 @@
     .date-nav-text { font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: -0.2px; }
     .date-today-badge { font-size: 11px; font-weight: 600; color: #8e8e93; margin-left: 6px; }
     .status-pill-row { display: flex; justify-content: center; align-items: center; margin-top: 10px; }
-    .reg-status-pill { display: inline-flex; align-items: center; justify-content: center; padding: 8px 20px; min-height: 42px; border-radius: 9999px; font-weight: 800; font-size: 1rem; letter-spacing: 0.5px; text-transform: uppercase; box-sizing: border-box; }
+    .reg-status-pill { display: inline-flex; align-items: center; justify-content: center; padding: 8px 20px; min-height: 40px; border-radius: 9999px; font-weight: 800; font-size: 0.95rem; letter-spacing: 0.5px; text-transform: uppercase; box-sizing: border-box; }
     .status-pill-open { background-color: rgba(34, 197, 94, 0.18); color: #22c55e; border: 1px solid #22c55e; }
     .status-pill-closed { background-color: rgba(239, 68, 68, 0.18); color: #ef4444; border: 1px solid #ef4444; }
-    .hero-legal-hours { font-size: 1.15rem; font-weight: 700; color: #ffffff; text-align: center; margin-top: 10px; margin-bottom: 2px; letter-spacing: -0.2px; line-height: 1.3; }
+    .hero-legal-hours { font-size: 0.95rem; font-weight: 700; color: #ffffff; text-align: center; margin-top: 8px; margin-bottom: 2px; letter-spacing: -0.2px; line-height: 1.3; }
 
     .sec-hdr { color: #a1a1aa; font-size: 11px; font-weight: 700; margin: 12px 0 6px 0; border-bottom: 1px solid #2c2c2e; padding-bottom: 3px; letter-spacing: 0.3px; }
     .data-row { display: flex; align-items: flex-start; margin-bottom: 4px; font-size: 13px; }
@@ -110,7 +110,7 @@
     .telemetry-main { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 14px; }
     .telemetry-label { color: #a1a1aa; font-weight: 600; font-size: 14px; }
     .telemetry-val { color: #ffffff; font-weight: 700; font-size: 14px; }
-    .telemetry-updated { color: #a1a1aa; font-size: 14px; font-weight: 600; }
+    .telemetry-updated { color: #8e8e93; font-size: 11px; font-weight: 500; opacity: 0.85; }
 
     /* 2. Marine / Tide Row */
     .env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 6px; box-sizing: border-box; }
@@ -122,17 +122,18 @@
 
     /* 3. Weather & Moon Conditions */
     .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
-    .env-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 6px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
-    .env-badge-val { font-size: 14px; font-weight: 700; color: #ffffff; min-height: 26px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; }
-    .env-badge-lbl { font-size: 11px; color: #cbd5e1; text-transform: uppercase; font-weight: 700; letter-spacing: 0.3px; line-height: 1.2; }
+    .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+    .env-badge-val { font-size: 13px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; }
+    .env-badge-lbl { font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; line-height: 1.2; }
 
     @media (min-width: 600px) {
         .tide-pill { flex: 1 1 0; min-width: 0; }
-        .env-stat-grid { grid-template-columns: repeat(3, 1fr); }
+        .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .env-badge { padding: 8px 6px; }
     }
     @media (min-width: 840px) {
-        .env-stat-grid { grid-template-columns: repeat(6, 1fr); }
+        .env-stat-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
     }
 
     /* DEBUG MATRIX */

@@ -213,8 +213,8 @@
     .telemetry-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 2px; font-size: 14px; }
     /* Primary readouts: CFS flow and gauge height share one centered line */
     .telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
-    .cfs-val, .gage-val { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; color: #ffffff; }
-    .telemetry-sep { font-size: 18px; font-weight: 800; color: #64748b; }
+    .cfs-val, .gage-val { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #ffffff; }
+    .telemetry-sep { font-size: 15px; font-weight: 700; color: #64748b; }
     .cfs-trend-badge { font-weight: 700; font-size: 12px; display: inline-block; }
     /* Quiet background timestamp — smaller and muted so it never competes with the data */
     .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
@@ -771,9 +771,11 @@
                 var dStyle = (i === activeDateOffset) ? "block" : "none";
 
                 var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
+                // Barometric trend from the API's 6-hour pressure window: up-arrow rising, down-arrow falling, dash flat
+                var pArr = (rep.press_delta > 0) ? '\u2191' : ((rep.press_delta < 0) ? '\u2193' : '\u2014');
 
                 var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
-                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft' : '-- ft';
+                var gageVal = (rep.gage !== null && rep.gage !== undefined) ? 'Gauge: ' + rep.gage.toFixed(2) + ' ft' : 'Gauge: -- ft';
                 var seasonalWarn = (!rep.is_active) ? '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>' : '';
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
@@ -792,7 +794,7 @@
                       '<div class="env-stat-grid">' +
                         // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, CLOUD COVER
                         '<div class="env-badge">' +
-                          '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span></div>' +
+                          '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span> ' + pArr + '</div>' +
                           '<div class="env-badge-lbl">Barometer</div>' +
                         '</div>' +
                         '<div class="env-badge">' +

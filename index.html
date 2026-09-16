@@ -68,6 +68,8 @@
     #btn-log { background-color: #333; color: #666; pointer-events: none; }
     #btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
     #btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
+    #btn-log.locked { background-color: #333; color: #666; pointer-events: none; }
+    #btn-auth-start { background-color: var(--accent-green); color: #000; }
     
     /* Action Button Group */
     .btn-group { display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px; }
@@ -79,6 +81,13 @@
     #suggestions .sug-head { display: block; margin-bottom: 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #fbbf24; }
     #suggestions .sug-zone { color: #e5e7eb; }
     #suggestions .sug-cond { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; line-height: 1.45; }
+
+    /* CATCH LOG AUTH (anonymous guest session) */
+    #auth-section { padding-top: 4px; }
+    .auth-note { font-size: 0.7rem; color: var(--text-muted); margin: 10px 0 0 0; line-height: 1.5; }
+    .auth-badge { display: flex; justify-content: space-between; align-items: center; gap: 10px; background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 8px; padding: 12px; font-size: 0.9rem; color: var(--text-main); }
+    .auth-badge .auth-link { color: var(--accent-blue); font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .auth-badge .auth-dot { color: var(--accent-green); }
     .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
     th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
@@ -455,11 +464,26 @@
 
 <!-- TOOL 3: CATCH LOG -->
 <div id="tab-catch-log" class="tab-content">
-    <div class="bucket">
-        <h2 class="purple-heading">Angler & Location Details</h2>
-        <div class="row">
-            <div class="col"><label>Angler Name</label><input type="text" id="log-name" value="Nick"></div>
+    <div class="bucket" id="auth-section">
+        <div id="auth-logged-out">
+            <h2 class="purple-heading">Angler Sign In</h2>
+            <div class="row">
+                <div class="col"><label>Enter your name</label><input type="text" id="auth-name" placeholder="Enter your name" maxlength="24" autocomplete="nickname"></div>
+            </div>
+            <button class="btn-main" id="btn-auth-start" onclick="startFishing()">START FISHING</button>
+            <p class="auth-note">Anonymous guest session — no email or password. Your exact leader, hook, foam and GPS stay private; only your name, time, flow and fish appear on the Brag Board.</p>
         </div>
+        <div id="auth-logged-in" style="display:none;">
+            <h2 class="purple-heading">Session</h2>
+            <div class="auth-badge">
+                <span><span class="auth-dot">●</span> Logged in as: <strong id="auth-display-name">--</strong></span>
+                <span class="auth-link" onclick="stopFishing()">Sign Out</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="bucket">
+        <h2 class="purple-heading">Angler &amp; Location Details</h2>
         <div class="row">
             <div class="col"><label>Date & Time</label><input type="datetime-local" id="log-datetime"></div>
         </div>
@@ -523,7 +547,8 @@
         
         <button class="btn-main" id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
 
-        <h2>Log Database</h2>
+        <h2>Brag Board</h2>
+        <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.</p>
         <div class="btn-group">
             <button id="btn-clear" onclick="tryClearDB()">CLEAR DATA</button>
             <button id="btn-import" onclick="importHistoricalData()">IMPORT HISTORY</button>
@@ -532,7 +557,7 @@
         <div class="table-wrapper">
             <table id="db-table">
                 <thead>
-                    <tr><th>Name</th><th>Flow</th><th>Fish</th><th>Loc</th><th>Leader</th><th>Hook</th><th>Yarn</th><th>Foam</th><th>GPS</th></tr>
+                    <tr><th>Name</th><th>Time</th><th>Flow</th><th>Fish</th></tr>
                 </thead>
                 <tbody id="db-body"></tbody>
             </table>
@@ -542,8 +567,10 @@
 
 <div id="debug-console"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="src/utils/regulations.js"></script>
 <script src="src/data/riverRegulations.js"></script>
+<script src="src/services/supabase.js"></script>
 <script>
     // --- DEBUG MATRIX (Double Tap Header) ---
     var lastTap = 0;
@@ -576,8 +603,130 @@
         logDebug("Switched to " + tabId, "UI");
     }
 
-    // --- SHARED GEAR STATE ---
-    // The Gear Sim controls mirror the Catch Log controls (ids suffixed "-log").
+    // --- AUTH (anonymous guest session) ---
+    var AuthState = { signedIn: false, name: '', offline: false };
+
+    function applyAuthState(signedIn, name) {
+        AuthState.signedIn = !!signedIn;
+        AuthState.name = name || '';
+        var out = document.getElementById('auth-logged-out');
+        var inn = document.getElementById('auth-logged-in');
+        if (out) out.style.display = signedIn ? 'none' : 'block';
+        if (inn) inn.style.display = signedIn ? 'block' : 'none';
+        var label = document.getElementById('auth-display-name');
+        if (label) label.innerText = AuthState.name || '--';
+
+        var btnLog = document.getElementById('btn-log');
+        if (btnLog) {
+            if (!signedIn) {
+                btnLog.innerText = 'SIGN IN TO LOG CATCHES';
+                btnLog.className = 'btn-main locked';
+            } else if (currentStats) {
+                btnLog.innerText = 'LOG CATCH DATA';
+                btnLog.className = 'btn-main ready';
+            }
+        }
+        logDebug('Auth: ' + (signedIn ? ('guest session for ' + AuthState.name) : 'signed out'), 'AUTH');
+    }
+
+    async function initAuth() {
+        if (typeof Supa === 'undefined') { applyAuthState(false, ''); return; }
+        try { await Supa.ensureSdk(); } catch (e) {}
+        var sess = null;
+        try { sess = await Supa.getSession(); } catch (e) { sess = null; }
+        var name = (sess && sess.name) ? sess.name : '';
+        if (name) setFieldValue('auth-name', name);
+        applyAuthState(!!(sess && (sess.user || name)), name);
+        if (AuthState.signedIn) syncPendingCatches();
+    }
+
+    async function startFishing() {
+        var name = (getStr('auth-name') || '').trim();
+        if (!name) { alert('Enter a name to start fishing.'); return; }
+        var btn = document.getElementById('btn-auth-start');
+        if (btn) { btn.innerText = 'CONNECTING...'; btn.disabled = true; }
+        var res = null;
+        try {
+            res = (typeof Supa !== 'undefined') ? await Supa.signInGuest(name) : { ok: true, offline: true, name: name };
+        } catch (e) {
+            res = { ok: false, error: e.message };
+        }
+        if (btn) { btn.innerText = 'START FISHING'; btn.disabled = false; }
+        if (!res || !res.ok) {
+            alert('Could not start a session: ' + ((res && res.error) || 'unknown error'));
+            return;
+        }
+        applyAuthState(true, res.name || name);
+        if (res.offline) logDebug('Local-only guest session (Supabase unreachable)', 'AUTH');
+        syncPendingCatches();
+        switchTab('tab-gear-sim');
+    }
+
+    async function stopFishing() {
+        try { if (typeof Supa !== 'undefined') await Supa.signOut(); } catch (e) {}
+        setFieldValue('auth-name', '');
+        currentStats = null;
+        applyAuthState(false, '');
+        loadDatabase();
+        switchTab('tab-catch-log');
+    }
+
+    // Rows that failed to reach Supabase stay in the local buffer flagged pendingSync and are
+    // retried whenever a session becomes available. Seed/demo rows never carry the flag, so
+    // the historical sample data is never uploaded to the shared board.
+    async function syncPendingCatches() {
+        if (typeof Supa === 'undefined') return 0;
+        var db = [];
+        try {
+            var jStr = localStorage.getItem('catch_db');
+            db = jStr ? JSON.parse(jStr) : [];
+        } catch (e) { return 0; }
+        var pending = db.filter(function (r) { return r && r.pendingSync; });
+        if (!pending.length) return 0;
+
+        var synced = 0;
+        for (var i = 0; i < pending.length; i++) {
+            var res = null;
+            try { res = await Supa.insertCatch(pending[i]); } catch (e) { res = null; }
+            if (res && res.ok) {
+                delete pending[i].pendingSync;
+                pending[i].syncedAt = new Date().toISOString();
+                synced++;
+            } else {
+                break;   // still offline: stop here and retry next session
+            }
+        }
+        if (synced > 0) {
+            try { localStorage.setItem('catch_db', JSON.stringify(db)); } catch (e) {}
+            logDebug('Flushed ' + synced + ' buffered catch(es) to Supabase', 'SYNC');
+        }
+        return synced;
+    }
+
+    // Accepts either Supabase (angler_name/catch_time/cfs/species) or local buffer
+    // (name/time/flow/spc) shapes so the offline fallback renders identically.
+    function normalizeFeedRow(row) {
+        if (!row) return null;
+        return {
+            name: (row.angler_name !== undefined) ? row.angler_name : row.name,
+            time: (row.catch_time !== undefined) ? row.catch_time : row.time,
+            flow: (row.cfs !== undefined && row.cfs !== null) ? row.cfs : row.flow,
+            spc: (row.species !== undefined) ? row.species : row.spc
+        };
+    }
+
+    function formatCatchTime(value) {
+        if (!value) return '--';
+        var d = new Date(value);
+        if (isNaN(d.getTime())) return String(value).slice(0, 16).replace('T', ' ');
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var h = d.getHours();
+        var suffix = h >= 12 ? 'PM' : 'AM';
+        var h12 = h % 12; if (h12 === 0) h12 = 12;
+        var mins = d.getMinutes(); if (mins < 10) mins = '0' + mins;
+        return months[d.getMonth()] + ' ' + d.getDate() + ', ' + h12 + ':' + mins + ' ' + suffix;
+    }
+
     function syncSelect(baseId, fromLog) {
         var a = document.getElementById(baseId);
         var b = document.getElementById(baseId + '-log');
@@ -1566,7 +1715,7 @@
     }
 
     function learnDragCoeff(dbArray, flow, species) {
-        if (!dbArray || !dbArray.length) return { coeff: 1.0, samples: 0, note: 'no catch history' };
+        if (!dbArray || !dbArray.length) return { coeff: 1.0, samples: 0, note: 'no community data yet' };
         var samples = [];
         for (var i = dbArray.length - 1; i >= 0 && samples.length < 8; i--) {
             var row = dbArray[i];
@@ -1583,13 +1732,13 @@
                 (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5
             ));
         }
-        if (samples.length < 2) return { coeff: 1.0, samples: samples.length, note: 'history too thin to calibrate' };
+        if (samples.length < 2) return { coeff: 1.0, samples: samples.length, note: 'community sample too thin to calibrate' };
         var sum = 0;
         for (var k = 0; k < samples.length; k++) sum += samples[k];
         var blended = 1.0 + (((sum / samples.length) - 1.0) * 0.5);
         if (blended < 1 - MAX_LEARN_SHIFT) blended = 1 - MAX_LEARN_SHIFT;
         if (blended > 1 + MAX_LEARN_SHIFT) blended = 1 + MAX_LEARN_SHIFT;
-        return { coeff: blended, samples: samples.length, note: 'calibrated from ' + samples.length + ' logged catches' };
+        return { coeff: blended, samples: samples.length, note: 'trained on ' + samples.length + ' crowdsourced catches' };
     }
 
     // ==================================================================================
@@ -1722,39 +1871,57 @@
         return best;
     }
 
-    function loadDatabase() {
-        var jStr = localStorage.getItem('catch_db');
-        var dbArray = jStr ? JSON.parse(jStr) : [];
+        // Brag Board renderer: public columns only (Name / Time / Flow / Fish). Reads the
+    // Supabase view first and falls back to the local buffer when offline or unconfigured.
+    async function loadDatabase() {
         var tbody = document.getElementById('db-body');
-        tbody.innerHTML = '';
-        
-        document.getElementById('target-hgt').innerText = 'Zone: ' +
-            BASE_ZONE_MIN.toFixed(1) + '" - ' + BASE_ZONE_MAX.toFixed(1) + '"';
+        if (tbody) tbody.innerHTML = '';
 
-        for (var i=0; i < dbArray.length; i++) {
-            var row = dbArray[i];
-            var tr = document.createElement('tr');
-            if (row.loc !== 'Fair') tr.className = 'foul-hook';
-            
-            tr.innerHTML = '<td>'+(row.name||'--')+'</td>' +
-                '<td>'+row.flow+'</td><td>'+row.spc+'</td>' +
-                '<td>'+(row.loc==='Fair'?'Mouth':'Foul')+'</td>' +
-                '<td>'+row.ldLen+"'</td>" +
-                '<td>'+hookLabel(row.hook)+'</td>' +
-                '<td>'+(row.yarn===0?"None":row.yarn+'"')+'</td>' +
-                '<td>'+foamLabelFromRecord(row)+'</td>' +
-                '<td>'+(row.gps||'--')+'</td>';
-            tbody.appendChild(tr);
+        var rows = [];
+        var fromCloud = false;
+        if (typeof Supa !== 'undefined') {
+            try {
+                rows = await Supa.fetchPublicFeed(100);
+                fromCloud = rows.length > 0;
+            } catch (e) { rows = []; }
         }
-        logDebug("Loaded " + dbArray.length + " DB records", "DB");
+
+        if (!fromCloud) {
+            var local = [];
+            try {
+                var jStr = localStorage.getItem('catch_db');
+                local = jStr ? JSON.parse(jStr) : [];
+            } catch (e) { local = []; }
+            rows = local.slice().reverse();
+            logDebug('Brag board falling back to ' + rows.length + ' buffered row(s)', 'DB');
+        }
+
+        var rendered = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var r = normalizeFeedRow(rows[i]);
+            if (!r) continue;
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + (r.name || '--') + '</td>' +
+                '<td>' + formatCatchTime(r.time) + '</td>' +
+                '<td>' + ((r.flow !== undefined && r.flow !== null) ? r.flow : '--') + '</td>' +
+                '<td>' + (r.spc || '--') + '</td>';
+            tbody.appendChild(tr);
+            rendered++;
+        }
+
+        if (rendered === 0) {
+            var empty = document.createElement('tr');
+            empty.innerHTML = '<td colspan="4" style="color:var(--text-muted);">No catches on the board yet.</td>';
+            tbody.appendChild(empty);
+        }
+
+        if (typeof refreshZonePreview === 'function') refreshZonePreview();
+        logDebug('Brag board: ' + rendered + ' row(s) ' + (fromCloud ? 'from Supabase' : 'from local buffer'), 'DB');
     }
 
-    function runSim() {
-        var dbArray = [];
-        try {
-            var jStr = localStorage.getItem('catch_db');
-            dbArray = jStr ? JSON.parse(jStr) : [];
-        } catch(e) { dbArray = []; }
+    async function runSim() {
+        var simBtn = document.getElementById('btn-sim');
+        if (simBtn) { simBtn.innerText = 'CALCULATING...'; simBtn.disabled = true; }
 
         // 1. Read the rig off the form -------------------------------------------------
         var flow = getNum('flow');
@@ -1773,6 +1940,19 @@
         var bdMat = getStr('bd-mat');
         var bdSz = getNum('bd-sz');
         var species = getStr('species');
+
+        // Community calibration: anonymised full tackle telemetry from every angler who has
+        // logged a catch at this flow and species. Falls back to the local buffer offline.
+        var dbArray = [];
+        if (typeof Supa !== 'undefined') {
+            try { dbArray = await Supa.fetchGlobalCalibration(flow, species); } catch (e) { dbArray = []; }
+        }
+        if (!dbArray.length) {
+            try {
+                var jStr = localStorage.getItem('catch_db');
+                dbArray = jStr ? JSON.parse(jStr) : [];
+            } catch (e) { dbArray = []; }
+        }
 
         // 2. Fluid dynamics -------------------------------------------------------------
         var velocity = hydraulicVelocity(flow);
@@ -1812,9 +1992,8 @@
         if (best && !blownOut && score < 5.0) {
             suggestions.push('Try this: ' + best.foam.label + ' + ' + best.leader + ' ft leader + ' + best.weight + ' oz lead -> projects ' + best.hgt.toFixed(1) + '" of line height.');
         }
-        if (learned.samples >= 2) {
-            suggestions.push('River calibration: ' + learned.note + ', drag adjusted ' + ((learned.coeff - 1) * 100).toFixed(1) + '% (hard-clamped to +/-10%).');
-        }
+        suggestions.push('Community calibration: ' + learned.note + ', drag adjusted ' +
+            ((learned.coeff - 1) * 100).toFixed(1) + '% (hard-clamped to +/-10%).');
         if (species && species !== 'None') {
             suggestions.push('Targeting ' + species + ' at ' + flow + ' CFS on a ' + formatRodLength(rodFt) + ' rod with a ' + ldMat + ' ' + ldLb + 'lb leader.');
         }
@@ -1872,7 +2051,10 @@
         sBar.style.width = Math.max(6, (score / 5) * 90) + '%';
 
         var btnLog = document.getElementById('btn-log');
-        if (blownOut) {
+        if (!AuthState.signedIn) {
+            btnLog.innerText = 'SIGN IN TO LOG CATCHES';
+            btnLog.className = 'btn-main locked';
+        } else if (blownOut) {
             btnLog.innerText = 'LOG ANYWAY (FORCE)';
             btnLog.className = 'btn-main force';
         } else {
@@ -1885,16 +2067,27 @@
         sugBox.innerHTML = '<span class="sug-head">Rig Adjustments</span>- ' + suggestions.join('<br>- ') +
             '<div class="sug-cond">' + zone.notes.join('<br>') + '</div>';
 
+        if (simBtn) { simBtn.innerText = 'RUN SIMULATION'; simBtn.disabled = false; }
         logDebug('Sim: height ' + hgt.toFixed(2) + '", bed velocity ' + velocity.bottom.toFixed(2) +
             ' ft/s, zone ' + zone.min.toFixed(1) + '-' + zone.max.toFixed(1) + '", score ' + score.toFixed(2), 'SIM');
     }
 
-    function logData() {
+        // Offline-first write: buffer the catch locally, then push the full private profile
+    // (complete tackle + GPS) to Supabase. The public view only ever exposes 4 columns.
+    async function logData() {
+        if (!AuthState.signedIn) {
+            switchTab('tab-catch-log');
+            var nameField = document.getElementById('auth-name');
+            if (nameField) nameField.focus();
+            alert('Start a session first: enter your name and tap START FISHING.');
+            return;
+        }
         if (!currentStats) return;
+
         var foamRaw = getStr('foam');
         var foamParsed = parseFoam(foamRaw);
         var payload = {
-            name: getStr('log-name'),
+            name: AuthState.name || 'Anonymous',
             time: getStr('log-datetime'),
             gps: getStr('log-gps'),
             flow: currentStats.flow,
@@ -1919,18 +2112,37 @@
             zoneMax: Number(currentStats.zoneMax.toFixed(2)),
             score: Number(currentStats.score.toFixed(2))
         };
-        
-        var jStr = localStorage.getItem('catch_db');
-        var dbArray = jStr ? JSON.parse(jStr) : [];
-        dbArray.push(payload);
-        localStorage.setItem('catch_db', JSON.stringify(dbArray));
-        logDebug("Catch Logged Locally", "DB");
-        
-        loadDatabase();
-        document.getElementById('btn-log').innerText = "FEED DATA (RUN SIM FIRST)";
+
+        // 1. Offline buffer first, so a logged catch is never lost.
+        var db = [];
+        try {
+            var jStr = localStorage.getItem('catch_db');
+            db = jStr ? JSON.parse(jStr) : [];
+        } catch (e) { db = []; }
+        var idx = db.push(payload) - 1;
+        try { localStorage.setItem('catch_db', JSON.stringify(db)); } catch (e) {}
+        logDebug('Catch buffered locally', 'DB');
+
+        // 2. Async push of the private record to Supabase.
+        var res = null;
+        if (typeof Supa !== 'undefined') {
+            try { res = await Supa.insertCatch(payload); } catch (e) { res = null; }
+        }
+        if (res && res.ok) {
+            db[idx].syncedAt = new Date().toISOString();
+            try { localStorage.setItem('catch_db', JSON.stringify(db)); } catch (e) {}
+            logDebug('Catch synced to Supabase', 'SYNC');
+        } else {
+            db[idx].pendingSync = true;
+            try { localStorage.setItem('catch_db', JSON.stringify(db)); } catch (e) {}
+            logDebug('Queued for retry: ' + ((res && res.error) || 'offline'), 'SYNC');
+        }
+
+        document.getElementById('btn-log').innerText = 'FEED DATA (RUN SIM FIRST)';
         document.getElementById('btn-log').className = 'btn-main';
         currentStats = null;
-        switchTab('tab-water-report');
+        await loadDatabase();
+        switchTab('tab-catch-log');
     }
 
     function importHistoricalData() {
@@ -2211,6 +2423,7 @@
         var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         document.getElementById('log-datetime').value = d.toISOString().slice(0,16);
         getGPS();
+        initAuth();
         loadDatabase();
         loadWaterReport();
     };

@@ -264,7 +264,6 @@
     .esc-section > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; margin-left: 6px; }
     .esc-section[open] > summary::after { content: '\25BE'; }
     .esc-body { margin-top: 6px; }
-    .esc-meta { color: #8e8e93; font-size: 10px; font-weight: 600; text-align: center; margin-bottom: 6px; line-height: 1.3; }
     .esc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
     .esc-card { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 8px; box-sizing: border-box; min-width: 0; }
     .esc-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; border-bottom: 1px solid #27272a; padding-bottom: 4px; }
@@ -274,7 +273,6 @@
     .esc-row-lbl { color: #94a3b8; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
     .esc-row-val { color: #ffffff; font-weight: 700; font-size: 12px; }
     .esc-empty { color: #8e8e93; font-size: 11px; font-weight: 600; text-align: center; padding: 6px 0 2px 0; line-height: 1.35; }
-    .esc-caption { font-size: 10px; color: #8e8e93; font-style: italic; margin-top: 6px; line-height: 1.3; }
 
     @media (min-width: 600px) {
         .tide-pill { flex: 1 1 0; min-width: 0; }
@@ -859,6 +857,10 @@
         if(target) target.style.display = 'block';
     }
 
+    // Legal-hours resolution: the backend Open-Meteo payload is the single source of
+    // truth whenever the telemetry API is reachable. The local NOAA/Meeus
+    // calculation is the offline fallback only, so the hero and the day cards
+    // can never disagree by 1-3 min on a fresh load.
     function updateActiveDateUI() {
         var d = new Date();
         d.setDate(d.getDate() + activeDateOffset);
@@ -927,14 +929,22 @@
         var rep = (activeDateOffset >= 0 && activeDateOffset < reportsData.length) ? reportsData[activeDateOffset] : null;
         var legalIn = "--:--", legalOut = "--:--";
 
-        if (typeof calculateSolarHours === 'function') {
+        // Primary: backend solar times (exact Open-Meteo sunrise/sunset for this date).
+        if (rep && rep.lines_in && rep.lines_out && !rep.api_offline) {
+            legalIn = rep.lines_in;
+            legalOut = rep.lines_out;
+        } else if (typeof calculateSolarHours === 'function') {
+            // Offline fallback: local approximation for the active station coords.
             var solar = calculateSolarHours(d, stLat, stLon);
             if (solar && solar.lines_in && solar.lines_out && solar.lines_in !== '--') {
                 legalIn = solar.lines_in;
                 legalOut = solar.lines_out;
+            } else if (rep && rep.lines_in && rep.lines_out) {
+                // Last resort: stale backend payload (better than "--:--").
+                legalIn = rep.lines_in;
+                legalOut = rep.lines_out;
             }
-        }
-        if (legalIn === "--:--" && rep && rep.lines_in && rep.lines_out) {
+        } else if (rep && rep.lines_in && rep.lines_out) {
             legalIn = rep.lines_in;
             legalOut = rep.lines_out;
         }
@@ -1313,17 +1323,17 @@
     // Rivers absent from this map degrade to a clean "not tracked" state.
     var hatcheryEscapement = {
         '12101500': { system: 'Puyallup / White River', source: 'WDFW Puyallup Basin Facilities', stocks: [
-            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
         '12093500': { system: 'Puyallup / White River (Orting)', source: 'WDFW Puyallup Basin Facilities', stocks: [
-            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
         '12094000': { system: 'Puyallup / White River (Carbon)', source: 'WDFW Puyallup Basin Facilities', stocks: [
-            { name: 'Fall Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
+            { name: 'Chinook', totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Coho',         totalReturn: null, trapCount: null, fiveYrAvg: null },
             { name: 'Jacks',        totalReturn: null, trapCount: null, fiveYrAvg: null }
         ]},
@@ -1370,14 +1380,14 @@
     }
 
     // Maps a dataset row's species + run into a display bucket, e.g.
-    // species 'Chinook' + run 'Fall' -> 'Fall Chinook'. Jacks are pooled separately
-    // from the dataset's dedicated jack_count column.
+    // species 'Chinook' + run 'Fall' -> 'Chinook'. Legacy 'Fall Chinook' rows
+    // (cached before the rename) map to the same bucket so old data never
+    // orphans. Jacks are pooled separately from the dataset's dedicated
+    // jack_count column.
     function escBucketName(species, run) {
         var sp = String(species || '').trim();
-        var rn = String(run || '').trim().toLowerCase();
-        if (sp.toLowerCase().indexOf('chinook') !== -1 && rn) {
-            return rn.charAt(0).toUpperCase() + rn.slice(1) + ' Chinook';
-        }
+        // Chinook (any run) -> 'Chinook'. Legacy 'Fall Chinook' rows map here too.
+        if (sp.toLowerCase().indexOf('chinook') !== -1 || sp.toLowerCase() === 'king') return 'Chinook';
         return sp || 'Unknown';
     }
 
@@ -1405,8 +1415,7 @@
             return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div>';
         }
 
-        html += '<div class="esc-meta">' + rec.system + ' &middot; ' + rec.source + '</div>' +
-            '<div class="env-stat-grid">';
+        html += '<div class="env-stat-grid">';
 
         for (var s = 0; s < rec.stocks.length; s++) {
             var st = rec.stocks[s];
@@ -1423,7 +1432,6 @@
         }
 
         return html + '</div>' +
-            '<div class="esc-caption">Live WDFW trap counts pooled across basin facilities for the current calendar year. Badge = Week-over-Week momentum: last 7 days of returns vs the prior 7. "--" = no published figure yet.</div>' +
             '</div>';
     }
 
@@ -1520,7 +1528,7 @@
     }
 
     // Merge live numbers onto the static registry. Species matching is exact first, then by
-    // base species, so a 'Chinook' card also picks up the 'Fall Chinook' bucket. Never
+    // base species, so a 'Chinook' card also picks up legacy 'Fall Chinook' buckets. Never
     // throws - any failure leaves the existing "--" placeholders in place so the UI stays
     // stable.
     async function loadEscapementData(siteId) {

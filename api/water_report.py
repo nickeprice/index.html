@@ -232,20 +232,31 @@ def calculate_macro_environment(flow_idx, press_curr_inHg, press_prev_inHg, rain
         env_score += 6; conditions.append("Spring Tide Pulses")
     return env_score, flow_mult, " + ".join(conditions) if conditions else "Stable"
 
-def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct, arrivals, base_score, env_score, flow_mult, pressure_mult):
+def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct, arrivals, base_score, env_score, flow_mult, day_mult):
     current_time = lines_in
     timeline = []
-    uv_bonus = (cloud_pct / 100.0) * 8.0 
-    dawn_end = sunrise_dt + timedelta(minutes=int(30 + cloud_pct * 0.3))
-    dusk_start = sunset_dt - timedelta(minutes=60)
+    # Cloud pays once: env_score already carries the all-day Overcast bonus, so the
+    # twilight UV/shade bonus is halved to avoid a +16 double count on cloudy dawns.
+    uv_bonus = (cloud_pct / 100.0) * 4.0 
+    # Symmetric twilight windows (both scale gently with cloud; dawn keeps a small
+    # edge for the morning-bite bias in this basin).
+    twilight_min = int(45 + cloud_pct * 0.2)
+    dawn_end = sunrise_dt + timedelta(minutes=twilight_min)
+    dusk_start = sunset_dt - timedelta(minutes=twilight_min)
+    # Twilight feels pressure at sqrt strength: light still dominates, but a
+    # brutal high-pressure day knocks ~10 pts off dawn/dusk instead of 0.
+    day_mult_root = math.sqrt(day_mult) if day_mult and day_mult > 0 else 1.0
     
     while current_time <= lines_out:
         minute_score = 25.0 + base_score + env_score
         triggers = []
+        in_twilight = False
         if lines_in <= current_time <= dawn_end:
-            minute_score += 20.0 + uv_bonus; triggers.append(f"Dawn Light / UV Shield")
+            minute_score += 19.5 + uv_bonus; triggers.append(f"Dawn Light / UV Shield")
+            in_twilight = True
         elif dusk_start <= current_time <= lines_out:
-            minute_score += 18.0 + uv_bonus; triggers.append("Dusk / Bank Shadow")
+            minute_score += 18.5 + uv_bonus; triggers.append("Dusk / Bank Shadow")
+            in_twilight = True
         else:
             triggers.append("Mid-Day Stable")
             
@@ -255,9 +266,11 @@ def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct
                 minute_score += swing_pts; triggers.append(f"Tide Arrival ({arr['swing']:.1f}ft Push)")
                 
         final_score = minute_score * flow_mult
-        if dawn_end < current_time < dusk_start:
-            final_score *= pressure_mult
-            if pressure_mult < 1.0 and "Mid-Day" in triggers[0]: triggers[0] = "High Pressure Traffic"
+        if in_twilight:
+            final_score *= day_mult_root
+        else:
+            final_score *= day_mult
+            if day_mult < 1.0 and triggers and "Mid-Day" in triggers[0]: triggers[0] = "High Pressure Traffic"
                 
         timeline.append({"time": current_time, "score": int(max(5, min(100, final_score))), "trigger": " + ".join(triggers)})
         current_time += timedelta(minutes=1)

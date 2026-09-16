@@ -143,7 +143,8 @@ as $$
       and c.flow is not null
       and abs(c.flow - p_flow) <= 300
       and (p_species is null or c.species = p_species)
-    order by c.catch_time desc
+    -- Deterministic newest-first so the app's 8-sample window is stable run-to-run.
+    order by c.catch_time desc nulls last, c.id desc
     limit 500;
 $$;
 

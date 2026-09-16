@@ -31,7 +31,7 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
     url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065&siteStatus=all"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     default_name = "Puyallup River at Puyallup, WA" if site_id == USGS_SITE else f"USGS Station {site_id}"
-    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "is_active": False, "updated_time": "Updated: Telemetry Offline"}
+    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "is_active": False, "updated_time": "Updated: Telemetry Offline", "api_offline": True}
     try:
         with urllib.request.urlopen(req, timeout=8, context=SSL_CONTEXT) as response:
             try:
@@ -54,6 +54,10 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
             else:
                 data_dict["site_name"] = site_raw
             
+            # Live response parsed — clear the offline fallback so the frontend
+            # can tell "USGS unreachable" apart from "station seasonal".
+            data_dict["api_offline"] = False
+
             has_fresh_discharge_or_gage = False
             latest_time = None
             latest_dt_str = ""
@@ -392,7 +396,7 @@ class handler(BaseHTTPRequestHandler):
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
                 "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day,
-                "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"],
+                "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"], "api_offline": bool(usgs_data.get("api_offline", False)),
                 "site_name": usgs_data["site_name"], "site_id": site
             })
 

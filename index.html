@@ -71,11 +71,7 @@
     #btn-log.locked { background-color: #333; color: #666; pointer-events: none; }
     #btn-auth-start { background-color: var(--accent-green); color: #000; }
     
-    /* Action Button Group */
-    .btn-group { display: flex; gap: 10px; margin-bottom: 20px; margin-top: 15px; }
-    .btn-group button { flex: 1; padding: 15px; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: bold; color: #fff; margin: 0; }
-    #btn-clear { background-color: var(--accent-red); }
-    #btn-import { background-color: var(--accent-blue); }
+    /* Brag Board table */
     
     #suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 10px; padding: 12px 14px; margin: 16px 0 0 0; font-size: 0.85rem; line-height: 1.5; color: #fcd34d; display: none; }
     #suggestions .sug-head { display: block; margin-bottom: 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #fbbf24; }
@@ -549,10 +545,6 @@
 
         <h2>Brag Board</h2>
         <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.</p>
-        <div class="btn-group">
-            <button id="btn-clear" onclick="tryClearDB()">CLEAR DATA</button>
-            <button id="btn-import" onclick="importHistoricalData()">IMPORT HISTORY</button>
-        </div>
         
         <div class="table-wrapper">
             <table id="db-table">
@@ -1019,8 +1011,9 @@
 
             var cardsHtml = '';
 
-            // Automatically push Live CFS to Gear Sim
-            if(reports.length > 0 && reports[0].cfs) {
+            // Automatically push Live CFS to Gear Sim (skip on USGS outage so the
+            // manual CFS the angler typed is preserved instead of being blanked).
+            if(reports.length > 0 && reports[0].cfs !== null && reports[0].cfs !== undefined && !reports[0].api_offline) {
                 var cfsInput = document.getElementById('flow');
                 cfsInput.value = reports[0].cfs;
                 syncSelect('flow');
@@ -1048,7 +1041,14 @@
 
                 var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
                 var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gauge Height' : '-- ft Gauge Height';
-                var seasonalWarn = (!rep.is_active) ? '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>' : '';
+                // Distinguish USGS network outages (data_dict api_offline) from a truly seasonal station
+                // so a 503 / timeout no longer renders as "seasonal / not reporting".
+                var seasonalWarn = '';
+                if (rep.api_offline) {
+                    seasonalWarn = '<div class="seasonal-warning" style="background:var(--card-bg);border:1px solid var(--accent-red);color:var(--accent-red);">⚠️ USGS Telemetry API temporarily unreachable — showing last manual CFS</div>';
+                } else if (!rep.is_active) {
+                    seasonalWarn = '<div class="seasonal-warning">⚠️ Station currently seasonal / not reporting live discharge</div>';
+                }
 
                 cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                     '<div class="card">' +
@@ -1702,13 +1702,20 @@
     // Back-solve the coefficient that would have put each successful rig mid-zone, average
     // them, blend half-way with the physical baseline, then hard-clamp to +/- 10%.
     // ==================================================================================
-    function impliedDragCoeff(lift, leaderFt, bottomVelocity, lbTest, weightOz) {
+    function impliedDragCoeff(lift, leaderFt, bottomVelocity, lbTest, weightOz, bdMat, bdSz) {
         var targetFt = ZONE_TARGET_IN / 12;
         var base = leaderDragPerFt(bottomVelocity, lbTest, weightOz, 1.0);
+        // Historical beads added real drag on the day the fish was caught. Include
+        // that bead drag as a fixed offset so the back-solved leader coefficient is
+        // not polluted by bead setups — otherwise beaded catches inflate the baseline
+        // and removing your bead appears to LOWER line height.
+        var bead = 0;
+        try { bead = beadDrag(bdMat, parseFloat(bdSz) || 0); } catch (e) { bead = 0; }
+        if (!isFinite(bead) || bead < 0) bead = 0;
         var lo = 0.2, hi = 6.0;
         for (var i = 0; i < 40; i++) {                     // fixed iteration count = deterministic
             var mid = (lo + hi) / 2;
-            var h = presentationHeightInches(lift, leaderFt, base * mid) / 12;
+            var h = presentationHeightInches(lift, leaderFt, base * mid + bead) / 12;
             if (h > targetFt) lo = mid; else hi = mid;     // height falls as drag rises
         }
         return (lo + hi) / 2;
@@ -1716,9 +1723,21 @@
 
     function learnDragCoeff(dbArray, flow, species) {
         if (!dbArray || !dbArray.length) return { coeff: 1.0, samples: 0, note: 'no community data yet' };
+        // Deterministic: newest catches first, so the 8-sample window is stable
+        // run-to-run regardless of Supabase/localStorage return order.
+        var sorted = dbArray.slice().sort(function(a, b) {
+            var ta = 0, tb = 0;
+            try {
+                if (a && a.time) ta = new Date(a.time).getTime() || 0;
+                else if (a && a.catch_time) ta = new Date(a.catch_time).getTime() || 0;
+                if (b && b.time) tb = new Date(b.time).getTime() || 0;
+                else if (b && b.catch_time) tb = new Date(b.catch_time).getTime() || 0;
+            } catch (e) {}
+            return tb - ta;
+        });
         var samples = [];
-        for (var i = dbArray.length - 1; i >= 0 && samples.length < 8; i--) {
-            var row = dbArray[i];
+        for (var i = 0; i < sorted.length && samples.length < 8; i++) {
+            var row = sorted[i];
             if (!row || row.loc !== 'Fair') continue;                     // mouth-hooked fish only
             if (species && row.spc && row.spc !== species) continue;
             if (!row.flow || Math.abs(row.flow - flow) > 300) continue;    // same river stage
@@ -1729,7 +1748,9 @@
                 row.ldLen,
                 hydraulicVelocity(row.flow).bottom,
                 row.ldLb || REF_LB_TEST,
-                (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5
+                (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5,
+                (row.bdMat !== undefined) ? row.bdMat : row.bead_material,
+                (row.bdSz !== undefined && row.bdSz !== null) ? row.bdSz : row.bead_size
             ));
         }
         if (samples.length < 2) return { coeff: 1.0, samples: samples.length, note: 'community sample too thin to calibrate' };
@@ -2143,52 +2164,6 @@
         currentStats = null;
         await loadDatabase();
         switchTab('tab-catch-log');
-    }
-
-    function importHistoricalData() {
-        var historicalCatches = [
-            {"name": "Nick", "time": "2026-09-10T08:45", "gps": "47.2007, -122.2897", "flow": 1040, "spc": "Coho", "loc": "Fair", "ldLen": 8, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "hard", "bdSz": 4},
-            {"name": "Joe", "time": "2026-09-11T07:50", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "none", "bdSz": 0},
-            {"name": "Nick", "time": "2026-09-11T09:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "soft", "bdSz": 6},
-            {"name": "Nick", "time": "2026-09-11T10:15", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "soft", "bdSz": 6},
-            {"name": "Joe", "time": "2026-09-11T13:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "none", "bdSz": 0}
-        ];
-        
-        var jStr = localStorage.getItem('catch_db');
-        var dbArray = jStr ? JSON.parse(jStr) : [];
-        var existingStr = JSON.stringify(dbArray);
-        var importedCount = 0;
-        
-        historicalCatches.forEach(function(catchLog) {
-            if (!existingStr.includes(catchLog.time)) {
-                dbArray.push(catchLog);
-                importedCount++;
-            }
-        });
-        
-        if (importedCount > 0) {
-            localStorage.setItem('catch_db', JSON.stringify(dbArray));
-            loadDatabase();
-            logDebug("Imported " + importedCount + " historical records", "DB");
-            alert("Successfully imported " + importedCount + " catches!");
-        } else {
-            alert("Logs were already imported.");
-        }
-    }
-    
-    var clearTaps = 0; var clearTimer = null;
-    function tryClearDB() {
-        clearTaps++;
-        var btn = document.getElementById('btn-clear');
-        if (clearTaps === 1) {
-            btn.innerText = "TAP TO CONFIRM";
-            clearTimer = setTimeout(function() { clearTaps = 0; btn.innerText = "CLEAR DATA"; }, 3000);
-        } else if (clearTaps === 2) {
-            clearTimeout(clearTimer); clearTaps = 0; btn.innerText = "CLEAR DATA";
-            localStorage.removeItem('catch_db');
-            loadDatabase();
-            logDebug("DB Cleared", "DB");
-        }
     }
 
     // --- STATION SELECTOR MODAL & GPS FUNCTIONS ---

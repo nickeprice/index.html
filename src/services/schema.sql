@@ -1,27 +1,24 @@
--- =============================================================================
+-- ============================================================================
 -- Puyallup River Companion — Catch Log / Brag Board schema
 --
 -- Run this once in Supabase Studio > SQL Editor. It is IDEMPOTENT and SAFE to
--- run against the existing project: all new columns are added with
--- `ADD COLUMN IF NOT EXISTS`, nothing is dropped or renamed, and the view /
--- function are replaced with `CREATE OR REPLACE`.
+-- re-run: columns use `ADD COLUMN IF NOT EXISTS`, policies are dropped first,
+-- and the view / function are dropped before create (Postgres error 42P16 /
+-- 42P13: CREATE OR REPLACE cannot drop a column or change a return type).
 --
 -- Also enable: Authentication > Sign In / Providers > Anonymous sign-ins.
 --
--- LIVE BACKEND (verified by endpoint probe 2026-09-16)
---   public.catches columns:
---     id, user_id, created_at, angler_name, catch_time, flow, species,
---     latitude, longitude, weight, leader_lb, leader_length, leader_material,
---     hook_size, yarn, foam, corky_size, bead_material, bead_size,
---     barometer, hook_location, gauge_height
---   public.public_catch_feed columns: id, name, time, flow (NO fish column yet)
+-- LIVE BACKEND (verified 2026-09-16, both endpoints HTTP 200 [])
+--   public.catches columns include text-typed tackle fields (yarn etc. stored
+--   as text like '1/2" yarn' — hence the ::text casts in the RPC below).
+--   public.public_catch_feed columns: name, time, flow, fish
 --
 -- Privacy model
 --   public.catches          full private profile, RLS pins every row to its angler
 --   public.public_catch_feed  view exposing ONLY name / time / flow / fish
 --   get_global_calibration    RPC returning anonymised tackle telemetry (no identity,
---                             no GPS, no location) for the crowdsourced physics engine
--- =============================================================================
+--                             no GPS) for the crowdsourced physics engine
+-- ============================================================================
 
 create table if not exists public.catches (
     id               uuid primary key default gen_random_uuid(),
@@ -90,11 +87,10 @@ create policy "catches_select_own"
     to authenticated
     using (user_id = auth.uid());
 
--- -----------------------------------------------------------------------------
--- Brag Board: a definer-rights view that bypasses RLS by design and exposes only
--- the four public columns. Nobody can select gear or GPS through it.
--- -----------------------------------------------------------------------------
-create or replace view public.public_catch_feed as
+-- FIX for 42P16: DROP first — CREATE OR REPLACE cannot drop the old `id`
+-- column from a previously deployed version of this view.
+DROP VIEW IF EXISTS public.public_catch_feed;
+CREATE VIEW public.public_catch_feed as
     select angler_name as name, catch_time as time, flow as flow, species as fish
     from public.catches
     where angler_name is not null;
@@ -104,21 +100,26 @@ grant select on public.public_catch_feed to anon, authenticated;
 -- -----------------------------------------------------------------------------
 -- Crowdsourced calibration: anonymised tackle telemetry for the physics engine.
 -- security definer so it can read past RLS, but the return shape carries no
--- identity, no GPS and no hook location column name that maps to a person.
+-- identity and no GPS.
+--
+-- FIX for 42P13: DROP first — CREATE OR REPLACE cannot change a return type.
+-- All tackle columns are text with explicit ::text casts because the deployed
+-- catches table stores values like yarn as text, not numeric.
 -- -----------------------------------------------------------------------------
-create or replace function public.get_global_calibration(p_flow integer, p_species text)
+DROP FUNCTION IF EXISTS public.get_global_calibration(integer, text);
+create function public.get_global_calibration(p_flow integer, p_species text)
 returns table (
     flow            integer,
     species         text,
     hook_location   text,
-    leader_length   numeric,
-    leader_lb       numeric,
-    weight          numeric,
+    leader_length   text,
+    leader_lb       text,
+    weight          text,
     hook_size       text,
-    yarn            numeric,
+    yarn            text,
     foam            text,
     bead_material   text,
-    bead_size       numeric
+    bead_size       text
 )
 language sql
 stable
@@ -126,17 +127,17 @@ security definer
 set search_path = public
 as $$
     select
-        c.flow,
-        c.species,
-        c.hook_location,
-        c.leader_length,
-        c.leader_lb,
-        c.weight,
-        c.hook_size,
-        c.yarn,
-        c.foam,
-        c.bead_material,
-        c.bead_size
+        c.flow::integer,
+        c.species::text,
+        c.hook_location::text,
+        c.leader_length::text,
+        c.leader_lb::text,
+        c.weight::text,
+        c.hook_size::text,
+        c.yarn::text,
+        c.foam::text,
+        c.bead_material::text,
+        c.bead_size::text
     from public.catches c
     where c.leader_length is not null
       and c.flow is not null
@@ -147,3 +148,6 @@ as $$
 $$;
 
 grant execute on function public.get_global_calibration(integer, text) to anon, authenticated;
+
+-- Force PostgREST to pick up the new view / function immediately.
+NOTIFY pgrst, 'reload schema';

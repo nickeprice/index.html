@@ -32,8 +32,12 @@
     .tab-active { display: block; }
     
     /* DRIFTSIM EXACT STYLING */
-    h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin-bottom: 10px; margin-top: 25px; padding-left: 15px; }
+    h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin: 22px 0 10px 0; padding: 0; }
     .purple-heading { color: var(--accent-purple); }
+    /* Gear Sim / Catch Log section headers: flush with the input fields, not indented past them */
+    #tab-gear-sim h2, #tab-catch-log h2 { border-bottom: 1px solid #26262a; padding-bottom: 8px; }
+    #tab-gear-sim h2:first-child, #tab-catch-log h2:first-child { margin-top: 6px; }
+    #tab-gear-sim h3, #tab-catch-log h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 18px 0 8px 0; padding: 0; }
     
     #hud { position: -webkit-sticky; position: sticky; top: 48px; background-color: #1a1a1a; z-index: 1000; padding: 15px 10px; border-bottom: 1px solid #333; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
     #stars { font-size: 2rem; color: #444; margin-bottom: 5px; letter-spacing: 2px; transition: color 0.3s; }
@@ -46,10 +50,15 @@
     .metric-target { font-size: 0.6rem; color: #555; }
     #score-bar { height: 6px; width: 90%; margin: 15px auto 0 auto; border-radius: 3px; background: #333; }
 
-    .bucket { padding: 0 15px; }
-    .row { display: flex; gap: 15px; margin-bottom: 15px; }
-    .col { flex: 1; display: flex; flex-direction: column; }
-    label { font-size: 0.75rem; color: #aaa; margin-bottom: 5px; }
+    .bucket { padding: 0 15px 25px 15px; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    label { font-size: 0.7rem; color: #aaa; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    /* Paired feet / inches entry (rod length) */
+    .dual-input { display: flex; align-items: center; gap: 5px; }
+    .dual-input input { flex: 1 1 0; min-width: 0; width: 100%; text-align: center; padding: 10px 4px; }
+    .dual-input span { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+    select { max-width: 100%; min-width: 0; }
     
     /* FORCE 16px font-size to prevent iOS zoom */
     input, select { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid #38383a; border-radius: 8px; padding: 10px; font-size: 16px; font-weight: 600; -webkit-appearance: none; outline: none; }
@@ -66,7 +75,10 @@
     #btn-clear { background-color: var(--accent-red); }
     #btn-import { background-color: var(--accent-blue); }
     
-    #suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 8px; padding: 10px; margin: 15px; font-size: 0.85rem; color: #fcd34d; display: none; }
+    #suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 10px; padding: 12px 14px; margin: 16px 0 0 0; font-size: 0.85rem; line-height: 1.5; color: #fcd34d; display: none; }
+    #suggestions .sug-head { display: block; margin-bottom: 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #fbbf24; }
+    #suggestions .sug-zone { color: #e5e7eb; }
+    #suggestions .sug-cond { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; line-height: 1.45; }
     .table-wrapper { overflow-x: auto; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
     th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
@@ -382,55 +394,57 @@
         <div id="stars">★★★★★</div>
         <div id="hud-msg">Awaiting inputs...</div>
         <div class="hud-metrics">
-            <div class="metric"><div id="hud-hgt" class="metric-val">--</div><div class="metric-label">LINE HEIGHT</div><div id="target-hgt" class="metric-target">Target: 4.0"-12.0"</div></div>
-            <div class="metric"><div id="hud-swp" class="metric-val">--</div><div class="metric-label">SWEEP ANGLE</div><div class="metric-target">Target: < 85°</div></div>
-            <div class="metric"><div id="hud-dly" class="metric-val">--</div><div class="metric-label">DELAY (MS)</div><div class="metric-target">Target: < 300</div></div>
+            <div class="metric"><div id="hud-hgt" class="metric-val">--</div><div class="metric-label">LINE HEIGHT</div><div id="target-hgt" class="metric-target">Zone: 4.0" - 12.0"</div></div>
+            <div class="metric"><div id="hud-vel" class="metric-val">--</div><div class="metric-label">BED VELOCITY</div><div id="vel-target" class="metric-target">ft/s at the bottom</div></div>
         </div>
         <div id="score-bar"></div>
     </div>
 
     <div class="bucket">
-        <h2>River Flow & Placement</h2>
+        <h2>River Flow &amp; Placement</h2>
         <div class="row">
             <div class="col"><label>River Flow (CFS)</label><input type="number" id="flow" value="1040" min="100" max="10000" step="10" onchange="syncSelect('flow')"></div>
-            <div class="col"><label>Distance (ft)</label>
-                <select id="distance" onchange="syncSelect('distance')">
-                    <option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option>
-                </select>
-            </div>
+            <div class="col"><label>Distance (ft)</label><input type="number" id="distance" value="150" min="1" max="1000" step="1" onchange="syncSelect('distance')"></div>
         </div>
 
-        <h2>Rod & Line Setup</h2>
+        <h2>Rod &amp; Line Setup</h2>
         <div class="row">
-            <div class="col"><label>Rod</label>
-                <select id="rod" onchange="syncSelect('rod')"><option value="8.5">8'6"</option><option value="9">9'</option><option value="9.66" selected>9'8"</option><option value="10">10'</option><option value="11">11'</option><option value="12">12'</option><option value="13">13'</option></select>
+            <div class="col"><label>Rod Length</label>
+                <div class="dual-input">
+                    <input type="number" id="rod-ft" value="9" min="5" max="15" step="1" onchange="onRodChange()">
+                    <span>ft</span>
+                    <input type="number" id="rod-in" value="8" min="0" max="11" step="1" onchange="onRodChange()">
+                    <span>in</span>
+                </div>
             </div>
             <div class="col"><label>Weight</label>
-                <select id="weight" onchange="syncSelect('weight')"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
+                <select id="weight" onchange="syncSelect('weight')"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
             </div>
         </div>
         
-        <h3 style="margin-top:5px;">Mainline</h3>
+        <h3>Mainline</h3>
         <div class="row">
-            <div class="col"><label>Material</label><select id="ml-mat" onchange="syncSelect('ml-mat')"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label>Lb Test</label><select id="ml-lb" onchange="syncSelect('ml-lb')"><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40" selected>40lb</option></select></div>
+            <div class="col"><label>Material</label><select id="ml-mat" onchange="onLineMatChange('ml-mat')"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select></div>
+            <div class="col"><label>Lb Test</label><select id="ml-lb" onchange="syncSelect('ml-lb')"><option value="20">20lb</option><option value="30" selected>30lb</option><option value="40">40lb</option></select></div>
         </div>
 
-        <h3 style="margin-top:5px;">Leader</h3>
+        <h3>Leader</h3>
         <div class="row">
-            <div class="col"><label>Length (ft)</label><select id="ld-len" onchange="syncSelect('ld-len')"><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
-            <div class="col"><label>Material</label><select id="ld-mat" onchange="syncSelect('ld-mat')"><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label>Lb Test</label><select id="ld-lb" onchange="syncSelect('ld-lb')"><option value="10">10lb</option><option value="12" selected>12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select></div>
+            <div class="col"><label>Length (ft)</label><select id="ld-len" onchange="syncSelect('ld-len')"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10" selected>10</option><option value="11">11</option><option value="12">12</option></select></div>
+            <div class="col"><label>Material</label><select id="ld-mat" onchange="onLineMatChange('ld-mat')"><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Lb Test</label><select id="ld-lb" onchange="syncSelect('ld-lb')"><option value="10">10lb</option><option value="12" selected>12lb</option></select></div>
         </div>
 
         <h2>Rig Configuration</h2>
         <div class="row">
-            <div class="col"><label>Hook</label><select id="hook" onchange="syncSelect('hook')"><option value="3">Size 3</option><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">Size 1/0</option></select></div>
+            <div class="col"><label>Hook Size</label><select id="hook" onchange="syncSelect('hook')"><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select></div>
             <div class="col"><label>Yarn</label><select id="yarn" onchange="syncSelect('yarn')"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
-            <div class="col"><label>Corky</label><select id="corky" onchange="syncSelect('corky')"><option value="0">None</option><option value="14">Sz 14</option><option value="12">Sz 12</option><option value="10" selected>Sz 10</option></select></div>
         </div>
         <div class="row">
-            <div class="col"><label>Bead Mat</label><select id="bd-mat" onchange="syncSelect('bd-mat')"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
+            <div class="col"><label>Foam</label><select id="foam" onchange="syncSelect('foam')"><option value="0">None</option><option value="10" selected>Corky - Size 10 (10mm)</option><option value="12">Corky - Size 12 (8mm)</option><option value="14">Corky - Size 14 (6mm)</option><option value="c12">Cheater - Size 12</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Bead Material</label><select id="bd-mat" onchange="syncSelect('bd-mat')"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
             <div class="col"><label>Bead Size</label><select id="bd-sz" onchange="syncSelect('bd-sz')"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
         </div>
 
@@ -462,31 +476,40 @@
         <h2 class="purple-heading">Current Gear Details</h2>
         <p style="font-size:0.75rem; color:#aaa; margin-bottom:10px;">These match your Gear Sim automatically.</p>
         
-        <!-- DUPLICATED DROPDOWNS -->
+        <!-- DUPLICATED CONTROLS (kept in sync with the Gear Sim) -->
         <div class="row">
             <div class="col"><label>River Flow</label><input type="number" id="flow-log" value="1040" step="10" onchange="syncSelect('flow', true)"></div>
-            <div class="col"><label>Distance</label><select id="distance-log" onchange="syncSelect('distance', true)"><option value="30">30 ft</option><option value="60">60 ft</option><option value="90">90 ft</option><option value="120">120 ft</option><option value="150" selected>150 ft</option></select></div>
+            <div class="col"><label>Distance</label><input type="number" id="distance-log" value="150" min="1" max="1000" step="1" onchange="syncSelect('distance', true)"></div>
         </div>
         <div class="row">
-            <div class="col"><label>Rod</label><select id="rod-log" onchange="syncSelect('rod', true)"><option value="8.5">8'6"</option><option value="9">9'</option><option value="9.66" selected>9'8"</option><option value="10">10'</option><option value="11">11'</option><option value="12">12'</option><option value="13">13'</option></select></div>
-            <div class="col"><label>Weight</label><select id="weight-log" onchange="syncSelect('weight', true)"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select></div>
+            <div class="col"><label>Rod Length</label>
+                <div class="dual-input">
+                    <input type="number" id="rod-ft-log" value="9" min="5" max="15" step="1" onchange="onRodChange(true)">
+                    <span>ft</span>
+                    <input type="number" id="rod-in-log" value="8" min="0" max="11" step="1" onchange="onRodChange(true)">
+                    <span>in</span>
+                </div>
+            </div>
+            <div class="col"><label>Weight</label><select id="weight-log" onchange="syncSelect('weight', true)"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select></div>
         </div>
         <div class="row">
-            <div class="col"><label>Mainline Mat</label><select id="ml-mat-log" onchange="syncSelect('ml-mat', true)"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label>Main Lb</label><select id="ml-lb-log" onchange="syncSelect('ml-lb', true)"><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40" selected>40lb</option></select></div>
+            <div class="col"><label>Mainline Mat</label><select id="ml-mat-log" onchange="onLineMatChange('ml-mat', true)"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select></div>
+            <div class="col"><label>Main Lb</label><select id="ml-lb-log" onchange="syncSelect('ml-lb', true)"><option value="20">20lb</option><option value="30" selected>30lb</option><option value="40">40lb</option></select></div>
         </div>
         <div class="row">
-            <div class="col"><label>Ldr Len</label><select id="ld-len-log" onchange="syncSelect('ld-len', true)"><option value="6">6</option><option value="7">7</option><option value="8" selected>8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select></div>
-            <div class="col"><label>Ldr Mat</label><select id="ld-mat-log" onchange="syncSelect('ld-mat', true)"><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label>Ldr Lb</label><select id="ld-lb-log" onchange="syncSelect('ld-lb', true)"><option value="10">10lb</option><option value="12" selected>12lb</option><option value="15">15lb</option><option value="17">17lb</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select></div>
+            <div class="col"><label>Ldr Len</label><select id="ld-len-log" onchange="syncSelect('ld-len', true)"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10" selected>10</option><option value="11">11</option><option value="12">12</option></select></div>
+            <div class="col"><label>Ldr Mat</label><select id="ld-mat-log" onchange="onLineMatChange('ld-mat', true)"><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
+            <div class="col"><label>Ldr Lb</label><select id="ld-lb-log" onchange="syncSelect('ld-lb', true)"><option value="10">10lb</option><option value="12" selected>12lb</option></select></div>
         </div>
         <div class="row">
-            <div class="col"><label>Hook</label><select id="hook-log" onchange="syncSelect('hook', true)"><option value="3">Size 3</option><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">Size 1/0</option></select></div>
+            <div class="col"><label>Hook Size</label><select id="hook-log" onchange="syncSelect('hook', true)"><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select></div>
             <div class="col"><label>Yarn</label><select id="yarn-log" onchange="syncSelect('yarn', true)"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
-            <div class="col"><label>Corky</label><select id="corky-log" onchange="syncSelect('corky', true)"><option value="0">None</option><option value="14">Sz 14</option><option value="12">Sz 12</option><option value="10" selected>Sz 10</option></select></div>
         </div>
         <div class="row">
-            <div class="col"><label>Bead Mat</label><select id="bd-mat-log" onchange="syncSelect('bd-mat', true)"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
+            <div class="col"><label>Foam</label><select id="foam-log" onchange="syncSelect('foam', true)"><option value="0">None</option><option value="10" selected>Corky - Size 10 (10mm)</option><option value="12">Corky - Size 12 (8mm)</option><option value="14">Corky - Size 14 (6mm)</option><option value="c12">Cheater - Size 12</option></select></div>
+        </div>
+        <div class="row">
+            <div class="col"><label>Bead Material</label><select id="bd-mat-log" onchange="syncSelect('bd-mat', true)"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
             <div class="col"><label>Bead Size</label><select id="bd-sz-log" onchange="syncSelect('bd-sz', true)"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
         </div>
 
@@ -509,7 +532,7 @@
         <div class="table-wrapper">
             <table id="db-table">
                 <thead>
-                    <tr><th>Name</th><th>Flow</th><th>Fish</th><th>Loc</th><th>Leader</th><th>Hook</th><th>Yarn</th><th>Corky</th><th>GPS</th></tr>
+                    <tr><th>Name</th><th>Flow</th><th>Fish</th><th>Loc</th><th>Leader</th><th>Hook</th><th>Yarn</th><th>Foam</th><th>GPS</th></tr>
                 </thead>
                 <tbody id="db-body"></tbody>
             </table>
@@ -554,15 +577,88 @@
     }
 
     // --- SHARED GEAR STATE ---
+    // The Gear Sim controls mirror the Catch Log controls (ids suffixed "-log").
     function syncSelect(baseId, fromLog) {
-        var id1 = baseId;
-        var id2 = baseId + '-log';
+        var a = document.getElementById(baseId);
+        var b = document.getElementById(baseId + '-log');
+        if (!a || !b) return;
+        if (fromLog) a.value = b.value; else b.value = a.value;
+        logDebug("Synced Field: " + baseId, "STATE");
+    }
+
+    // Rod length is entered as two boxes (feet + inches) so 9'8" works.
+    function getRodLengthFt() {
+        var ft = getNum('rod-ft');
+        var inch = getNum('rod-in');
+        if (ft <= 0 && inch <= 0) return 9.0;
+        return ft + (inch / 12);
+    }
+
+    function formatRodLength(totalFt) {
+        var whole = Math.floor(totalFt + 0.0001);
+        var inch = Math.round((totalFt - whole) * 12);
+        if (inch === 12) { whole += 1; inch = 0; }
+        return whole + "'" + inch + '"';
+    }
+
+    // Rod change re-derives the leader default (rounded up, clamped to the 6-12 selector).
+    function onRodChange(fromLog) {
         if (fromLog) {
-            document.getElementById(id1).value = document.getElementById(id2).value;
+            setFieldValue('rod-ft', getNum('rod-ft-log'));
+            setFieldValue('rod-in', getNum('rod-in-log'));
         } else {
-            document.getElementById(id2).value = document.getElementById(id1).value;
+            setFieldValue('rod-ft-log', getNum('rod-ft'));
+            setFieldValue('rod-in-log', getNum('rod-in'));
         }
-        logDebug("Synced Dropdown: " + baseId, "STATE");
+        var suggested = Math.ceil(getRodLengthFt());
+        if (suggested < 6) suggested = 6;
+        if (suggested > 12) suggested = 12;
+        setFieldValue('ld-len', String(suggested));
+        setFieldValue('ld-len-log', String(suggested));
+        logDebug("Rod set to " + formatRodLength(getRodLengthFt()) + " -> leader default " + suggested + " ft", "STATE");
+    }
+
+    function setFieldValue(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.value = value;
+    }
+
+    // Lb test ranges are fixed per material: braid is 20/30/40, mono & copoly are 10/12,
+    // fluoro leaders are 10/12/15/17. Fluoro is not offered as a mainline, braid not as a leader.
+    var LB_OPTIONS = {
+        mainline: { braid: [20, 30, 40], mono: [10, 12], copoly: [10, 12] },
+        leader: { mono: [10, 12], copoly: [10, 12], fluoro: [10, 12, 15, 17] }
+    };
+
+    function updateLbOptions(matId, lbId, isLeader) {
+        var table = isLeader ? LB_OPTIONS.leader : LB_OPTIONS.mainline;
+        var list = table[getStr(matId)] || table[isLeader ? 'copoly' : 'braid'];
+        var sel = document.getElementById(lbId);
+        if (!sel) return;
+        var previous = sel.value;
+        sel.innerHTML = '';
+        for (var i = 0; i < list.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = String(list[i]);
+            opt.textContent = list[i] + 'lb';
+            sel.appendChild(opt);
+        }
+        var keepPrevious = false;
+        for (var j = 0; j < list.length; j++) {
+            if (String(list[j]) === previous) keepPrevious = true;
+        }
+        sel.value = keepPrevious ? previous : String(list[Math.min(1, list.length - 1)]);
+    }
+
+    function onLineMatChange(baseId, fromLog) {
+        var isLeader = (baseId === 'ld-mat');
+        var lbBase = isLeader ? 'ld-lb' : 'ml-lb';
+        syncSelect(baseId, fromLog);
+        updateLbOptions(baseId, lbBase, isLeader);
+        updateLbOptions(baseId + '-log', lbBase + '-log', isLeader);
+        if (fromLog) setFieldValue(lbBase, getStr(lbBase + '-log'));
+        else setFieldValue(lbBase + '-log', getStr(lbBase));
+        logDebug("Material: " + getStr(baseId) + " -> " + getStr(lbBase) + "lb", "STATE");
     }
 
     // --- WATER REPORT LOGIC ---
@@ -716,6 +812,9 @@
             var targetCard = document.getElementById(rep.id);
             if (targetCard) targetCard.style.display = 'block';
         }
+
+        // Keep the Gear Sim strike zone in step with the day being viewed
+        if (typeof refreshZonePreview === 'function') refreshZonePreview();
     }
 
     async function loadWaterReport() {
@@ -753,6 +852,9 @@
             var reports = await res.json();
             reportsData = reports;
             logDebug("Water API success. Processing " + reports.length + " days.", "NET");
+
+            // Today's barometer / cloud / rain now feed the Gear Sim strike zone
+            if (typeof refreshZonePreview === 'function') refreshZonePreview();
 
             if (reports.length > 0) {
                 var first = reports[0];
@@ -927,6 +1029,7 @@
     };
 
     function setWaterTempPlaceholder() {
+        window.waterTempF = null;   // Gear Sim falls back to the baseline zone when temp is unknown
         document.querySelectorAll('.water-temp').forEach(function(el) {
             el.innerText = '--';
         });
@@ -956,6 +1059,7 @@
             }
 
             const fahrenheit = Math.round((celsius * 9/5) + 32);
+            window.waterTempF = fahrenheit;   // consumed by the Gear Sim strike-zone engine
             document.querySelectorAll('.water-temp').forEach(function(el) {
                 el.innerText = fahrenheit;
             });
@@ -1311,14 +1415,33 @@
         });
     }
 
-    // --- GEAR SIM & LOG MATH (OVERHAULED AI & BOUNDARY PHYSICS) ---
+    // --- GEAR SIM: DETERMINISTIC FLUID DYNAMICS ENGINE ---
+    // Pure boundary-layer physics. Every output is a pure function of the form inputs plus
+    // the stored catch log, so identical inputs always return identical numbers.
+    // The old KNN loop (processAiStrikeZone) and calcHistoricHeight() drift model are gone.
     var currentStats = null;
-    var targetHgtMin = 4.0;
-    var targetHgtMax = 12.0;
-    var aiDragModifier = 0.005; 
-    
-    function getNum(id) { var val = parseFloat(document.getElementById(id).value); return isNaN(val) ? 0 : val; }
-    function getStr(id) { return document.getElementById(id).value; }
+
+    var BASE_ZONE_MIN = 4.0;     // inches - baseline strike zone floor
+    var BASE_ZONE_MAX = 12.0;    // inches - baseline strike zone ceiling
+    var ZONE_TARGET_IN = 8.0;    // inches - mid-zone reference used to back-solve history
+
+    // Calibration constants. Tuned so a reference rig (1040 CFS, 12 lb leader, 1/2 oz lead,
+    // 10 ft leader, Corky 10 + 1" yarn) lands in the middle of the baseline zone.
+    var DRAG_REF = 7.5;          // drag units per foot of leader at the reference conditions
+    var REF_VELOCITY = 2.45;     // ft/s bed velocity produced by 1040 CFS
+    var REF_LB_TEST = 12;        // reference leader diameter for those conditions
+    var MAX_LEARN_SHIFT = 0.10;  // catch history may move the drag coefficient +/- 10% max
+
+    function getNum(id) {
+        var el = document.getElementById(id);
+        if (!el) return 0;
+        var val = parseFloat(el.value);
+        return isNaN(val) ? 0 : val;
+    }
+    function getStr(id) {
+        var el = document.getElementById(id);
+        return el ? el.value : '';
+    }
 
     function getGPS() {
         if("geolocation" in navigator) {
@@ -1338,59 +1461,265 @@
         }
     }
 
-    function processAiStrikeZone(dbArray) {
-        var curFlow = getNum('flow');
-        var curSpecies = getStr('species');
-        var minH = 999; var maxH = -999;
-        
-        // OVERHAUL: Bounded ML Loop (K-Nearest Neighbors approach)
-        // Sort array backwards to evaluate only the most recent catches
-        var recentMatches = [];
-        for(var i = dbArray.length - 1; i >= 0; i--) {
-            var item = dbArray[i];
-            if(item.loc === 'Fair' && item.spc === curSpecies && Math.abs(item.flow - curFlow) <= 300) {
-                recentMatches.push(item);
-            }
-            if(recentMatches.length >= 10) break; // Hard limit to prevent infinite drift
-        }
-        
-        var blowoutFrictionLearnings = 0;
-        recentMatches.forEach(function(match) {
-            if (match.flow >= 1040) blowoutFrictionLearnings++;
-            var histHgt = calcHistoricHeight(match.ldLen, match.yarn, match.corky, match.bdMat, match.bdSz, match.flow, match.hook);
-            if(histHgt < minH) minH = histHgt;
-            if(histHgt > maxH) maxH = histHgt;
-        });
+    // ==================================================================================
+    // PURE FLUID DYNAMICS CORE - every helper below is a deterministic pure function
+    // ==================================================================================
 
-        if(recentMatches.length > 0) { 
-            targetHgtMin = minH - 1.0; 
-            targetHgtMax = maxH + 1.0; 
-        } else { 
-            targetHgtMin = 4.0; 
-            targetHgtMax = 12.0; 
-        }
-        
-        // Boundary limit applied to drag modification
-        aiDragModifier = 0.005 - (blowoutFrictionLearnings * 0.0001);
-        if (aiDragModifier < 0.002) aiDragModifier = 0.002;
-        
-        document.getElementById('target-hgt').innerText = 'Target: ' + targetHgtMin.toFixed(1) + '"-' + targetHgtMax.toFixed(1) + '"';
+    // Buoyant lift by foam type. Bigger corky = more lift; cheater sits between 12 and 10.
+    var FOAM_TABLE = {
+        '0':   { lift: 0.00, label: 'None' },
+        '14':  { lift: 0.30, label: 'Corky - Size 14 (6mm)' },
+        '12':  { lift: 0.60, label: 'Corky - Size 12 (8mm)' },
+        '10':  { lift: 0.90, label: 'Corky - Size 10 (10mm)' },
+        'c12': { lift: 0.70, label: 'Cheater - Size 12' }
+    };
+
+    function parseFoam(rawValue) {
+        var key = (rawValue === undefined || rawValue === null) ? '0' : String(rawValue);
+        if (key === 'c12') return { key: 'c12', size: 12, lift: FOAM_TABLE.c12.lift, label: FOAM_TABLE.c12.label };
+        var size = parseFloat(key);
+        if (!size) return { key: '0', size: 0, lift: 0, label: 'None' };
+        var entry = FOAM_TABLE[String(size)] || { lift: 0.6 };
+        return { key: String(size), size: size, lift: entry.lift, label: entry.label || ('Corky - Size ' + size) };
     }
-    
-    // OVERHAUL: Hook weight subtraction added to terminal lift calculation
-    function calcHistoricHeight(ldLen, yarn, corky, bdMat, bdSz, flow, hookSize) {
-        var baseLift = (ldLen * 0.5); 
-        if (corky === 14) baseLift += 2; else if (corky === 12) baseLift += 3.5; else if (corky === 10) baseLift += 5;
-        baseLift += (yarn * 1.5);
-        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
-        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
-        
-        // Hook Anchor Physics (1/0 = heavy, 3 = light)
-        var hookAnchor = (hookSize === 0) ? 1.5 : (hookSize === 1) ? 1.0 : (hookSize === 2) ? 0.6 : 0.3;
-        baseLift -= hookAnchor;
-        
-        var flowSuppression = (flow / 1000) * 0.5;
-        return Math.max(0.1, baseLift - flowSuppression);
+
+    // Backwards compatible with records that only stored a numeric `corky` value.
+    function foamLabelFromRecord(row) {
+        if (!row) return '--';
+        var raw = (row.foam !== undefined && row.foam !== null) ? row.foam : row.corky;
+        return parseFoam(raw).label;
+    }
+
+    function hookLabel(hook) {
+        if (hook === -1) return '2/0';
+        if (hook === 0) return '1/0';
+        if (hook === 2) return 'Size 2';
+        if (hook === 1) return 'Size 1';
+        return 'Sz ' + hook;
+    }
+
+    // Heavier hooks are more anchor weight, so they subtract from the net lift.
+    function hookSink(hook) {
+        if (hook === -1) return 0.35;   // 2/0
+        if (hook === 0) return 0.28;    // 1/0
+        if (hook === 1) return 0.20;    // size 1
+        return 0.12;                    // size 2 (and legacy size 3)
+    }
+
+    // Hydraulic geometry for a PNW gravel-bed river. We only know discharge (CFS), so
+    // estimate mean velocity, then step down to the bed with the 1/6th power law.
+    function hydraulicVelocity(flow) {
+        var meanVelocity = 0.25 * Math.pow(Math.max(flow, 1), 0.4);      // ft/s
+        var bottomVelocity = meanVelocity * Math.pow(0.05, 1 / 6);       // 1/6th power law
+        return { mean: meanVelocity, bottom: bottomVelocity };
+    }
+
+    // Net upward lift = foam buoyancy + yarn buoyancy - hook anchor weight.
+    function rigLift(foamLift, yarnInches, hook) {
+        return Math.max(0.02, foamLift + (yarnInches * 0.15) - hookSink(hook));
+    }
+
+    // Beads add profile in the current but essentially no lift: drag only.
+    function beadDrag(bdMat, bdSz) {
+        if (!bdMat || bdMat === 'none' || !bdSz) return 0;
+        var materialFactor = (bdMat === 'soft') ? 1.15 : 1.0;
+        return bdSz * 0.02 * materialFactor;
+    }
+
+    // Hydrodynamic drag per foot of leader. Scales with bed velocity, leader thickness
+    // (lb test as the diameter proxy) and how hard the lead pins the leader down.
+    function leaderDragPerFt(bottomVelocity, lbTest, weightOz, dragCoeff) {
+        var velocityScale = bottomVelocity / REF_VELOCITY;
+        var diameterScale = lbTest / REF_LB_TEST;
+        var anchorScale = 0.7 + (0.6 * weightOz);   // heavier lead sweeps the leader flatter
+        var drag = DRAG_REF * velocityScale * diameterScale * anchorScale * dragCoeff;
+        return Math.max(0.05, drag);
+    }
+
+    // Catenary rise of a flexible leader: uniform downstream drag (w per ft) acting on a
+    // line that carries a point lift (F) at the tag end.
+    //   h = (F / w) * asinh(w * L / F)
+    // Limits check out: h -> 0 as drag dominates, h -> L as drag vanishes, and h <= L always.
+    function presentationHeightInches(lift, leaderFt, dragPerFt) {
+        if (leaderFt <= 0 || lift <= 0 || dragPerFt <= 0) return 0;
+        var x = (dragPerFt * leaderFt) / lift;
+        var riseFt = (lift / dragPerFt) * Math.asinh(x);
+        if (!isFinite(riseFt) || riseFt < 0) return 0;
+        return Math.min(riseFt * 12, leaderFt * 12);
+    }
+
+    // ==================================================================================
+    // BOUNDED LEARNING - catch history nudges the drag coefficient, never redefines it
+    // Back-solve the coefficient that would have put each successful rig mid-zone, average
+    // them, blend half-way with the physical baseline, then hard-clamp to +/- 10%.
+    // ==================================================================================
+    function impliedDragCoeff(lift, leaderFt, bottomVelocity, lbTest, weightOz) {
+        var targetFt = ZONE_TARGET_IN / 12;
+        var base = leaderDragPerFt(bottomVelocity, lbTest, weightOz, 1.0);
+        var lo = 0.2, hi = 6.0;
+        for (var i = 0; i < 40; i++) {                     // fixed iteration count = deterministic
+            var mid = (lo + hi) / 2;
+            var h = presentationHeightInches(lift, leaderFt, base * mid) / 12;
+            if (h > targetFt) lo = mid; else hi = mid;     // height falls as drag rises
+        }
+        return (lo + hi) / 2;
+    }
+
+    function learnDragCoeff(dbArray, flow, species) {
+        if (!dbArray || !dbArray.length) return { coeff: 1.0, samples: 0, note: 'no catch history' };
+        var samples = [];
+        for (var i = dbArray.length - 1; i >= 0 && samples.length < 8; i--) {
+            var row = dbArray[i];
+            if (!row || row.loc !== 'Fair') continue;                     // mouth-hooked fish only
+            if (species && row.spc && row.spc !== species) continue;
+            if (!row.flow || Math.abs(row.flow - flow) > 300) continue;    // same river stage
+            if (!row.ldLen) continue;
+            var foam = parseFoam(row.foam !== undefined ? row.foam : row.corky);
+            samples.push(impliedDragCoeff(
+                rigLift(foam.lift, row.yarn || 0, row.hook),
+                row.ldLen,
+                hydraulicVelocity(row.flow).bottom,
+                row.ldLb || REF_LB_TEST,
+                (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5
+            ));
+        }
+        if (samples.length < 2) return { coeff: 1.0, samples: samples.length, note: 'history too thin to calibrate' };
+        var sum = 0;
+        for (var k = 0; k < samples.length; k++) sum += samples[k];
+        var blended = 1.0 + (((sum / samples.length) - 1.0) * 0.5);
+        if (blended < 1 - MAX_LEARN_SHIFT) blended = 1 - MAX_LEARN_SHIFT;
+        if (blended > 1 + MAX_LEARN_SHIFT) blended = 1 + MAX_LEARN_SHIFT;
+        return { coeff: blended, samples: samples.length, note: 'calibrated from ' + samples.length + ' logged catches' };
+    }
+
+    // ==================================================================================
+    // ENVIRONMENT - where the fish are holding today
+    // Today's water report shifts the 4"-12" baseline into the zone the fish are using.
+    // ==================================================================================
+    function getActiveReport() {
+        if (typeof reportsData !== 'undefined' && typeof activeDateOffset !== 'undefined' &&
+            activeDateOffset >= 0 && activeDateOffset < reportsData.length) {
+            return reportsData[activeDateOffset];
+        }
+        return null;
+    }
+
+    function getWaterTempF() {
+        if (window.waterTempF !== undefined && window.waterTempF !== null && !isNaN(window.waterTempF)) {
+            return Number(window.waterTempF);
+        }
+        var el = document.querySelector('.water-temp');
+        if (el) {
+            var parsed = parseFloat(String(el.innerText).replace(/[^0-9.\-]/g, ''));
+            if (!isNaN(parsed) && parsed > 25 && parsed < 90) return parsed;
+        }
+        return null;
+    }
+
+    function computeStrikeZone() {
+        var zone = { min: BASE_ZONE_MIN, max: BASE_ZONE_MAX, shift: 0, notes: [], report: null };
+        var rep = getActiveReport();
+        if (!rep) {
+            zone.notes.push('No water report loaded: using the baseline 4.0" - 12.0" strike zone.');
+            return zone;
+        }
+        zone.report = rep;
+
+        // Barometric trend drives the swim bladder: falling = suspend, rising = pin down.
+        var pressureDelta = Number(rep.press_delta);
+        if (!isNaN(pressureDelta)) {
+            if (pressureDelta <= -0.03) {
+                zone.shift += 3.5;
+                zone.notes.push('Barometer falling ' + pressureDelta.toFixed(2) + ' inHg: bladders expand, fish ride higher.');
+            } else if (pressureDelta >= 0.03) {
+                zone.shift -= 3.0;
+                zone.notes.push('Barometer rising ' + pressureDelta.toFixed(2) + ' inHg: fish pin down (lockjaw).');
+            }
+        }
+
+        // Cloud cover = light penetration: bright sun sends them deep, overcast lifts them.
+        var cloud = Number(rep.cloud_pct);
+        if (!isNaN(cloud)) {
+            if (cloud >= 70) {
+                zone.shift += 1.5;
+                zone.notes.push('Heavy cloud cover (' + cloud + '%): fish feel safe riding higher.');
+            } else if (cloud <= 30) {
+                zone.shift -= 1.5;
+                zone.notes.push('Bright sun (' + cloud + '% cloud): fish hold deep and tight.');
+            }
+        }
+
+        // Rain = colour and flow: bigger profile works, and it usually lifts the zone.
+        var rain = Number(rep.rain);
+        if (!isNaN(rain) && rain > 0.25) {
+            zone.shift += 1.0;
+            zone.notes.push('Rain freshet (' + rain.toFixed(2) + '"): coloured water, run a bigger profile.');
+        }
+
+        // Water temperature = metabolism: cold fish sulk on the bottom, warm fish rise.
+        var temp = getWaterTempF();
+        if (temp !== null) {
+            if (temp < 46) {
+                zone.shift -= 1.0;
+                zone.notes.push('Cold water (' + temp.toFixed(0) + 'F): lethargic fish sit tight to the bottom.');
+            } else if (temp >= 55) {
+                zone.shift += 1.0;
+                zone.notes.push('Warm water (' + temp.toFixed(0) + 'F): active fish, willing to rise.');
+            }
+        }
+
+        var zMin = BASE_ZONE_MIN + zone.shift;
+        var zMax = BASE_ZONE_MAX + zone.shift;
+        if (zMin < 1.0) zMin = 1.0;
+        if (zMax > 24.0) zMax = 24.0;
+        if (zMax - zMin < 4.0) zMax = zMin + 4.0;
+        zone.min = zMin;
+        zone.max = zMax;
+        zone.notes.unshift('Strike zone shifted ' + (zone.shift >= 0 ? '+' : '') + zone.shift.toFixed(1) +
+            '" to ' + zMin.toFixed(1) + '" - ' + zMax.toFixed(1) + '".');
+        return zone;
+    }
+
+    // Keeps the HUD strike-zone label live: fires on date switches and when the water
+    // report lands, so the zone is correct before the angler presses RUN SIMULATION.
+    function refreshZonePreview() {
+        var label = document.getElementById('target-hgt');
+        if (!label) return;
+        var zone = computeStrikeZone();
+        label.innerText = 'Zone: ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"';
+    }
+
+    // ==================================================================================
+    // GEAR SOLVER - deterministic sweep of the tackle box for the rig that lands closest
+    // to the middle of today's zone. Ties favour the rig the angler already has tied on.
+    // ==================================================================================
+    var WEIGHT_OPTIONS = [0.25, 0.375, 0.5, 0.625, 0.75, 1];
+    var LEADER_LENGTH_OPTIONS = [6, 7, 8, 9, 10, 11, 12];
+    var FOAM_KEYS = ['0', '14', '12', 'c12', '10'];
+
+    function bestZoneRig(zone, bottomVelocity, lbTest, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz, dragCoeff) {
+        var target = (zone.min + zone.max) / 2;
+        var best = null;
+        for (var f = 0; f < FOAM_KEYS.length; f++) {
+            var foam = parseFoam(FOAM_KEYS[f]);
+            var lift = rigLift(foam.lift, yarnInches, hook);
+            for (var w = 0; w < WEIGHT_OPTIONS.length; w++) {
+                var wt = WEIGHT_OPTIONS[w];
+                var drag = leaderDragPerFt(bottomVelocity, lbTest, wt, dragCoeff) + beadDrag(bdMat, bdSz);
+                for (var l = 0; l < LEADER_LENGTH_OPTIONS.length; l++) {
+                    var len = LEADER_LENGTH_OPTIONS[l];
+                    var h = presentationHeightInches(lift, len, drag);
+                    var cost = Math.abs(h - target);
+                    if (wt !== weightOz) cost += 0.06;      // prefer minimal change to the current rig
+                    if (len !== leaderFt) cost += 0.06;
+                    if (FOAM_KEYS[f] !== foamKey) cost += 0.03;
+                    if (!best || cost < best.cost) {
+                        best = { cost: cost, foam: foam, weight: wt, leader: len, hgt: h };
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     function loadDatabase() {
@@ -1399,7 +1728,8 @@
         var tbody = document.getElementById('db-body');
         tbody.innerHTML = '';
         
-        processAiStrikeZone(dbArray);
+        document.getElementById('target-hgt').innerText = 'Zone: ' +
+            BASE_ZONE_MIN.toFixed(1) + '" - ' + BASE_ZONE_MAX.toFixed(1) + '"';
 
         for (var i=0; i < dbArray.length; i++) {
             var row = dbArray[i];
@@ -1410,9 +1740,9 @@
                 '<td>'+row.flow+'</td><td>'+row.spc+'</td>' +
                 '<td>'+(row.loc==='Fair'?'Mouth':'Foul')+'</td>' +
                 '<td>'+row.ldLen+"'</td>" +
-                '<td>'+(row.hook===0?"1/0":"Sz "+row.hook)+'</td>' +
+                '<td>'+hookLabel(row.hook)+'</td>' +
                 '<td>'+(row.yarn===0?"None":row.yarn+'"')+'</td>' +
-                '<td>'+(row.corky===0?"None":"Sz "+row.corky)+'</td>' +
+                '<td>'+foamLabelFromRecord(row)+'</td>' +
                 '<td>'+(row.gps||'--')+'</td>';
             tbody.appendChild(tr);
         }
@@ -1420,88 +1750,149 @@
     }
 
     function runSim() {
-        var jStr = localStorage.getItem('catch_db');
-        processAiStrikeZone(jStr ? JSON.parse(jStr) : []);
+        var dbArray = [];
+        try {
+            var jStr = localStorage.getItem('catch_db');
+            dbArray = jStr ? JSON.parse(jStr) : [];
+        } catch(e) { dbArray = []; }
 
-        var flow = getNum('flow'); var dist = getNum('distance'); var wt = getNum('weight');
-        var mlMat = getStr('ml-mat'); var mlLb = getNum('ml-lb'); 
-        
-        // OVERHAUL: Dual-zone fluid drag profile (Mainline vs Leader)
-        var mlDia = mlLb * 0.0003; 
-        var ldLen = getNum('ld-len'); var ldMat = getStr('ld-mat');
-        var ldLb = getNum('ld-lb'); var ldDia = ldLb * 0.00025; 
-        
-        var hook = getNum('hook'); var yarn = getNum('yarn'); var corky = getNum('corky');
-        var bdMat = getStr('bd-mat'); var bdSz = getNum('bd-sz');
-        
-        // Calculating segmented velocity drag 
-        var upperColumnDrag = flow * dist * mlDia * aiDragModifier;
-        var boundaryLayerDrag = (flow * 0.6) * ldLen * ldDia * aiDragModifier; // Bottom column moves 40% slower due to friction
-        var drag = upperColumnDrag + boundaryLayerDrag;
-        
-        var friction = wt * 20; 
-        var blownOut = (drag > friction * 1.05);
-        
-        var baseLift = (ldLen * 0.5); 
-        if (ldMat === 'braid') baseLift += 1.0;
-        if (ldMat === 'copoly' || ldMat === 'fluoro') baseLift -= 0.5;
-        if (corky === 14) baseLift += 2; else if (corky === 12) baseLift += 3.5; else if (corky === 10) baseLift += 5;
-        baseLift += (yarn * 1.5);
-        if (bdMat === 'hard') baseLift -= (bdSz * 0.2);
-        if (bdMat === 'soft') baseLift -= (bdSz * 0.3);
-        
-        // Subtract hook mass
-        var hookAnchor = (hook === 0) ? 1.5 : (hook === 1) ? 1.0 : (hook === 2) ? 0.6 : 0.3;
-        baseLift -= hookAnchor;
-        
-        var flowSuppression = (flow / 1000) * 0.5;
-        var hgt = Math.max(0.1, baseLift - flowSuppression);
-        
-        var swp = (hgt / (ldLen * 12)) * 90 * 1.5;
-        if (swp > 90) swp = 90;
-        
-        var stretchFactor = (mlMat === 'braid') ? 1.0 : 3.0;
-        var dly = dist * stretchFactor * (1 + (swp/90));
-        
-        var score = 5.0; var sugs = [];
-        if (blownOut) { score = 0.0; sugs.push("RIG BLOWN OUT. Add weight or shorten distance."); } 
-        else {
-            if (hgt < targetHgtMin) { score -= 1.5; sugs.push("Too low. Add Corky/Yarn or lengthen leader."); }
-            if (hgt > targetHgtMax) { score -= 1.5; sugs.push("Too high. Reduce floatation or shorten leader."); }
-            if (swp > 85) { score -= 1.0; sugs.push("Sweep angle critical. Increase leader length."); }
-            if (dly > 300) { score -= 1.0; sugs.push("Delay too long. Switch to Braid or fish closer."); }
+        // 1. Read the rig off the form -------------------------------------------------
+        var flow = getNum('flow');
+        var dist = getNum('distance');
+        var weightOz = getNum('weight');
+        var rodFt = getRodLengthFt();
+        var ldLen = getNum('ld-len');
+        var ldMat = getStr('ld-mat');
+        var ldLb = getNum('ld-lb') || REF_LB_TEST;
+        var mlMat = getStr('ml-mat');
+        var mlLb = getNum('ml-lb');
+        var hookRaw = parseFloat(getStr('hook'));
+        var hook = isNaN(hookRaw) ? 2 : hookRaw;        // 0 = 1/0, -1 = 2/0
+        var yarn = getNum('yarn');
+        var foam = parseFoam(getStr('foam'));
+        var bdMat = getStr('bd-mat');
+        var bdSz = getNum('bd-sz');
+        var species = getStr('species');
+
+        // 2. Fluid dynamics -------------------------------------------------------------
+        var velocity = hydraulicVelocity(flow);
+        var learned = learnDragCoeff(dbArray, flow, species);
+        var dragPerFt = leaderDragPerFt(velocity.bottom, ldLb, weightOz, learned.coeff) + beadDrag(bdMat, bdSz);
+        var lift = rigLift(foam.lift, yarn, hook);
+        var hgt = presentationHeightInches(lift, ldLen, dragPerFt);
+        var blownOut = (velocity.bottom > 3.5 && weightOz < 0.5);
+
+        // 3. Where the fish are today, then score the presentation ------------------------
+        var zone = computeStrikeZone();
+        var score = 5.0;
+        if (blownOut) {
+            score = 0.0;
+        } else {
+            if (hgt < zone.min) score -= Math.min(3.0, (zone.min - hgt) * 0.45);
+            if (hgt > zone.max) score -= Math.min(3.0, (hgt - zone.max) * 0.45);
         }
         if (score < 0) score = 0;
-        
-        currentStats = { flow: flow, hgt: hgt, swp: swp, score: score, dly: dly };
-        logDebug("Ran Dual-Zone Physics Sim. Height: " + hgt.toFixed(1), "PHYS");
-        
+        if (score > 5) score = 5;
+        var roundedScore = Math.round(score);
+
+        // 4. Build the suggestions: what to change to get into the zone -------------------
+        var suggestions = [];
+        var best = bestZoneRig(zone, velocity.bottom, ldLb, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz, learned.coeff);
+
+        if (blownOut) {
+            suggestions.push('BLOWN OUT: the bed is running ' + velocity.bottom.toFixed(1) + ' ft/s with only ' + weightOz + ' oz of lead. Step up to 3/4 oz or 1 oz, or fish a slower seam.');
+        } else if (hgt < zone.min) {
+            suggestions.push('Presentation pinned at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). Add buoyancy: bigger Corky, more yarn, or a longer leader.');
+        } else if (hgt > zone.max) {
+            suggestions.push('Floating over fish at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). Cut lift: smaller Corky, less yarn, heavier lead, or a shorter leader.');
+        } else {
+            suggestions.push('On target: ' + hgt.toFixed(1) + '" sits inside today\'s ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '" strike zone.');
+        }
+
+        if (best && !blownOut && score < 5.0) {
+            suggestions.push('Try this: ' + best.foam.label + ' + ' + best.leader + ' ft leader + ' + best.weight + ' oz lead -> projects ' + best.hgt.toFixed(1) + '" of line height.');
+        }
+        if (learned.samples >= 2) {
+            suggestions.push('River calibration: ' + learned.note + ', drag adjusted ' + ((learned.coeff - 1) * 100).toFixed(1) + '% (hard-clamped to +/-10%).');
+        }
+        if (species && species !== 'None') {
+            suggestions.push('Targeting ' + species + ' at ' + flow + ' CFS on a ' + formatRodLength(rodFt) + ' rod with a ' + ldMat + ' ' + ldLb + 'lb leader.');
+        }
+// 5. Paint the HUD ---------------------------------------------------------------
+        currentStats = {
+            flow: flow,
+            distance: dist,
+            rodFt: rodFt,
+            weight: weightOz,
+            ldLen: ldLen,
+            ldMat: ldMat,
+            ldLb: ldLb,
+            mlMat: mlMat,
+            mlLb: mlLb,
+            hook: hook,
+            yarn: yarn,
+            foam: foam.key,
+            bdMat: bdMat,
+            bdSz: bdSz,
+            hgt: hgt,
+            zoneMin: zone.min,
+            zoneMax: zone.max,
+            score: score,
+            bottomVelocity: velocity.bottom,
+            meanVelocity: velocity.mean,
+            dragCoeff: learned.coeff,
+            blownOut: blownOut
+        };
+
         var color = 'var(--accent-green)';
-        if (score <= 2.5) color = 'var(--accent-yellow)';
-        if (score === 0.0) color = 'var(--accent-red)';
-        
-        document.getElementById('stars').innerText = '★'.repeat(Math.round(score)) + '☆'.repeat(5 - Math.round(score));
-        document.getElementById('stars').style.color = color;
-        document.getElementById('score-bar').style.backgroundColor = color;
-        document.getElementById('hud-msg').innerText = "Score: " + score.toFixed(1) + " / 5.0";
-        
-        var eHgt = document.getElementById('hud-hgt'); eHgt.innerText = hgt.toFixed(1) + '"'; eHgt.style.color = color;
-        var eSwp = document.getElementById('hud-swp'); eSwp.innerText = swp.toFixed(1) + '°'; eSwp.style.color = color;
-        var eDly = document.getElementById('hud-dly'); eDly.innerText = dly.toFixed(0); eDly.style.color = color;
-        
+        if (score < 4.0) color = 'var(--accent-yellow)';
+        if (score < 2.5) color = 'var(--accent-red)';
+
+        var eHgt = document.getElementById('hud-hgt');
+        eHgt.innerText = hgt.toFixed(1) + '"';
+        eHgt.style.color = color;
+
+        var eVel = document.getElementById('hud-vel');
+        eVel.innerText = velocity.bottom.toFixed(1);
+        eVel.style.color = blownOut ? 'var(--accent-red)' : color;
+
+        document.getElementById('target-hgt').innerText = 'Zone: ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"';
+        document.getElementById('vel-target').innerText = blownOut ? 'BLOWN OUT' : 'Target: < 3.5 ft/s';
+
+        var stars = '';
+        for (var s = 0; s < 5; s++) stars += (s < roundedScore) ? '★' : '☆';
+        document.getElementById('stars').innerText = stars;
+
+        var msg = blownOut ? 'BLOWN OUT - no presentation control'
+            : ((hgt >= zone.min && hgt <= zone.max) ? 'Inside the strike zone' : 'Outside the strike zone');
+        document.getElementById('hud-msg').innerText = msg + '  •  Score ' + score.toFixed(1) + ' / 5.0';
+
+        var sBar = document.getElementById('score-bar');
+        sBar.style.backgroundColor = color;
+        sBar.style.width = Math.max(6, (score / 5) * 90) + '%';
+
         var btnLog = document.getElementById('btn-log');
-        if (blownOut) { btnLog.innerText = "LOG ANYWAY (FORCE)"; btnLog.className = 'btn-main force'; } 
-        else { btnLog.innerText = "LOG CATCH DATA"; btnLog.className = 'btn-main ready'; }
-        
+        if (blownOut) {
+            btnLog.innerText = 'LOG ANYWAY (FORCE)';
+            btnLog.className = 'btn-main force';
+        } else {
+            btnLog.innerText = 'LOG CATCH DATA';
+            btnLog.className = 'btn-main ready';
+        }
+
         var sugBox = document.getElementById('suggestions');
-        if (score < 4.7 && sugs.length > 0) {
-            sugBox.style.display = 'block';
-            sugBox.innerHTML = "<strong>Rig Suggestions:</strong><br>- " + sugs.join("<br>- ");
-        } else { sugBox.style.display = 'none'; }
+        sugBox.style.display = 'block';
+        sugBox.innerHTML = '<span class="sug-head">Rig Adjustments</span>- ' + suggestions.join('<br>- ') +
+            '<div class="sug-cond">' + zone.notes.join('<br>') + '</div>';
+
+        logDebug('Sim: height ' + hgt.toFixed(2) + '", bed velocity ' + velocity.bottom.toFixed(2) +
+            ' ft/s, zone ' + zone.min.toFixed(1) + '-' + zone.max.toFixed(1) + '", score ' + score.toFixed(2), 'SIM');
     }
-    
+
     function logData() {
         if (!currentStats) return;
+        var foamRaw = getStr('foam');
+        var foamParsed = parseFoam(foamRaw);
         var payload = {
             name: getStr('log-name'),
             time: getStr('log-datetime'),
@@ -1510,11 +1901,23 @@
             spc: getStr('species'),
             loc: getStr('hook-loc'),
             ldLen: getNum('ld-len'),
-            hook: getNum('hook'),
+            ldMat: getStr('ld-mat'),
+            ldLb: getNum('ld-lb'),
+            mlMat: getStr('ml-mat'),
+            mlLb: getNum('ml-lb'),
+            weight: getNum('weight'),
+            rodFt: getRodLengthFt(),
+            dist: getNum('distance'),
+            hook: currentStats.hook,
             yarn: getNum('yarn'),
-            corky: getNum('corky'),
+            foam: foamRaw,
+            corky: foamParsed.size,          // legacy numeric column kept for old readers
             bdMat: getStr('bd-mat'),
-            bdSz: getNum('bd-sz')
+            bdSz: getNum('bd-sz'),
+            hgt: Number(currentStats.hgt.toFixed(2)),
+            zoneMin: Number(currentStats.zoneMin.toFixed(2)),
+            zoneMax: Number(currentStats.zoneMax.toFixed(2)),
+            score: Number(currentStats.score.toFixed(2))
         };
         
         var jStr = localStorage.getItem('catch_db');
@@ -1532,11 +1935,11 @@
 
     function importHistoricalData() {
         var historicalCatches = [
-            {"name": "Nick", "time": "2026-09-10T08:45", "gps": "47.2007, -122.2897", "flow": 1040, "spc": "Coho", "loc": "Fair", "ldLen": 8, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "hard", "bdSz": 4},
-            {"name": "Joe", "time": "2026-09-11T07:50", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "none", "bdSz": 0},
-            {"name": "Nick", "time": "2026-09-11T09:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "bdMat": "soft", "bdSz": 6},
-            {"name": "Nick", "time": "2026-09-11T10:15", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "bdMat": "soft", "bdSz": 6},
-            {"name": "Joe", "time": "2026-09-11T13:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "bdMat": "none", "bdSz": 0}
+            {"name": "Nick", "time": "2026-09-10T08:45", "gps": "47.2007, -122.2897", "flow": 1040, "spc": "Coho", "loc": "Fair", "ldLen": 8, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "hard", "bdSz": 4},
+            {"name": "Joe", "time": "2026-09-11T07:50", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "none", "bdSz": 0},
+            {"name": "Nick", "time": "2026-09-11T09:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "soft", "bdSz": 6},
+            {"name": "Nick", "time": "2026-09-11T10:15", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 10, "hook": 0, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "soft", "bdSz": 6},
+            {"name": "Joe", "time": "2026-09-11T13:35", "gps": "47.2007, -122.2897", "flow": 1140, "spc": "Coho", "loc": "Fair", "ldLen": 9, "hook": 2, "yarn": 1, "corky": 10, "foam": "10", "ldLb": 12, "weight": 0.5, "bdMat": "none", "bdSz": 0}
         ];
         
         var jStr = localStorage.getItem('catch_db');

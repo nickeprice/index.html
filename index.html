@@ -1572,14 +1572,14 @@
 
     var BASE_ZONE_MIN = 4.0;     // inches - baseline strike zone floor
     var BASE_ZONE_MAX = 12.0;    // inches - baseline strike zone ceiling
-    var ZONE_TARGET_IN = 8.0;    // inches - mid-zone reference used to back-solve history
 
     // Calibration constants. Tuned so a reference rig (1040 CFS, 12 lb leader, 1/2 oz lead,
     // 10 ft leader, Corky 10 + 1" yarn) lands in the middle of the baseline zone.
+    // Physics is LOCKED: drag coefficient is always 1.0. Community catches never bend
+    // the physics - they act as sonar that shifts WHERE the fish are (the zone).
     var DRAG_REF = 7.5;          // drag units per foot of leader at the reference conditions
     var REF_VELOCITY = 2.45;     // ft/s bed velocity produced by 1040 CFS
     var REF_LB_TEST = 12;        // reference leader diameter for those conditions
-    var MAX_LEARN_SHIFT = 0.10;  // catch history may move the drag coefficient +/- 10% max
 
     function getNum(id) {
         var el = document.getElementById(id);
@@ -1698,31 +1698,13 @@
     }
 
     // ==================================================================================
-    // BOUNDED LEARNING - catch history nudges the drag coefficient, never redefines it
-    // Back-solve the coefficient that would have put each successful rig mid-zone, average
-    // them, blend half-way with the physical baseline, then hard-clamp to +/- 10%.
+    // COMMUNITY SONAR - physics stays LOCKED at drag coefficient 1.0; community catches
+    // shift WHERE the fish are (the strike zone), never how water works. Each logged
+    // catch is run through the pure physics engine to find the line height that fish
+    // bit at; the average becomes the community center, blended with the weather zone.
     // ==================================================================================
-    function impliedDragCoeff(lift, leaderFt, bottomVelocity, lbTest, weightOz, bdMat, bdSz) {
-        var targetFt = ZONE_TARGET_IN / 12;
-        var base = leaderDragPerFt(bottomVelocity, lbTest, weightOz, 1.0);
-        // Historical beads added real drag on the day the fish was caught. Include
-        // that bead drag as a fixed offset so the back-solved leader coefficient is
-        // not polluted by bead setups — otherwise beaded catches inflate the baseline
-        // and removing your bead appears to LOWER line height.
-        var bead = 0;
-        try { bead = beadDrag(bdMat, parseFloat(bdSz) || 0); } catch (e) { bead = 0; }
-        if (!isFinite(bead) || bead < 0) bead = 0;
-        var lo = 0.2, hi = 6.0;
-        for (var i = 0; i < 40; i++) {                     // fixed iteration count = deterministic
-            var mid = (lo + hi) / 2;
-            var h = presentationHeightInches(lift, leaderFt, base * mid + bead) / 12;
-            if (h > targetFt) lo = mid; else hi = mid;     // height falls as drag rises
-        }
-        return (lo + hi) / 2;
-    }
-
-    function learnDragCoeff(dbArray, flow, species) {
-        if (!dbArray || !dbArray.length) return { coeff: 1.0, samples: 0, note: 'no community data yet' };
+    function communitySonar(dbArray, flow, species) {
+        if (!dbArray || !dbArray.length) return { center: null, samples: 0, note: 'no community data yet' };
         // Deterministic: newest catches first, so the 8-sample window is stable
         // run-to-run regardless of Supabase/localStorage return order.
         var sorted = dbArray.slice().sort(function(a, b) {
@@ -1735,31 +1717,30 @@
             } catch (e) {}
             return tb - ta;
         });
-        var samples = [];
-        for (var i = 0; i < sorted.length && samples.length < 8; i++) {
+        var heights = [];
+        for (var i = 0; i < sorted.length && heights.length < 8; i++) {
             var row = sorted[i];
             if (!row || row.loc !== 'Fair') continue;                     // mouth-hooked fish only
             if (species && row.spc && row.spc !== species) continue;
             if (!row.flow || Math.abs(row.flow - flow) > 300) continue;    // same river stage
             if (!row.ldLen) continue;
+            // Pure physics snapshot of where THIS fish was feeding: coeff locked at 1.0.
             var foam = parseFoam(row.foam !== undefined ? row.foam : row.corky);
-            samples.push(impliedDragCoeff(
-                rigLift(foam.lift, row.yarn || 0, row.hook),
-                row.ldLen,
-                hydraulicVelocity(row.flow).bottom,
-                row.ldLb || REF_LB_TEST,
-                (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5,
-                (row.bdMat !== undefined) ? row.bdMat : row.bead_material,
-                (row.bdSz !== undefined && row.bdSz !== null) ? row.bdSz : row.bead_size
-            ));
+            var lift = rigLift(foam.lift, row.yarn || 0, row.hook);
+            var bedVel = hydraulicVelocity(row.flow).bottom;
+            var lb = row.ldLb || REF_LB_TEST;
+            var wt = (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5;
+            var bdMat = (row.bdMat !== undefined) ? row.bdMat : row.bead_material;
+            var bdSzRaw = (row.bdSz !== undefined && row.bdSz !== null) ? row.bdSz : row.bead_size;
+            var drag = leaderDragPerFt(bedVel, lb, wt, 1.0) + beadDrag(bdMat, bdSzRaw);
+            var h = presentationHeightInches(lift, row.ldLen, drag);
+            if (isFinite(h) && h > 0) heights.push(h);
         }
-        if (samples.length < 2) return { coeff: 1.0, samples: samples.length, note: 'community sample too thin to calibrate' };
+        if (heights.length < 2) return { center: null, samples: heights.length, note: 'community sample too thin to shift the zone' };
         var sum = 0;
-        for (var k = 0; k < samples.length; k++) sum += samples[k];
-        var blended = 1.0 + (((sum / samples.length) - 1.0) * 0.5);
-        if (blended < 1 - MAX_LEARN_SHIFT) blended = 1 - MAX_LEARN_SHIFT;
-        if (blended > 1 + MAX_LEARN_SHIFT) blended = 1 + MAX_LEARN_SHIFT;
-        return { coeff: blended, samples: samples.length, note: 'trained on ' + samples.length + ' crowdsourced catches' };
+        for (var k = 0; k < heights.length; k++) sum += heights[k];
+        var center = sum / heights.length;
+        return { center: center, samples: heights.length, note: heights.length + ' recent catches holding near ' + center.toFixed(1) + '"' };
     }
 
     // ==================================================================================
@@ -1786,13 +1767,16 @@
         return null;
     }
 
-    function computeStrikeZone() {
-        var zone = { min: BASE_ZONE_MIN, max: BASE_ZONE_MAX, shift: 0, notes: [], report: null };
+    function computeStrikeZone(sonar) {
+        // sonar (optional): { center, samples } from communitySonar(). Weather sets the
+        // baseline expectation; community catches act as live sonar that pulls the zone
+        // toward where fish are actually feeding. Omitting sonar gives the weather-only
+        // preview used by refreshZonePreview().
+        var zone = { min: BASE_ZONE_MIN, max: BASE_ZONE_MAX, shift: 0, sonarShift: 0, notes: [], report: null, sonar: null };
         var rep = getActiveReport();
         if (!rep) {
             zone.notes.push('No water report loaded: using the baseline 4.0" - 12.0" strike zone.');
-            return zone;
-        }
+        } else {
         zone.report = rep;
 
         // Barometric trend drives the swim bladder: falling = suspend, rising = pin down.
@@ -1838,8 +1822,25 @@
             }
         }
 
+        } // end else (water report loaded) - sonar below runs with or without a report
+
         var zMin = BASE_ZONE_MIN + zone.shift;
         var zMax = BASE_ZONE_MAX + zone.shift;
+        // Community sonar: pull the weather zone toward where fish are actually biting.
+        // Weight grows with sample count (2 catches = 25% pull, 8+ catches = 50% pull),
+        // so a single lucky catch can't yank the zone but a real pattern moves it.
+        if (sonar && sonar.center !== null && sonar.center !== undefined && isFinite(sonar.center) && sonar.samples >= 2) {
+            var weatherCenter = (zMin + zMax) / 2;
+            var halfWidth = (zMax - zMin) / 2;
+            var pull = Math.min(0.5, 0.125 + (sonar.samples * 0.046875));  // 2->~0.22, 8->0.5
+            var blended = weatherCenter + ((sonar.center - weatherCenter) * pull);
+            zone.sonarShift = blended - weatherCenter;
+            zMin = blended - halfWidth;
+            zMax = blended + halfWidth;
+            zone.sonar = sonar;
+            zone.notes.push('Recent community catches holding near ' + sonar.center.toFixed(1) + '" (' + sonar.samples + ' fish): zone pulled ' +
+                (zone.sonarShift >= 0 ? '+' : '') + zone.sonarShift.toFixed(1) + '" toward feeding fish.');
+        }
         if (zMin < 1.0) zMin = 1.0;
         if (zMax > 24.0) zMax = 24.0;
         if (zMax - zMin < 4.0) zMax = zMin + 4.0;
@@ -1867,7 +1868,8 @@
     var LEADER_LENGTH_OPTIONS = [6, 7, 8, 9, 10, 11, 12];
     var FOAM_KEYS = ['0', '14', '12', 'c12', '10'];
 
-    function bestZoneRig(zone, bottomVelocity, lbTest, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz, dragCoeff) {
+    function bestZoneRig(zone, bottomVelocity, lbTest, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz) {
+        // Physics is locked: drag coefficient is always 1.0.
         var target = (zone.min + zone.max) / 2;
         var best = null;
         for (var f = 0; f < FOAM_KEYS.length; f++) {
@@ -1875,7 +1877,7 @@
             var lift = rigLift(foam.lift, yarnInches, hook);
             for (var w = 0; w < WEIGHT_OPTIONS.length; w++) {
                 var wt = WEIGHT_OPTIONS[w];
-                var drag = leaderDragPerFt(bottomVelocity, lbTest, wt, dragCoeff) + beadDrag(bdMat, bdSz);
+                var drag = leaderDragPerFt(bottomVelocity, lbTest, wt, 1.0) + beadDrag(bdMat, bdSz);
                 for (var l = 0; l < LEADER_LENGTH_OPTIONS.length; l++) {
                     var len = LEADER_LENGTH_OPTIONS[l];
                     var h = presentationHeightInches(lift, len, drag);
@@ -1962,8 +1964,10 @@
         var bdSz = getNum('bd-sz');
         var species = getStr('species');
 
-        // Community calibration: anonymised full tackle telemetry from every angler who has
-        // logged a catch at this flow and species. Falls back to the local buffer offline.
+        // Community sonar: anonymised full tackle telemetry from every angler who has
+        // logged a catch at this flow and species. Physics stays locked - this data only
+        // moves the strike zone toward where fish are actually feeding. Falls back to
+        // the local buffer offline.
         var dbArray = [];
         if (typeof Supa !== 'undefined') {
             try { dbArray = await Supa.fetchGlobalCalibration(flow, species); } catch (e) { dbArray = []; }
@@ -1975,16 +1979,16 @@
             } catch (e) { dbArray = []; }
         }
 
-        // 2. Fluid dynamics -------------------------------------------------------------
+        // 2. Fluid dynamics (LOCKED: drag coefficient is always 1.0) -----------------------
         var velocity = hydraulicVelocity(flow);
-        var learned = learnDragCoeff(dbArray, flow, species);
-        var dragPerFt = leaderDragPerFt(velocity.bottom, ldLb, weightOz, learned.coeff) + beadDrag(bdMat, bdSz);
+        var dragPerFt = leaderDragPerFt(velocity.bottom, ldLb, weightOz, 1.0) + beadDrag(bdMat, bdSz);
         var lift = rigLift(foam.lift, yarn, hook);
         var hgt = presentationHeightInches(lift, ldLen, dragPerFt);
         var blownOut = (velocity.bottom > 3.5 && weightOz < 0.5);
 
         // 3. Where the fish are today, then score the presentation ------------------------
-        var zone = computeStrikeZone();
+        var sonar = communitySonar(dbArray, flow, species);
+        var zone = computeStrikeZone(sonar);
         var score = 5.0;
         if (blownOut) {
             score = 0.0;
@@ -1997,15 +2001,23 @@
         var roundedScore = Math.round(score);
 
         // 4. Build the suggestions: what to change to get into the zone -------------------
+        // Rig Adjustments only: your current state + the exact gear to tie on. No
+        // calibration meta-talk - the community data already moved the zone above.
         var suggestions = [];
-        var best = bestZoneRig(zone, velocity.bottom, ldLb, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz, learned.coeff);
+        var best = bestZoneRig(zone, velocity.bottom, ldLb, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz);
 
         if (blownOut) {
             suggestions.push('BLOWN OUT: the bed is running ' + velocity.bottom.toFixed(1) + ' ft/s with only ' + weightOz + ' oz of lead. Step up to 3/4 oz or 1 oz, or fish a slower seam.');
         } else if (hgt < zone.min) {
-            suggestions.push('Presentation pinned at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). Add buoyancy: bigger Corky, more yarn, or a longer leader.');
+            var lowWhy = (sonar && sonar.center !== null && sonar.center > (zone.min + zone.max) / 2)
+                ? 'Weather and recent catches show fish holding higher in the column'
+                : 'Fish are holding off the bottom';
+            suggestions.push('Presentation pinned at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). ' + lowWhy + '. Add buoyancy: bigger Corky, more yarn, or a longer leader.');
         } else if (hgt > zone.max) {
-            suggestions.push('Floating over fish at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). Cut lift: smaller Corky, less yarn, heavier lead, or a shorter leader.');
+            var highWhy = (sonar && sonar.center !== null && sonar.center < (zone.min + zone.max) / 2)
+                ? 'Weather and recent catches show fish pinned tight to the bottom'
+                : 'Fish are holding tight to the bottom';
+            suggestions.push('Floating over fish at ' + hgt.toFixed(1) + '" (zone ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"). ' + highWhy + '. Cut lift: smaller Corky, less yarn, heavier lead, or a shorter leader.');
         } else {
             suggestions.push('On target: ' + hgt.toFixed(1) + '" sits inside today\'s ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '" strike zone.');
         }
@@ -2013,8 +2025,6 @@
         if (best && !blownOut && score < 5.0) {
             suggestions.push('Try this: ' + best.foam.label + ' + ' + best.leader + ' ft leader + ' + best.weight + ' oz lead -> projects ' + best.hgt.toFixed(1) + '" of line height.');
         }
-        suggestions.push('Community calibration: ' + learned.note + ', drag adjusted ' +
-            ((learned.coeff - 1) * 100).toFixed(1) + '% (hard-clamped to +/-10%).');
         if (species && species !== 'None') {
             suggestions.push('Targeting ' + species + ' at ' + flow + ' CFS on a ' + formatRodLength(rodFt) + ' rod with a ' + ldMat + ' ' + ldLb + 'lb leader.');
         }
@@ -2040,7 +2050,7 @@
             score: score,
             bottomVelocity: velocity.bottom,
             meanVelocity: velocity.mean,
-            dragCoeff: learned.coeff,
+            dragCoeff: 1.0,
             blownOut: blownOut
         };
 

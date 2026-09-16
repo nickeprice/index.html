@@ -241,13 +241,18 @@ async function fetchGlobalCalibration(flow, species) {
                 spc: (r.species !== undefined) ? r.species : (r.spc || species),
                 loc: (r.hook_loc !== undefined) ? r.hook_loc : r.hook_location,
                 ldLen: (r.leader_len_ft !== undefined) ? r.leader_len_ft : r.leader_length,
+                ldMat: (r.leader_material !== undefined) ? r.leader_material : (r.ldMat || null),
                 ldLb: (r.leader_lb !== undefined) ? r.leader_lb : null,
+                mlMat: (r.mainline_mat !== undefined) ? r.mainline_mat : (r.mlMat || null),
+                mlLb: (r.mainline_lb !== undefined) ? r.mainline_lb : null,
                 weight: (r.lead_oz !== undefined) ? r.lead_oz : r.weight,
                 hook: (r.hook_size !== undefined) ? r.hook_size : null,
                 yarn: (r.yarn_in !== undefined) ? r.yarn_in : r.yarn,
                 foam: r.foam,
                 bdMat: (r.bead_mat !== undefined) ? r.bead_mat : r.bead_material,
                 bdSz: (r.bead_size !== undefined) ? r.bead_size : null,
+                rodFt: (r.rod_ft !== undefined) ? r.rod_ft : null,
+                dist: (r.cast_distance_ft !== undefined) ? r.cast_distance_ft : null,
                 samples: r.samples
             };
         });

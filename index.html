@@ -1663,26 +1663,84 @@
         return { mean: meanVelocity, bottom: bottomVelocity };
     }
 
-    // Net upward lift = foam buoyancy + yarn buoyancy - hook anchor weight.
-    function rigLift(foamLift, yarnInches, hook) {
-        return Math.max(0.02, foamLift + (yarnInches * 0.15) - hookSink(hook));
+    // Net upward lift = foam buoyancy + yarn buoyancy - hook anchor weight - bead sink.
+    // beadSink is subtracted because every bead has mass; denser materials sink more.
+    function rigLift(foamLift, yarnInches, hook, bdMat, bdSz) {
+        return Math.max(0.02, foamLift + (yarnInches * 0.15) - hookSink(hook) - beadSink(bdMat, bdSz));
     }
 
-    // Beads add profile in the current but essentially no lift: drag only.
+    // --- COMPONENT PHYSICS: every tackle item maps to area (drag) and volume (lift/sink).
+    // Line diameter grows with the square root of lb test (strength ~ cross-section
+    // area, diameter ~ sqrt(area)), times a material factor: fluoro runs thinner than
+    // mono/copoly at the same lb test, braid far thinner still. So 15lb fluoro drags
+    // slightly MORE than 12lb mono (thicker in absolute terms), exactly as on the water.
+    var LINE_DIA_FACTOR = { mono: 1.0, copoly: 0.95, fluoro: 0.88, braid: 0.50 };
+
+    function lineDiameterScale(lbTest, mat) {
+        var f = LINE_DIA_FACTOR[mat] || 1.0;
+        return Math.sqrt(Math.max(lbTest, 1) / REF_LB_TEST) * f;
+    }
+
+    // Bead: a sphere. Cross-section (drag) scales with radius^2, volume (sink) with
+    // radius^3 times material density. Calibrated so a 4mm hard bead matches the
+    // legacy 0.08 drag units; an 8mm then pulls ~4x harder, as a sphere must.
+    // bdMat comes straight from the #bd-mat dropdown: 'hard' (plastic) or 'soft'.
+    // Soft (lower density) sinks less but its skirt wobbles and catches more water.
+    var BEAD_DENSITY = { hard: 1.0, soft: 0.55 };
+
     function beadDrag(bdMat, bdSz) {
         if (!bdMat || bdMat === 'none' || !bdSz) return 0;
-        var materialFactor = (bdMat === 'soft') ? 1.15 : 1.0;
-        return bdSz * 0.02 * materialFactor;
+        var flexFactor = (bdMat === 'soft') ? 1.15 : 1.0;
+        return 0.005 * bdSz * bdSz * flexFactor;
     }
 
-    // Hydrodynamic drag per foot of leader. Scales with bed velocity, leader thickness
-    // (lb test as the diameter proxy) and how hard the lead pins the leader down.
-    function leaderDragPerFt(bottomVelocity, lbTest, weightOz, dragCoeff) {
+    function beadSink(bdMat, bdSz) {
+        if (!bdMat || bdMat === 'none' || !bdSz) return 0;
+        var density = BEAD_DENSITY[bdMat] || 1.0;
+        return 0.0004 * bdSz * bdSz * bdSz * density;
+    }
+
+    // Hook: solid wire, so mass (sink) dominates; the gap/eye adds a small point drag.
+    // hookSink() above already orders mass 2/0 > 1/0 > 1 > 2.
+    var HOOK_DRAG = { '2': 0.02, '1': 0.03, '0': 0.04, '-1': 0.05 };
+
+    function hookDrag(hook) {
+        return HOOK_DRAG[String(hook)] || 0.02;
+    }
+
+    // Yarn skirt: mostly lift, but the fibers catch water too.
+    function yarnDrag(yarnInches) {
+        return Math.max(0, yarnInches) * 0.02;
+    }
+
+    // Mainline rides upstream of the sliding weight; only a fraction of its drag
+    // couples through into the leader system. Braid cuts water, mono sails.
+    var MAINLINE_COUPLING = 0.25;
+
+    function mainlineDragPerFt(bottomVelocity, mlLb, mlMat) {
+        if (!mlLb) return 0;
         var velocityScale = bottomVelocity / REF_VELOCITY;
-        var diameterScale = lbTest / REF_LB_TEST;
+        return DRAG_REF * velocityScale * lineDiameterScale(mlLb, mlMat || 'braid') * MAINLINE_COUPLING;
+    }
+
+    // Hydrodynamic drag per foot of leader. Scales with bed velocity, true line
+    // diameter (sqrt of lb test x material factor) and how hard the lead pins the
+    // leader down. Heavier lead sweeps the leader flatter, so height falls.
+    function leaderDragPerFt(bottomVelocity, lbTest, weightOz, dragCoeff, ldMat) {
+        var velocityScale = bottomVelocity / REF_VELOCITY;
+        var diameterScale = lineDiameterScale(lbTest, ldMat || 'copoly');
         var anchorScale = 0.7 + (0.6 * weightOz);   // heavier lead sweeps the leader flatter
         var drag = DRAG_REF * velocityScale * diameterScale * anchorScale * dragCoeff;
         return Math.max(0.05, drag);
+    }
+
+    // Total system drag in equivalent per-foot units: leader + coupled mainline +
+    // bead sphere + hook gap + yarn skirt. Used by runSim, the solver, and sonar
+    // alike so all three always agree.
+    function totalDragPerFt(bottomVelocity, ldLb, ldMat, mlLb, mlMat, weightOz, hook, yarnInches, bdMat, bdSz) {
+        return leaderDragPerFt(bottomVelocity, ldLb, weightOz, 1.0, ldMat)
+            + mainlineDragPerFt(bottomVelocity, mlLb, mlMat)
+            + beadDrag(bdMat, bdSz) + hookDrag(hook) + yarnDrag(yarnInches);
     }
 
     // Catenary rise of a flexible leader: uniform downstream drag (w per ft) acting on a
@@ -1725,14 +1783,24 @@
             if (!row.flow || Math.abs(row.flow - flow) > 300) continue;    // same river stage
             if (!row.ldLen) continue;
             // Pure physics snapshot of where THIS fish was feeding: coeff locked at 1.0.
+            // Full component model: line diameters, mainline coupling, bead sphere +
+            // material sink, hook gap/mass, yarn skirt. Missing fields fall back to the
+            // reference defaults so legacy rows still solve.
             var foam = parseFoam(row.foam !== undefined ? row.foam : row.corky);
-            var lift = rigLift(foam.lift, row.yarn || 0, row.hook);
-            var bedVel = hydraulicVelocity(row.flow).bottom;
-            var lb = row.ldLb || REF_LB_TEST;
-            var wt = (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5;
             var bdMat = (row.bdMat !== undefined) ? row.bdMat : row.bead_material;
             var bdSzRaw = (row.bdSz !== undefined && row.bdSz !== null) ? row.bdSz : row.bead_size;
-            var drag = leaderDragPerFt(bedVel, lb, wt, 1.0) + beadDrag(bdMat, bdSzRaw);
+            // RPC returns hook_size as text ("2","0","-1"); hookSink uses strict
+            // equality, so coerce to a number or cloud rows misread the hook.
+            var hookNum = (row.hook !== undefined && row.hook !== null && row.hook !== '') ? Number(row.hook) : 2;
+            if (isNaN(hookNum)) hookNum = 2;
+            var lift = rigLift(foam.lift, row.yarn || 0, hookNum, bdMat, bdSzRaw);
+            var bedVel = hydraulicVelocity(row.flow).bottom;
+            var lb = row.ldLb || row.leader_lb || REF_LB_TEST;
+            var ldMat = row.ldMat || row.leader_material || 'copoly';
+            var wt = (row.weight !== undefined && row.weight !== null) ? row.weight : 0.5;
+            var mlLb = row.mlLb || row.mainline_lb || 0;
+            var mlMat = row.mlMat || row.mainline_mat || 'braid';
+            var drag = totalDragPerFt(bedVel, lb, ldMat, mlLb, mlMat, wt, hookNum, row.yarn || 0, bdMat, bdSzRaw);
             var h = presentationHeightInches(lift, row.ldLen, drag);
             if (isFinite(h) && h > 0) heights.push(h);
         }
@@ -1868,16 +1936,17 @@
     var LEADER_LENGTH_OPTIONS = [6, 7, 8, 9, 10, 11, 12];
     var FOAM_KEYS = ['0', '14', '12', 'c12', '10'];
 
-    function bestZoneRig(zone, bottomVelocity, lbTest, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz) {
-        // Physics is locked: drag coefficient is always 1.0.
+    function bestZoneRig(zone, bottomVelocity, lbTest, ldMat, mlLb, mlMat, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz) {
+        // Physics is locked: drag coefficient is always 1.0. Full component model,
+        // same as runSim: bead/hook/yarn/line materials all count.
         var target = (zone.min + zone.max) / 2;
         var best = null;
         for (var f = 0; f < FOAM_KEYS.length; f++) {
             var foam = parseFoam(FOAM_KEYS[f]);
-            var lift = rigLift(foam.lift, yarnInches, hook);
+            var lift = rigLift(foam.lift, yarnInches, hook, bdMat, bdSz);
             for (var w = 0; w < WEIGHT_OPTIONS.length; w++) {
                 var wt = WEIGHT_OPTIONS[w];
-                var drag = leaderDragPerFt(bottomVelocity, lbTest, wt, 1.0) + beadDrag(bdMat, bdSz);
+                var drag = totalDragPerFt(bottomVelocity, lbTest, ldMat, mlLb, mlMat, wt, hook, yarnInches, bdMat, bdSz);
                 for (var l = 0; l < LEADER_LENGTH_OPTIONS.length; l++) {
                     var len = LEADER_LENGTH_OPTIONS[l];
                     var h = presentationHeightInches(lift, len, drag);
@@ -1980,9 +2049,11 @@
         }
 
         // 2. Fluid dynamics (LOCKED: drag coefficient is always 1.0) -----------------------
+        // Every component counts: leader diameter (sqrt lb x material), coupled
+        // mainline, bead sphere + material sink, hook mass/gap, yarn skirt.
         var velocity = hydraulicVelocity(flow);
-        var dragPerFt = leaderDragPerFt(velocity.bottom, ldLb, weightOz, 1.0) + beadDrag(bdMat, bdSz);
-        var lift = rigLift(foam.lift, yarn, hook);
+        var dragPerFt = totalDragPerFt(velocity.bottom, ldLb, ldMat, mlLb, mlMat, weightOz, hook, yarn, bdMat, bdSz);
+        var lift = rigLift(foam.lift, yarn, hook, bdMat, bdSz);
         var hgt = presentationHeightInches(lift, ldLen, dragPerFt);
         var blownOut = (velocity.bottom > 3.5 && weightOz < 0.5);
 
@@ -2004,7 +2075,7 @@
         // Rig Adjustments only: your current state + the exact gear to tie on. No
         // calibration meta-talk - the community data already moved the zone above.
         var suggestions = [];
-        var best = bestZoneRig(zone, velocity.bottom, ldLb, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz);
+        var best = bestZoneRig(zone, velocity.bottom, ldLb, ldMat, mlLb, mlMat, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz);
 
         if (blownOut) {
             suggestions.push('BLOWN OUT: the bed is running ' + velocity.bottom.toFixed(1) + ' ft/s with only ' + weightOz + ' oz of lead. Step up to 3/4 oz or 1 oz, or fish a slower seam.');

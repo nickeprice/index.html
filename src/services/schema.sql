@@ -113,13 +113,18 @@ returns table (
     species         text,
     hook_location   text,
     leader_length   text,
+    leader_material text,
     leader_lb       text,
+    mainline_mat    text,
+    mainline_lb     text,
     weight          text,
     hook_size       text,
     yarn            text,
     foam            text,
     bead_material   text,
-    bead_size       text
+    bead_size       text,
+    rod_ft          text,
+    cast_distance_ft text
 )
 language sql
 stable
@@ -131,13 +136,18 @@ as $$
         c.species::text,
         c.hook_location::text,
         c.leader_length::text,
+        c.leader_material::text,
         c.leader_lb::text,
+        c.mainline_mat::text,
+        c.mainline_lb::text,
         c.weight::text,
         c.hook_size::text,
         c.yarn::text,
         c.foam::text,
         c.bead_material::text,
-        c.bead_size::text
+        c.bead_size::text,
+        c.rod_ft::text,
+        c.cast_distance_ft::text
     from public.catches c
     where c.leader_length is not null
       and c.flow is not null

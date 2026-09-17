@@ -1,4 +1,18 @@
 -- ============================================================================
+-- DEPRECATED — SUPERSEDED BY supabase/migrations/
+--
+-- This file is the original hand-run schema. It is retained for historical
+-- reference only and is NOT the source of truth.
+--
+-- The canonical schema now lives in:
+--   supabase/migrations/20260917000000_init_schema.sql
+--   supabase/migrations/20260917000100_normalize_rls.sql
+--
+-- Apply those with `npx supabase db push` (see supabase/README.md). Do not run
+-- this file: it drops and recreates the view and RPC, and its RLS policies are
+-- the duplicated set that the migration above normalises away.
+-- ============================================================================
+--
 -- Puyallup River Companion — Catch Log / Brag Board schema
 --
 -- Run this once in Supabase Studio > SQL Editor. It is IDEMPOTENT and SAFE to

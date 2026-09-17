@@ -1,0 +1,335 @@
+/* COMBINED CSS FROM DRIFTSIM AND WATER REPORT */
+:root {
+    --bg-main: #000000;
+    --bg-panel: #1c1c1e;
+    --text-main: #ffffff;
+    --text-muted: #8e8e93;
+    --accent-blue: #3a82f6;
+    --accent-green: #4ade80;
+    --accent-red: #f87171;
+    --accent-yellow: #facc15;
+    --accent-purple: #c084fc;
+}
+
+html, body { background-color: var(--bg-main); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
+body { overflow-y: auto; padding-bottom: 50px; font-size: 11px; line-height: 1.2; }
+
+/* NAV BAR */
+#top-nav { position: sticky; top: 0; background-color: #1a1a1a; z-index: 2000; padding: 12px 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+.nav-btn { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; font-weight: bold; }
+.menu-drawer { display: none; background: #1a1a1a; padding: 10px; border-bottom: 1px solid #333; }
+.menu-drawer button { width: 100%; text-align: left; background: none; border: none; padding: 15px 10px; color: #fff; font-size: 16px; border-bottom: 1px solid #333; margin: 0; }
+
+/* TABS */
+.tab-content { display: none; padding: 6px 4px; }
+.tab-active { display: block; }
+
+/* DRIFTSIM EXACT STYLING */
+h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin: 22px 0 10px 0; padding: 0; }
+.purple-heading { color: var(--accent-purple); }
+/* Gear Sim / Catch Log section headers: flush with the input fields, not indented past them */
+#tab-gear-sim h2, #tab-catch-log h2 { border-bottom: 1px solid #26262a; padding-bottom: 8px; }
+#tab-gear-sim h2:first-child, #tab-catch-log h2:first-child { margin-top: 6px; }
+#tab-gear-sim h3, #tab-catch-log h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 18px 0 8px 0; padding: 0; }
+
+#hud { position: -webkit-sticky; position: sticky; top: 48px; background-color: #1a1a1a; z-index: 1000; padding: 15px 10px; border-bottom: 1px solid #333; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
+#stars { font-size: 2rem; color: #444; margin-bottom: 5px; letter-spacing: 2px; transition: color 0.3s; }
+#hud-msg { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; }
+.hud-metrics { display: flex; justify-content: space-between; }
+.metric { flex: 1; text-align: center; border-right: 1px solid #333; }
+.metric:last-child { border-right: none; }
+.metric-val { font-size: 1.2rem; font-weight: bold; margin-bottom: 2px; }
+.metric-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
+.metric-target { font-size: 0.6rem; color: #555; }
+#score-bar { height: 6px; width: 90%; margin: 15px auto 0 auto; border-radius: 3px; background: #333; }
+
+.bucket { padding: 0 15px 25px 15px; }
+.row { display: flex; gap: 12px; margin-bottom: 12px; }
+.col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+label { font-size: 0.7rem; color: #aaa; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+/* Paired feet / inches entry (rod length) */
+.dual-input { display: flex; align-items: center; gap: 5px; }
+.dual-input input { flex: 1 1 0; min-width: 0; width: 100%; text-align: center; padding: 10px 4px; }
+.dual-input span { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+select { max-width: 100%; min-width: 0; }
+
+/* FORCE 16px font-size to prevent iOS zoom */
+input, select { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid #38383a; border-radius: 8px; padding: 10px; font-size: 16px; font-weight: 600; -webkit-appearance: none; outline: none; }
+
+button.btn-main { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; margin-top: 15px; background-color: #333; color: #aaa; }
+#btn-sim { background-color: var(--accent-green); color: #000; margin-top: 25px; }
+#btn-log { background-color: #333; color: #666; pointer-events: none; }
+#btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
+#btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
+#btn-log.locked { background-color: #333; color: #666; pointer-events: none; }
+#btn-auth-start { background-color: var(--accent-green); color: #000; }
+
+/* Brag Board table */
+
+#suggestions { background-color: #2a2015; border: 1px solid #5c4018; border-radius: 10px; padding: 12px 14px; margin: 16px 0 0 0; font-size: 0.85rem; line-height: 1.5; color: #fcd34d; display: none; }
+#suggestions .sug-head { display: block; margin-bottom: 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: #fbbf24; }
+#suggestions .sug-zone { color: #e5e7eb; }
+#suggestions .sug-cond { color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; line-height: 1.45; }
+
+/* CATCH LOG AUTH (anonymous guest session) */
+#auth-section { padding-top: 4px; }
+.auth-note { font-size: 0.7rem; color: var(--text-muted); margin: 10px 0 0 0; line-height: 1.5; }
+.auth-badge { display: flex; justify-content: space-between; align-items: center; gap: 10px; background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 8px; padding: 12px; font-size: 0.9rem; color: var(--text-main); }
+.auth-badge .auth-link { color: var(--accent-blue); font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.auth-badge .auth-dot { color: var(--accent-green); }
+.table-wrapper { overflow-x: auto; margin-bottom: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
+th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
+td { padding: 8px; border-bottom: 1px solid #222; }
+.foul-hook { color: var(--accent-red); }
+
+/* WATER REPORT EXACT STYLING */
+.card { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+
+/* Centered Date Switcher & Regulations Header */
+.date-reg-header {
+    position: relative;
+    padding: 12px 48px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Breathable, even vertical rhythm for the Date > Status > Legal Hours stack */
+    gap: 10px;
+    background-color: var(--bg-panel);
+    border: 1px solid #2c2c2e;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.date-nav-btn {
+    /* Pinned to the outer margins of the header box, vertically centered */
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    background-color: #2c2c2e;
+    color: #ffffff;
+    border: 1px solid #3a3a3c;
+    border-radius: 8px;
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    z-index: 2;
+}
+.date-nav-btn:active {
+    background-color: #3a3a3c;
+    transform: translateY(-50%) scale(0.95);
+}
+.date-nav-btn.disabled, .date-nav-btn:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+#btn-prev-date, .date-nav-prev {
+    left: 4px;
+}
+#btn-next-date, .date-nav-next {
+    right: 4px;
+}
+.date-nav-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    text-align: center;
+}
+.date-nav-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.2px;
+}
+.date-today-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8e8e93;
+    margin-left: 6px;
+}
+.status-pill-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+}
+.reg-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-weight: 800;
+    font-size: 13px;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-sizing: border-box;
+}
+.status-pill-open {
+    background-color: rgba(34, 197, 94, 0.18);
+    color: #22c55e;
+    border: 1px solid #22c55e;
+}
+.status-pill-closed {
+    background-color: rgba(239, 68, 68, 0.18);
+    color: #ef4444;
+    border: 1px solid #ef4444;
+}
+.hero-legal-hours {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    margin: 0;
+    letter-spacing: -0.2px;
+    line-height: 1.25;
+}
+
+.sec-hdr { color: #a1a1aa; font-size: 11px; font-weight: 700; margin: 12px 0 6px 0; border-bottom: 1px solid #2c2c2e; padding-bottom: 3px; letter-spacing: 0.3px; }
+.data-row { display: flex; align-items: flex-start; margin-bottom: 4px; font-size: 13px; }
+.k { color: #a1a1aa; flex: 0 0 95px; font-size: 13px; font-weight: 600; }
+.v { color: #f2f2f7; flex: 1; font-size: 13px; font-weight: 500; }
+.window-box { background-color: #000000; border-radius: 6px; padding: 8px 10px; margin-top: 5px; border: 1px solid #2c2c2e; }
+.window-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.window-time { color: #ffffff; font-size: 13px; font-weight: 700; }
+.window-score { font-size: 15px; font-weight: 900; }
+.window-triggers { color: #a1a1aa; font-size: 12px; line-height: 1.3; }
+
+/* CONSOLIDATED RIVER & ENVIRONMENTAL CONDITIONS */
+.seasonal-warning { background-color: #ff453a; color: #fff; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 11px; text-align: center; margin: 4px 0 6px 0; border: 1px solid #fff; line-height: 1.3; }
+
+/* 1. Telemetry Row (USGS) — centered stack with the flow readout as primary data */
+.env-telemetry-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; margin: 0 auto 6px auto; width: 100%; gap: 4px; box-sizing: border-box; }
+.telemetry-main { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 2px; font-size: 14px; }
+/* Primary readouts: CFS flow and gauge height share one centered line */
+.telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
+.cfs-val, .gage-val { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: #ffffff; }
+.telemetry-sep { font-size: 13px; font-weight: 700; color: #64748b; }
+.cfs-trend-badge { font-weight: 700; font-size: 11px; display: inline-block; }
+/* Quiet background timestamp — smaller and muted so it never competes with the data */
+.telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
+
+/* 2. Marine / Tide Row */
+.env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 6px; box-sizing: border-box; }
+.tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 8px; padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; flex: 1 1 calc(50% - 8px); min-width: 130px; box-sizing: border-box; line-height: 1.25; }
+.tide-type { color: #64d2ff; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+.tide-time { color: #ffffff; font-weight: 700; font-size: 14px; }
+.tide-level { color: #7dd3fc; font-weight: 600; font-size: 14px; }
+.tide-empty { color: #a1a1aa; font-size: 14px; font-weight: 600; text-align: center; width: 100%; padding: 8px 0; }
+
+/* 3. Weather & Moon Conditions */
+.env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+.env-badge-val { font-size: 13px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; }
+.env-badge-lbl { font-size: 9.5px; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; line-height: 1.2; }
+
+/* Solunar Split Card */
+.solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 24px; }
+.solunar-half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 0 1px; }
+.solunar-half:first-child { border-right: 1px solid #333336; }
+.solunar-val { font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.solunar-sublbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 600; line-height: 1; margin-top: 1px; }
+
+/* 4. Phase 2: Hatchery Escapement (collapsible, sits below the 3x2 conditions grid) */
+.esc-section { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px 10px; margin: 4px 0 6px 0; box-sizing: border-box; }
+.esc-section > summary { list-style: none; cursor: pointer; color: #a1a1aa; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; justify-content: space-between; }
+.esc-section > summary::-webkit-details-marker { display: none; }
+.esc-section > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; margin-left: 6px; }
+.esc-section[open] > summary::after { content: '\25BE'; }
+.esc-body { margin-top: 6px; }
+.esc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.esc-card { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 8px; box-sizing: border-box; min-width: 0; }
+.esc-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; border-bottom: 1px solid #27272a; padding-bottom: 4px; }
+.esc-species { color: #ffffff; font-size: 12px; font-weight: 800; }
+.esc-trend { font-size: 11px; font-weight: 700; white-space: nowrap; }
+.esc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; line-height: 1.6; }
+.esc-row-lbl { color: #94a3b8; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
+.esc-row-val { color: #ffffff; font-weight: 700; font-size: 12px; }
+.esc-empty { color: #8e8e93; font-size: 11px; font-weight: 600; text-align: center; padding: 6px 0 2px 0; line-height: 1.35; }
+
+@media (min-width: 600px) {
+    .tide-pill { flex: 1 1 0; min-width: 0; }
+    .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .env-badge { padding: 8px 6px; }
+    .esc-card { padding: 8px 6px; }
+}
+@media (min-width: 840px) {
+    .env-stat-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+}
+
+/* DEBUG MATRIX */
+#debug-console { display: none; position: fixed; bottom: 0; left: 0; width: 100%; height: 40vh; background: rgba(0,0,0,0.9); border-top: 2px solid var(--accent-green); z-index: 3000; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 11px; color: #0f0; }
+#debug-console.open { display: block; }
+.log-entry { border-bottom: 1px solid #333; padding: 4px 0; }
+
+/* STATION SELECTOR */
+#station-header { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1; text-align: center; }
+.station-badge { background-color: #2c2c2e; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-top: 2px; }
+.badge-gps { color: var(--accent-green); border: 1px solid var(--accent-green); }
+.badge-manual { color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 4000; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+.modal-content { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 20px; max-width: 450px; margin: 40px auto; box-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+.modal-title { font-size: 1.2rem; font-weight: 800; color: var(--accent-blue); margin-top: 0; margin-bottom: 15px; text-transform: uppercase; }
+.modal-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px; font-weight: bold; }
+.preset-list { display: flex; flex-direction: column; gap: 8px; margin: 15px 0; }
+.preset-btn { width: 100%; text-align: left; padding: 12px 15px; font-size: 14px; font-weight: bold; background: #2c2c2e; border: 1px solid #38383a; border-radius: 8px; color: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+.preset-btn:active { background-color: #3a3a3c; }
+.preset-id { font-size: 10px; color: var(--text-muted); font-family: monospace; }
+.search-row { display: flex; gap: 10px; margin: 15px 0 25px 0; }
+.search-row input { flex: 1; }
+.search-row button { padding: 10px 20px; font-size: 14px; font-weight: bold; background: var(--accent-blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; }
+
+/* TOAST NOTIFICATIONS (replaces blocking alert() calls) */
+#toast-stack { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5000; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); pointer-events: none; }
+.toast { pointer-events: auto; max-width: 420px; width: 100%; box-sizing: border-box; padding: 12px 16px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; line-height: 1.4; color: #fff; background-color: #2c2c2e; border: 1px solid #38383a; border-left: 4px solid var(--accent-blue); box-shadow: 0 6px 20px rgba(0,0,0,0.6); cursor: pointer; opacity: 0; transform: translateY(12px); transition: opacity 0.22s ease, transform 0.22s ease; }
+.toast-show { opacity: 1; transform: translateY(0); }
+.toast-hide { opacity: 0; transform: translateY(12px); }
+.toast-info { border-left-color: var(--accent-blue); }
+.toast-success { border-left-color: var(--accent-green); }
+.toast-warn { border-left-color: var(--accent-yellow); }
+.toast-error { border-left-color: var(--accent-red); }
+.toast-action { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.toast-msg { flex: 1; min-width: 0; }
+.toast-btn { flex: 0 0 auto; min-height: 34px; padding: 8px 12px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.04em; color: #fff; background-color: var(--accent-blue); border: none; border-radius: 8px; cursor: pointer; }
+.toast-btn:active { background-color: #2f6fd0; }
+@media (prefers-reduced-motion: reduce) {
+    .toast { transition: none; }
+    .toast-hide { opacity: 0; }
+}
+
+/* ACCESSIBILITY: visible focus ring for keyboard navigation. The app relies
+   heavily on tap targets, so the ring only appears for keyboard users. */
+:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
+/* EMPTY STATES: the Brag Board and the Water Report both used to render a
+   blank area (or one muted sentence) when there was nothing to show. These give
+   the angler a headline, an explanation and a way forward. */
+.empty-state { padding: 26px 14px; text-align: center; color: var(--text-muted); }
+.empty-state-icon { font-size: 1.9rem; margin-bottom: 10px; opacity: 0.85; }
+.empty-state-title { font-size: 0.9rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.empty-state-hint { font-size: 0.72rem; line-height: 1.55; max-width: 320px; margin: 0 auto; }
+.empty-state-panel { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; margin: 12px 4px; }
+td.empty-state { padding: 30px 10px; }
+

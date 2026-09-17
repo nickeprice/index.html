@@ -1,0 +1,62 @@
+{
+  "name": "Puyallup River Companion",
+  "short_name": "Puyallup River",
+  "description": "Live water report, fishing window scoring and a deterministic Gear Sim for the Puyallup, White, Carbon, Green and Nisqually rivers.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#1a1a1a",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["sports", "weather", "navigation"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Water Report",
+      "short_name": "Water Report",
+      "description": "Today's river conditions, legal hours and fishing windows",
+      "url": "/?tab=tab-water-report"
+    },
+    {
+      "name": "Gear Sim",
+      "short_name": "Gear Sim",
+      "description": "Solve your rig against today's strike zone",
+      "url": "/?tab=tab-gear-sim"
+    },
+    {
+      "name": "Catch Log",
+      "short_name": "Catch Log",
+      "description": "Log a catch and view the public Brag Board",
+      "url": "/?tab=tab-catch-log"
+    }
+  ]
+}

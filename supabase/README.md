@@ -56,7 +56,22 @@ npx supabase db reset       # builds a fresh local DB from these migrations
 
 ## Verification
 
-After pushing, confirm the normalised policies:
+**1. RLS must be ENABLED on the table.** This is the single most important check —
+without it, the `anon` grant below makes every private row world-readable:
+
+```sql
+select relname, relrowsecurity as rls_enabled
+  from pg_class
+ where relnamespace = 'public'::regnamespace and relname = 'catches';
+-- expect rls_enabled = true
+```
+
+> If you ever create this table by hand, the Supabase SQL Editor will warn that
+> "This query creates a table without enabling Row Level Security". **That warning
+> is correct — do not dismiss it.** Always enable RLS in the same transaction as
+> the `CREATE TABLE`.
+
+**2. Confirm the normalised policies:**
 
 ```sql
 select policyname, cmd, roles from pg_policies

@@ -64,6 +64,13 @@ create index if not exists catches_species_idx
 create index if not exists catches_user_idx
     on public.catches using btree (user_id);
 
+-- Enable RLS in the SAME file/transaction as the CREATE TABLE. Without this the
+-- table is created world-readable through the Data API: anon/authenticated hold
+-- SELECT/INSERT/UPDATE/DELETE grants (below), so RLS is the ONLY thing protecting
+-- private rows. The Supabase SQL Editor flags CREATE TABLE statements that omit
+-- it - that warning is correct, not noise.
+alter table public.catches enable row level security;
+
 
 -- ----------------------------------------------------------------------------
 -- public.public_catch_feed

@@ -26,7 +26,7 @@
  *                       (no CORS) so they cannot be inspected or trusted in cache.
  */
 
-const VERSION = 'v2.00.1';
+const VERSION = 'v2.00.2';
 const SHELL_CACHE = 'prc-shell-' + VERSION;
 const API_CACHE = 'prc-api-' + VERSION;
 const ASSET_CACHE = 'prc-assets-' + VERSION;
@@ -56,6 +56,29 @@ const CDN_FILES = [
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
+/**
+ * Store a cross-origin, no-CORS asset.
+ *
+ * cache.add() CANNOT be used here: it rejects any response whose status is not
+ * an ok status, and an opaque response reports status 0. It fails with
+ * "TypeError: Failed to execute 'add' on 'Cache': Request failed", which is easy
+ * to swallow silently. cache.put() performs no status/ok check, so fetching and
+ * putting by hand works.
+ */
+async function precacheOpaque(cache, url) {
+    var req = new Request(url, { mode: 'no-cors' });
+    try {
+        var res = await fetch(req);
+        if (res && (res.ok || res.type === 'opaque')) {
+            await cache.put(req, res);
+            return true;
+        }
+    } catch (err) {
+        // Offline or blocked at install time: the runtime SWR path will retry.
+    }
+    return false;
+}
+
 self.addEventListener('install', function (event) {
     event.waitUntil(
         caches.open(SHELL_CACHE)
@@ -70,9 +93,10 @@ self.addEventListener('install', function (event) {
             })
             .then(function () { return caches.open(ASSET_CACHE); })
             .then(function (cache) {
+                // Opaque cross-origin assets need the fetch+put path - see
+                // precacheOpaque() for why cache.add() cannot be used.
                 return Promise.all(CDN_FILES.map(function (url) {
-                    return cache.add(new Request(url, { cache: 'reload', mode: 'no-cors' }))
-                        .catch(function () { /* offline at install: fine */ });
+                    return precacheOpaque(cache, url);
                 }));
             })
             .then(function () { return self.skipWaiting(); })
@@ -123,12 +147,14 @@ async function networkFirstApi(request, url) {
     }
 }
 
-async function staleWhileRevalidate(request, cacheName) {
+async function staleWhileRevalidate(request, cacheName, allowOpaque) {
     var cache = await caches.open(cacheName);
     var cached = await cache.match(request);
     var revalidate = fetch(request).then(function (response) {
-        // Only cache successful, non-opaque responses.
-        if (response && response.ok && response.type === 'basic') {
+        // Cache successful same-origin responses, plus opaque cross-origin CDN
+        // responses when explicitly allowed. An opaque response reports status 0,
+        // so an ok-only check would reject it and the asset would never cache.
+        if (response && (response.ok || (allowOpaque && response.type === 'opaque'))) {
             cache.put(request, response.clone());
         }
         return response;
@@ -158,7 +184,8 @@ self.addEventListener('fetch', function (event) {
     // Live telemetry from third parties: never cache, always fresh.
     if (url.origin !== self.location.origin) {
         if (url.hostname.indexOf('cdn.jsdelivr.net') !== -1) {
-            event.respondWith(staleWhileRevalidate(request, ASSET_CACHE));
+            // allowOpaque: a cross-origin <script> load yields an opaque response.
+            event.respondWith(staleWhileRevalidate(request, ASSET_CACHE, true));
             return;
         }
         // USGS NWIS, Open-Meteo, data.wa.gov Socrata, Supabase REST/RPC.

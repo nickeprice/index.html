@@ -135,6 +135,42 @@ Verification:
 - [ ] Live end-to-end insert test of a real catch against the migrated DB
 - [ ] Mobile GPS "Use My GPS" verified on a real device (desktop tested here)
 
+# Phase F — CI + live verification
+
+## Step 1 — CI workflow ✅
+- [x] `.github/workflows/sanity.yml` — runs `node sanity_pass.js` on push/PR to `main`
+      plus manual `workflow_dispatch`, ubuntu-latest, 10-min timeout, no install step,
+      and asserts the pass leaves no dev-server processes behind.
+      - Verification: first run (35306760950, triggered by `dabc9e7`) completed with
+        conclusion `success`; job `sanity` → `success`.
+- [x] `README.md` — documented the CI workflow under Testing.
+
+## Step 2 — Live end-to-end catch insert test ✅
+
+- [x] Sign in as a guest in the app, run the Gear Sim, FEED DATA, and confirm the catch
+      lands in `public.catches` with env columns populated (`water_temp_f`,
+      `wind_speed_mph`, `wind_dir_compass`, `moon_phase`) and shows on the Brag Board.
+      - Verified live (2026-09-18): new catch (Nick · Coho · 1020 CFS) landed with
+        `water_temp_f=53`, `wind_speed_mph=0.5`, `wind_dir_compass=SSE`,
+        `moon_phase="🌓 First Quarter"`, `barometer=29.99`, `gauge_height=10.18`,
+        `foam='10'` (text), `hook_size=2` (integer), `sim_score=5`. The public feed
+        view shows it at the top (`name, time, flow, fish` — no private columns).
+
+### Analysis (2026-09-18)
+- Live DB has 3 catches (all by "Nick", Coho, `foam='10'`, `sim_score=5`) — so the
+  `user_id` default + Cheater-rig/`hook_size` write fixes are working.
+- All env columns on those rows are `null`, but that's a **timing artifact**: the
+  newest catch (2026-09-18T03:17Z ═ 09-17 20:17 PT) predates the env-enrichment commit
+  `1460edb` (20:45 PT). The pre-enrichment bundle cannot capture env data.
+- GitHub Pages is **not enabled** for this repo (API: `pages: NOT ENABLED`), so there
+  is no deployed stale bundle — the "app" is local dev-server only.
+- Source wiring is verified correct: `logData()` builds gauge/barometer/waterTemp/
+  windSpeed/windDir/moon; `toCatchRow()` maps them to the live columns.
+- **Remaining check**: a fresh catch logged through the CURRENT build (manual, in-app)
+  should populate the env columns. Do this on the dev server with a guest session.
+
+
+
 
 
 - [x] `supabase/migrations/20260917000300_set_user_id_default.sql` — set `user_id`

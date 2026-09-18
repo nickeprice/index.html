@@ -27,3 +27,21 @@ moon match today's live conditions (envMatchWeight: 1.0 exact .. 0.25 poor, lega
 unpenalised at 1.0); computeStrikeZone uses the env-matched sample count for the zone
 pull and reports how many samples matched. Verified with a headless node test.
 - Key file: `src/app.js`.
+
+## 2026-09-18 — Phase F: sanity pass + CI + live verification
+Added `sanity_pass.js` (zero-dependency 18-check runner: syntax, markup/a11y integrity,
+HTTP/API shape, behavior via DOM-stubbed app.js) and `.github/workflows/sanity.yml`
+(push/PR + manual). First CI run passed (run 35306760950, job success). Also fixed a
+real a11y bug the pass caught (station-search input lacked an accessible name).
+Verified live: 3 existing catches prove the user_id default + write fixes work; their
+null env columns are a timing artifact (predate the enrichment commit). GitHub Pages
+not enabled - no deployed stale bundle. Source env wiring verified; a fresh in-app
+catch on the current build should populate env columns.
+- Key files: `sanity_pass.js`, `.github/workflows/sanity.yml`, `index.html`, `README.md`.
+
+## 2026-09-18 — Live end-to-end catch insert verified ✅
+Logged a fresh catch through the current build (guest session + Gear Sim + FEED DATA).
+Live `public.catches` new row: water_temp_f=53, wind_speed_mph=0.5,
+wind_dir_compass=SSE, moon_phase="First Quarter", barometer=29.99, gauge_height=10.18,
+foam text, hook_size integer, sim_score=5. `public_catch_feed` shows it at the top with
+only name/time/flow/fish. Full write path + env enrichment + RLS public read confirmed.

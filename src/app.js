@@ -1030,8 +1030,55 @@ function presentationHeightInches(lift, leaderFt, dragPerFt) {
 // catch is run through the pure physics engine to find the line height that fish
 // bit at; the average becomes the community center, blended with the weather zone.
 // ==================================================================================
+// --- COMMUNITY SONAR ENVIRONMENT MATCH WEIGHTING ---
+// Each logged catch records the water temp / wind / moon at hookup time. When the
+// current live conditions resemble a catch's conditions, that catch is a better
+// predictor of where fish are RIGHT NOW, so it should pull the zone harder.
+function envMatchWeight(row, rep) {
+    var score = 0, dims = 0;
+
+    // Water temperature: within 5F of today's is a strong match.
+    var nowTemp = (typeof getWaterTempF === 'function') ? getWaterTempF() : null;
+    var rowTemp = (row.waterTempF !== undefined && row.waterTempF !== null) ? Number(row.waterTempF) : null;
+    if (nowTemp !== null && rowTemp !== null) {
+        dims++;
+        var diff = Math.abs(nowTemp - rowTemp);
+        if (diff <= 5) { score += 1; }
+        else if (diff <= 10) { score += 0.5; }
+    }
+
+    // Wind speed: within 5 mph of today's is a match.
+    var nowWind = (typeof window.currentWindMph !== 'undefined' && window.currentWindMph != null) ? Number(window.currentWindMph) : null;
+    var rowWind = (row.windSpeedMph !== undefined && row.windSpeedMph !== null) ? Number(row.windSpeedMph) : null;
+    if (nowWind !== null && rowWind !== null) {
+        dims++;
+        var wdiff = Math.abs(nowWind - rowWind);
+        if (wdiff <= 5) { score += 1; }
+        else if (wdiff <= 10) { score += 0.5; }
+    }
+
+    // Moon phase: same phase bucket is a match (new/small waxing/first-quarter/gibbous/full...).
+    var nowMoon = (rep && rep.lunar_icon) ? String(rep.lunar_icon).trim() : '';
+    var rowMoon = (row.moonPhase !== undefined && row.moonPhase !== null) ? String(row.moonPhase).trim() : '';
+    if (nowMoon && rowMoon) {
+        dims++;
+        if (nowMoon === rowMoon) { score += 1; }
+        else {
+            // Fuzzy: both contain a shared meaningful token (e.g. "Full", "New", "Waxing").
+            var nowTokens = nowMoon.replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(Boolean);
+            var rowTokens = rowMoon.replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(Boolean);
+            var shared = nowTokens.some(function (t) { return rowTokens.indexOf(t) !== -1; });
+            if (shared) score += 0.5;
+        }
+    }
+
+    if (dims === 0) return 1;   // no env data on either side: don't penalise legacy rows
+    return 0.25 + ((score / dims) * 0.75);   // 0.25 (poor) .. 1.0 (exact)
+}
+
 function communitySonar(dbArray, flow, species) {
     if (!dbArray || !dbArray.length) return { center: null, samples: 0, note: 'no community data yet' };
+    var rep = getActiveReport();
     // Deterministic: newest catches first, so the 8-sample window is stable
     // run-to-run regardless of Supabase/localStorage return order.
     var sorted = dbArray.slice().sort(function(a, b) {
@@ -1045,6 +1092,7 @@ function communitySonar(dbArray, flow, species) {
         return tb - ta;
     });
     var heights = [];
+    var weights = [];
     for (var i = 0; i < sorted.length && heights.length < 8; i++) {
         var row = sorted[i];
         if (!row || row.loc !== 'Fair') continue;                     // mouth-hooked fish only
@@ -1071,13 +1119,23 @@ function communitySonar(dbArray, flow, species) {
         var mlMat = row.mlMat || row.mainline_mat || 'braid';
         var drag = totalDragPerFt(bedVel, lb, ldMat, mlLb, mlMat, wt, hookNum, row.yarn || 0, bdMat, bdSzRaw);
         var h = presentationHeightInches(lift, row.ldLen, drag);
-        if (isFinite(h) && h > 0) heights.push(h);
+        if (isFinite(h) && h > 0) {
+            heights.push(h);
+            weights.push(envMatchWeight(row, rep));
+        }
     }
     if (heights.length < 2) return { center: null, samples: heights.length, note: 'community sample too thin to shift the zone' };
-    var sum = 0;
-    for (var k = 0; k < heights.length; k++) sum += heights[k];
-    var center = sum / heights.length;
-    return { center: center, samples: heights.length, note: heights.length + ' recent catches holding near ' + center.toFixed(1) + '"' };
+    var sum = 0, wsum = 0, matched = 0;
+    for (var k = 0; k < heights.length; k++) {
+        sum += heights[k] * weights[k];
+        wsum += weights[k];
+        if (weights[k] >= 0.75) matched++;
+    }
+    var center = sum / wsum;
+    var matchNote = (matched >= 2)
+        ? matched + ' of ' + heights.length + ' matches today\u2019s conditions'
+        : heights.length + ' recent catches, few matching today\u2019s conditions';
+    return { center: center, samples: heights.length, matched: matched, note: matchNote };
 }
 
 // ==================================================================================
@@ -1166,17 +1224,22 @@ function computeStrikeZone(sonar) {
     // Community sonar: pull the weather zone toward where fish are actually biting.
     // Weight grows with sample count (2 catches = 25% pull, 8+ catches = 50% pull),
     // so a single lucky catch can't yank the zone but a real pattern moves it.
+    // Samples that match today's environmental conditions (water temp / wind / moon)
+    // pull harder than stale ones, so the zone reacts to conditions, not just history.
     if (sonar && sonar.center !== null && sonar.center !== undefined && isFinite(sonar.center) && sonar.samples >= 2) {
         var weatherCenter = (zMin + zMax) / 2;
         var halfWidth = (zMax - zMin) / 2;
-        var pull = Math.min(0.5, 0.125 + (sonar.samples * 0.046875));  // 2->~0.22, 8->0.5
+        var effective = (sonar.matched && sonar.matched >= 2) ? sonar.matched : sonar.samples;
+        var pull = Math.min(0.5, 0.125 + (effective * 0.046875));  // 2->~0.22, 8->0.5
         var blended = weatherCenter + ((sonar.center - weatherCenter) * pull);
         zone.sonarShift = blended - weatherCenter;
         zMin = blended - halfWidth;
         zMax = blended + halfWidth;
         zone.sonar = sonar;
-        zone.notes.push('Recent community catches holding near ' + sonar.center.toFixed(1) + '" (' + sonar.samples + ' fish): zone pulled ' +
-            (zone.sonarShift >= 0 ? '+' : '') + zone.sonarShift.toFixed(1) + '" toward feeding fish.');
+        zone.notes.push('Recent community catches holding near ' + sonar.center.toFixed(1) + '" (' +
+            (sonar.matched && sonar.matched >= 2 ? sonar.matched + ' env-matched' : sonar.samples) + ' fish): zone pulled ' +
+            (zone.sonarShift >= 0 ? '+' : '') + zone.sonarShift.toFixed(1) + '" toward feeding fish. ' +
+            sonar.note);
     }
     if (zMin < 1.0) zMin = 1.0;
     if (zMax > 24.0) zMax = 24.0;

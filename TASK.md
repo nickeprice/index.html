@@ -113,6 +113,29 @@ Verification:
 - [ ] Live end-to-end insert test of a real catch against the migrated DB
 - [ ] Mobile GPS "Use My GPS" verified on a real device (desktop tested here)
 
+# Phase E — Environment-matched sonar weighting
+
+- [x] `src/app.js` — `envMatchWeight(row, rep)`: scores a logged catch's recorded
+      water temp / wind / moon against today's live conditions. Returns 1.0 for an
+      exact match, ~0.75 for a weak match, 0.25 floor for a strong mismatch, and 1.0
+      for legacy rows with no env data (never penalised).
+- [x] `src/app.js` — `communitySonar()` now computes a **weighted** center (matching
+      catches pull harder) and reports `matched` count + a human note ("3 of 5 matches
+      today's conditions" vs "few matching today's conditions").
+- [x] `src/app.js` — `computeStrikeZone()` uses the env-matched sample count for the
+      zone pull (matching catches pull more), and the zone explanation now says how
+      many samples matched today's conditions.
+      - Verification: headless node test — exact-env weight 1.00, poor temp/wind 0.75,
+        legacy 1.00; communitySonar returns weighted center + matched count.
+- [x] Verified with a dev-server pass (index/app.js/styles 200, API 4 days) + JS/Python
+      syntax checks.
+
+## Remaining ideas (future, after this)
+
+- [ ] Live end-to-end insert test of a real catch against the migrated DB
+- [ ] Mobile GPS "Use My GPS" verified on a real device (desktop tested here)
+
+
 
 - [x] `supabase/migrations/20260917000300_set_user_id_default.sql` — set `user_id`
       `default auth.uid()` on the live column. The Phase A migration's `create table

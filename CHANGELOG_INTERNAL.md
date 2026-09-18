@@ -20,3 +20,10 @@ with water-temp/wind/moon in the return (drop-then-create to avoid SQLSTATE 42P1
 applied to the live project as migration 20260917000400; client maps the new fields.
 - Key files: `api/water_report.py`, `src/app.js`, `src/styles.css`,
   `src/services/supabase.js`, `supabase/migrations/20260917000400_calibration_env_columns.sql`.
+
+## 2026-09-17 — Phase E: environment-matched community sonar
+communitySonar now weights each logged catch by how well its recorded water temp / wind /
+moon match today's live conditions (envMatchWeight: 1.0 exact .. 0.25 poor, legacy rows
+unpenalised at 1.0); computeStrikeZone uses the env-matched sample count for the zone
+pull and reports how many samples matched. Verified with a headless node test.
+- Key file: `src/app.js`.

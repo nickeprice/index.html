@@ -85,6 +85,25 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .mini-btn:hover { background-color: #444; }
 .mini-btn-danger { color: var(--accent-red); border-color: #7f1d1d; }
 .mini-btn-danger:hover { background-color: #3a1010; }
+/* Tide curve SVG */
+.tide-svg { width: 100%; height: auto; display: block; margin: 6px 0 10px 0; }
+.tide-line { stroke: #64d2ff; stroke-width: 2; }
+.tide-dot { fill: #64d2ff; }
+.tide-svg-label { fill: var(--text-muted); font-size: 9px; }
+/* Species run calendar */
+.species-cal { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px 0; }
+.species-cal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background-color: var(--bg-panel); border-left: 3px solid #444; font-size: 0.75rem; flex-wrap: wrap; }
+.species-cal-row .spc-name { font-weight: 700; color: var(--text-main); }
+.species-cal-row .spc-window { color: var(--text-muted); }
+.species-cal-row .spc-status { font-weight: 600; }
+.spc-peak { border-left-color: var(--accent-green); }
+.spc-peak .spc-status { color: var(--accent-green); }
+.spc-pre { border-left-color: var(--accent-yellow); }
+.spc-pre .spc-status { color: var(--accent-yellow); }
+.spc-post { border-left-color: #f59e0b; }
+.spc-post .spc-status { color: #f59e0b; }
+.spc-off { border-left-color: #666; }
+.spc-off .spc-status { color: var(--text-muted); }
 .foul-hook { color: var(--accent-red); }
 
 /* WATER REPORT EXACT STYLING */

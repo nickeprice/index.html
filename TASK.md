@@ -74,14 +74,45 @@ Verification:
 - Headless `toCatchRow` test → PASS
 - Dev server: index / styles / supabase.js / app.js all 200; API 4 days.
 
-## Remaining (not yet executed)
+# Phase D — Tide chart, species calendar, calibration enrichment
 
-- [ ] Per-species run calendar (surface server-side peak windows in the UI)
-- [ ] Tide chart (visualization beyond text)
-- [ ] Wind/moon columns consumed by `get_global_calibration` RPC for richer sonar
-- [ ] End-to-end live Supabase insert test (needs a write to the real DB)
+- [x] `api/water_report.py` — `build_species_calendar(target_date)` computes per-stock
+      run status (pre/peak/post/off + days-to-peak); each report now includes
+      `species_calendar` and `tide_curve` (tide extremes for an SVG sparkline).
+      - Verification: local API returns `tide_curve` + `species_calendar`; python
+        compile; dev-server 200s.
+- [x] `src/app.js` — `tideCurveSvg()` renders a compact inline SVG tide line;
+      `buildSpeciesCalendarHtml()` renders the per-species run calendar rows.
+      Injected into each day card between the escapement block and legal-hours timeline.
+      - Verification: `node --check`; dev-server serves the new card HTML.
+- [x] `src/styles.css` — tide SVG (line/dot/label) + species-calendar status colors
+      (peak=green, approaching=yellow, tapering=amber, off=muted).
+- [x] `supabase/migrations/20260917000400_calibration_env_columns.sql` — `drop function`
+      then recreate `get_global_calibration` with `water_temp_f`, `wind_speed_mph`,
+      `wind_dir_compass`, `moon_phase` in the return; re-grant execute to anon/
+      authenticated/service_role.
+      - Potential bug: `create or replace` cannot change a function's return type
+        (SQLSTATE 42P13); the migration must drop-then-create, which it now does.
+      - Verification: `npx supabase db push --yes` applied; live
+        `pg_get_function_result` shows the new columns; migration history lists
+        `20260917000400` as applied.
+- [x] `src/services/supabase.js` — `fetchGlobalCalibration()` maps the new env fields
+      (`waterTempF`, `windSpeedMph`, `windDirCompass`, `moonPhase`) so future sonar
+      heuristics can use them.
 
-# Phase C — Live DB migration complete
+Verification:
+- `find src -name '*.js' -print0 | xargs -0 -n1 node --check` → OK
+- `node --check sw.js`, `python3 -m py_compile` → OK
+- Dev server: index/app.js/styles 200; API returns tide_curve + species_calendar
+- Live DB: RPC return type includes env columns; all 5 migrations applied
+
+## Remaining ideas (future)
+
+- [ ] Use the new env fields in the sonar zone-shift heuristic (e.g. weight samples by
+      matching water temp / wind / moon)
+- [ ] Live end-to-end insert test of a real catch against the migrated DB
+- [ ] Mobile GPS "Use My GPS" verified on a real device (desktop tested here)
+
 
 - [x] `supabase/migrations/20260917000300_set_user_id_default.sql` — set `user_id`
       `default auth.uid()` on the live column. The Phase A migration's `create table

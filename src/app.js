@@ -398,6 +398,54 @@ function formatTideRow(tideStr) {
     return html;
 }
 
+// Compact SVG tide-curve sparkline. Points are the day's tide extremes; the line is
+// a smoothed polyline so an angler can see the rise/fall shape at a glance.
+function tideCurveSvg(points) {
+    if (!points || !points.length) return '';
+    var W = 300, H = 60, pad = 6;
+    var hrs = points.map(function (p) { return parseInt(p.t.split(':')[0], 10) + parseInt(p.t.split(':')[1], 10) / 60; });
+    var hs = points.map(function (p) { return p.h; });
+    var minT = Math.min.apply(null, hrs), maxT = Math.max.apply(null, hrs);
+    var minH = Math.min.apply(null, hs), maxH = Math.max.apply(null, hs);
+    var spanT = (maxT - minT) || 1, spanH = (maxH - minH) || 1;
+    var pts = points.map(function (p, i) {
+        var x = pad + ((hrs[i] - minT) / spanT) * (W - 2 * pad);
+        var y = H - pad - ((hs[i] - minH) / spanH) * (H - 2 * pad);
+        return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+    });
+    var d = 'M' + pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' L');
+    var labels = '';
+    for (var j = 0; j < pts.length; j++) {
+        labels += '<text x="' + pts[j][0] + '" y="' + (pts[j][1] - 4) + '" text-anchor="middle" class="tide-svg-label">' +
+            points[j].t + ' · ' + (points[j].type === 'H' ? 'H' : 'L') + ' ' + points[j].h.toFixed(1) + 'ft</text>';
+    }
+    return '<svg viewBox="0 0 ' + W + ' ' + (H + 14) + '" class="tide-svg" role="img" aria-label="Tide curve for the day">' +
+        '<polyline points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '" class="tide-line" fill="none" />' +
+        '<circle cx="' + pts[0][0] + '" cy="' + pts[0][1] + '" r="2.5" class="tide-dot" />' +
+        '<circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="2.5" class="tide-dot" />' +
+        labels + '</svg>';
+}
+
+// Per-species run calendar block: one row per modeled stock with window + status.
+function buildSpeciesCalendarHtml(calendar) {
+    if (!calendar || !calendar.length) return '';
+    var html = '<div class="sec-hdr">[ SPECIES RUN CALENDAR ]</div><div class="species-cal">';
+    for (var i = 0; i < calendar.length; i++) {
+        var s = calendar[i];
+        var statusClass = 'spc-' + (s.position || 'off');
+        var peakLine = (s.days_until_peak !== null && s.days_until_peak !== undefined)
+            ? ((s.days_until_peak >= 0 ? 'Peak in ' + s.days_until_peak + 'd' : 'Peak was ' + Math.abs(s.days_until_peak) + 'd ago'))
+            : '';
+        html += '<div class="species-cal-row ' + statusClass + '">' +
+            '<span class="spc-name">' + s.species + '</span>' +
+            '<span class="spc-window">' + s.window_start + ' – ' + s.window_end + ' · peak ' + s.peak_date + '</span>' +
+            '<span class="spc-status">' + s.status_text + (peakLine ? ' (' + peakLine + ')' : '') + '</span>' +
+        '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+
 var activeDateOffset = 0;
 var reportsData = [];
 
@@ -725,6 +773,10 @@ async function loadWaterReport() {
                 
                 // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid)
                 escapementHtml +
+
+                // 5c. TIDE CURVE + SPECIES RUN CALENDAR
+                '<div class="sec-hdr">[ TIDE CURVE ]</div>' + tideCurveSvg(rep.tide_curve) +
+                buildSpeciesCalendarHtml(rep.species_calendar) +
 
                 // 6. LEGAL HOURS TIMELINE
                 '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';

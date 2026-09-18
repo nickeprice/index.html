@@ -301,6 +301,10 @@ async function fetchGlobalCalibration(flow, species) {
                 bdSz: (r.bead_size !== undefined) ? r.bead_size : null,
                 rodFt: (r.rod_ft !== undefined) ? r.rod_ft : null,
                 dist: (r.cast_distance_ft !== undefined) ? r.cast_distance_ft : null,
+                waterTempF: (r.water_temp_f !== undefined) ? r.water_temp_f : null,
+                windSpeedMph: (r.wind_speed_mph !== undefined) ? r.wind_speed_mph : null,
+                windDirCompass: (r.wind_dir_compass !== undefined) ? r.wind_dir_compass : null,
+                moonPhase: (r.moon_phase !== undefined) ? r.moon_phase : null,
                 samples: r.samples
             };
         });

@@ -173,6 +173,53 @@ def calculate_escapement_curve(target_date):
             if score > base_score: base_score = score
     return " &bull; ".join(active_stocks) if active_stocks else "Resident / Pre-Run", base_score
 
+
+def build_species_calendar(target_date):
+    """Per-species run calendar for the current day.
+
+    For each modeled stock returns:
+      - window_start / window_end (peak window)
+      - peak_date
+      - days_until_peak (negative if past, 0 at peak)
+      - position: 'pre' / 'peak' / 'post' / 'off'
+      - status_text for the UI
+    """
+    out = []
+    for species, meta in STOCK_BASELINES.items():
+        sm, sd, em, ed = meta["peak_window"]
+        pm, pd = map(int, meta["peak_date"].split("-"))
+        start = datetime(target_date.year, sm, sd)
+        end = datetime(target_date.year, em, ed)
+        peak = datetime(target_date.year, pm, pd)
+        in_window = start <= target_date <= end
+        days_until_peak = (peak - target_date).days
+        if in_window:
+            if days_until_peak == 0:
+                position, status_text = "peak", "AT PEAK"
+            elif days_until_peak < 0:
+                position = "post"
+                status_text = "PAST PEAK" if days_until_peak < -14 else "TAPERING"
+            else:
+                position = "pre"
+                status_text = "BUILDING" if days_until_peak > 14 else "APPROACHING"
+        else:
+            position = "off"
+            status_text = "NO PEAK PERIOD"
+            if target_date < start:
+                status_text = "SEASON AHEAD"
+            elif target_date > end:
+                status_text = "SEASON OVER"
+        out.append({
+            "species": species,
+            "window_start": start.strftime("%b %d"),
+            "window_end": end.strftime("%b %d"),
+            "peak_date": f"{pm:02d}-{pd:02d}",
+            "days_until_peak": days_until_peak,
+            "position": position,
+            "status_text": status_text
+        })
+    return out
+
 def calculate_transit_time_and_flow(cfs, is_netting_day):
     dist_miles = 6.0 
     if cfs is None:
@@ -392,6 +439,9 @@ class handler(BaseHTTPRequestHandler):
             
             tide_strs = [f"{'High' if ext['type'] == 'H' else 'Low'}: {ext['dt'].strftime('%-I:%M %p')} ({ext['height']:.1f} ft)" for ext in day_extremes]
             tide_chart_str = " | ".join(tide_strs) if tide_strs else "Tide Data Syncing..."
+            tide_curve = [{"t": ext["dt"].strftime("%H:%M"), "h": round(ext["height"], 2), "type": ext["type"]} for ext in day_extremes]
+
+            species_calendar = build_species_calendar(dt)
 
             timeline_windows = build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct, arrivals, stock_base, env_score, flow_mult, angler_mult)
             peak_potential = max([w["score"] for w in timeline_windows]) if timeline_windows else 0
@@ -408,7 +458,8 @@ class handler(BaseHTTPRequestHandler):
                 "moon_upper": moon_upper_str, "moon_lower": moon_lower_str,
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
-                "push_status": push_status, "tide_chart": tide_chart_str, "windows": timeline_windows, "is_netting": is_netting_day,
+                "push_status": push_status, "tide_chart": tide_chart_str, "tide_curve": tide_curve,
+                "species_calendar": species_calendar, "windows": timeline_windows, "is_netting": is_netting_day,
                 "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"], "api_offline": bool(usgs_data.get("api_offline", False)),
                 "site_name": usgs_data["site_name"], "site_id": site
             })

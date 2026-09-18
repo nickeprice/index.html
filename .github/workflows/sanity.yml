@@ -1,0 +1,32 @@
+name: Sanity pass
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sanity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The sanity pass has zero npm dependencies (plain node + python3), so no
+      # setup-node / setup-python / install step is required. Both are preinstalled
+      # on ubuntu-latest runners.
+
+      - name: Run sanity pass
+        run: node sanity_pass.js
+
+      - name: Confirm no leftover dev servers
+        run: |
+          if pgrep -f "dev_server.py" >/dev/null; then
+            echo "::error::A dev_server.py process leaked from the sanity pass"
+            exit 1
+          fi
+          echo "hermetic: no leftover dev servers"

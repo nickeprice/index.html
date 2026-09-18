@@ -133,3 +133,8 @@ There is no committed test runner; the codebase is validated by:
     empty state renders.
 
 Run it with `node sanity_pass.js` (it picks a free port and cleans up after itself).
+
+A CI workflow (`.github/workflows/sanity.yml`) runs `node sanity_pass.js` on every
+push/PR to `main` (and on manual `workflow_dispatch`). It needs no install step — the
+pass is plain Node + Python, both preinstalled on GitHub Actions runners. It also
+asserts the pass leaves no dev-server process behind.

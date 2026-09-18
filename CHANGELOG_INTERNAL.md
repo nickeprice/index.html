@@ -45,3 +45,22 @@ Live `public.catches` new row: water_temp_f=53, wind_speed_mph=0.5,
 wind_dir_compass=SSE, moon_phase="First Quarter", barometer=29.99, gauge_height=10.18,
 foam text, hook_size integer, sim_score=5. `public_catch_feed` shows it at the top with
 only name/time/flow/fish. Full write path + env enrichment + RLS public read confirmed.
+
+## 2026-09-18 — Real-device GPS fixed and verified (Safari)
+The "Use My GPS" flow failed on iPhone Safari for two reasons: (1) iOS requires HTTPS
+for geolocation, and (2) the browser->USGS direct bbox call hit USGS NWIS flakiness
+(bbox queries 503/timeout). Fixed by:
+- Route the GPS station lookup through a new same-origin `/api/nearby_stations?lat=&lon=`
+  endpoint that queries a curated list of 15 WA river gauges (reliable multi-site USGS
+  endpoint, filtered to fresh <=24h readings, sorted by distance) instead of the flaky
+  bbox query. Better: returns real river gauges, not random creeks.
+- Client retries once if the endpoint returns empty (covers a cold Cloudflare edge).
+- Bumped service-worker cache to v2.00.3 so phones get the new bundle.
+- dev_server.py: added `--host=` option (default 127.0.0.1 unchanged) so LAN/phone
+  testing is possible (`--host=0.0.0.0`).
+- sanity_pass.js: now covers `/api/nearby_stations` (19 checks all green).
+Verified on the phone via Cloudflare HTTPS tunnel: Safari granted location, "Found:
+Puyallup River at Puyallup, WA (1.0 mi)" selected the gauge. USGS NWIS bbox remains
+flaky upstream; the curated-sites endpoint is the robust path.
+- Key files: `api/water_report.py`, `src/app.js`, `sw.js`, `scripts/dev_server.py`,
+  `sanity_pass.js`.

@@ -121,6 +121,134 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
 
     return data_dict
 
+# Curated Washington river gauges (USGS IDs) for the "Use My GPS" flow.
+# Using sites= (instead of the flaky bBox= query — USGS NWIS bBox often 503s/timeouts
+# while the multi-site list endpoint is fast and reliable) means "nearest" always
+# resolves to a real *river* gauge, not random tributaries/ditches from a bbox.
+nearbyStationIds = [
+    # Puyallup system
+    "12101500",  # Puyallup River at Puyallup
+    "12093500",  # Puyallup River near Orting
+    "12094000",  # Carbon River near Fairfax
+    # Green/Duwamish
+    "12113000",  # Green River at Auburn
+    # Nisqually
+    "12089500",  # Nisqually River at McKenna
+    # Skagit
+    "12200500",  # Skagit River near Mount Vernon
+    # Snohomish / Snoqualmie / Skykomish
+    "12150800",  # Snoqualmie River near Snoqualmie
+    "12134500",  # Skykomish River near Gold Bar
+    "12155300",  # Snohomish River near Monroe
+    # Stillaguamish
+    "12167000",  # North Fork Stillaguamish near Arlington
+    # Cowlitz / Lewis / Kalama (south sound)
+    "14242500",  # Cowlitz River near Castle Rock
+    "14240500",  # Toutle River near Silver Lake
+    "14236000",  # Lewis River at Ariel
+    "14241000",  # Kalama River near Kalama
+    # Cedar / Sammamish (eastside)
+    "12115000",  # Cedar River near Renton
+]
+
+
+def fetch_nearby_stations(lat, lon):
+    """Server-side USGS lookup for the 'Use My GPS' flow.
+
+    The browser used to call waterservices.usgs.gov directly (bbox query), which is
+    flaky on mobile and heavy server-side. This queries our curated list of WA river
+    gauges via the reliable multi-site endpoint, then returns them sorted by distance
+    from the request point.
+
+    Returns a list of { id, name, lat, lon, distance_mi, cfs, gage } with only
+    stations that have a fresh (<=24h) reading.
+    """
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError):
+        return []
+    url = ("https://waterservices.usgs.gov/nwis/iv/"
+           f"?format=json&sites={','.join(nearbyStationIds)}&parameterCd=00060,00065&siteStatus=all")
+    try:
+        from datetime import timezone
+        now_aware = datetime.now(timezone.utc)
+    except Exception:
+        now_aware = None
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as res:
+            data = json.loads(res.read().decode('utf-8'))
+    except Exception:
+        return []
+    # Known coordinates for gauges that don't carry geoLocation in the sites response.
+    KNOWN_COORDS = {
+        "12101500": (47.195, -122.302),
+        "12093500": (47.1005, -122.2133),
+        "12094000": (47.0177, -122.0197),
+        "12113000": (47.3115, -122.2265),
+        "12089500": (46.9365, -122.5483),
+        "12200500": (48.4086, -122.3049),
+        "12150800": (47.5396, -121.8252),
+        "12134500": (47.8031, -121.6600),
+        "12155300": (47.8595, -122.0810),
+        "12167000": (48.1804, -122.1268),
+        "14242500": (46.2800, -122.9150),
+        "14240500": (46.3370, -122.7500),
+        "14236000": (45.8570, -122.6380),
+        "14241000": (46.0780, -122.7580),
+        "12115000": (47.4730, -122.2080),
+    }
+    import math
+    R = 3958.8
+    lat1 = math.radians(lat_f)
+    stations = {}
+    for ts in (data.get('value', {}).get('timeSeries', []) or []):
+        try:
+            info = ts['sourceInfo']
+            code = info['siteCode'][0]['value']
+            name = info.get('siteName', code)
+            param = ts['variable']['variableCode'][0]['value']
+            if param not in ('00060', '00065'):
+                continue
+            readings = ts['values'][0]['value'] if ts.get('values') else []
+            latest = readings[-1] if readings else None
+            if not latest:
+                continue
+            val = float(latest['value'])
+            if val < -900000:
+                continue
+            if now_aware is not None:
+                try:
+                    reading_dt = datetime.fromisoformat(latest['dateTime'])
+                    if (now_aware - reading_dt).total_seconds() > 24 * 3600:
+                        continue
+                except Exception:
+                    pass
+            # Coordinates: prefer geoLocation if present, else the known map.
+            try:
+                geog = info['geoLocation']['geogLocation']
+                s_lat = float(geog['latitude'])
+                s_lon = float(geog['longitude'])
+            except Exception:
+                s_lat, s_lon = KNOWN_COORDS.get(code, (lat_f, lon_f))
+            if code not in stations:
+                lat2 = math.radians(s_lat)
+                dlat = lat2 - lat1
+                dlon = math.radians(s_lon - lon_f)
+                a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+                dist = R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+                stations[code] = {'id': code, 'name': name, 'lat': s_lat, 'lon': s_lon,
+                                  'distance_mi': round(dist, 1)}
+            if param == '00060':
+                stations[code]['cfs'] = int(round(val))
+            elif param == '00065':
+                stations[code]['gage'] = round(val, 2)
+        except Exception:
+            continue
+    out = sorted(stations.values(), key=lambda s: s['distance_mi'])
+    return out
+
 def fetch_noaa_tides_bulletproof(start_date, days):
     fetch_start = start_date - timedelta(days=2)
     date_str = fetch_start.strftime('%Y%m%d')
@@ -338,6 +466,21 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         now = datetime.now()
         qs = parse_qs(urlparse(self.path).query)
+
+        # /api/nearby_stations?lat=&lon= — reliable server-side USGS lookup for
+        # the 'Use My GPS' flow (the browser->USGS direct call is flaky on mobile).
+        if urlparse(self.path).path == '/api/nearby_stations':
+            lat = qs.get('lat', [None])[0]
+            lon = qs.get('lon', [None])[0]
+            stations = fetch_nearby_stations(lat, lon) if (lat and lon) else []
+            body = json.dumps({'stations': stations}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         site = qs.get('site', [USGS_SITE])[0]
         if not site or site == "12096500":
             site = USGS_SITE

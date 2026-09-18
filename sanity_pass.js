@@ -121,6 +121,18 @@ async function httpChecks() {
       ? ok('API returns 4 report days with tide_curve + species_calendar', `days=${reports.length}`)
       : fail('API returns 4 report days with tide_curve + species_calendar', `days=${reports.length}`);
   }
+
+  // /api/nearby_stations — the server-side USGS lookup for the GPS flow.
+  const near = await httpGet('/api/nearby_stations?lat=47.2&lon=-122.31');
+  if (near.status === 200) {
+    let stations = [];
+    try { stations = JSON.parse(near.body).stations || []; } catch (e) {}
+    stations.length >= 1
+      ? ok('GET /api/nearby_stations returns nearest gauges', `${stations.length} station(s), closest=${stations[0] && stations[0].id}`)
+      : fail('GET /api/nearby_stations returns nearest gauges', '0 stations');
+  } else {
+    fail('GET /api/nearby_stations → 200', `got ${near.status}`);
+  }
 }
 
 // Behavior checks via a DOM-stubbed context (done() resolves when async settles)

@@ -69,12 +69,22 @@ class Handler(water_report.handler):
 
 
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    httpd = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    host = '127.0.0.1'   # loopback default keeps local dev + CI hermetic
+    port = 8000
+    args = sys.argv[1:]
+    if args and args[0].startswith('--host='):
+        host = args.pop(0).split('=', 1)[1] or '127.0.0.1'
+    if args:
+        port = int(args[0])
+
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    display = '0.0.0.0' if host in ('0.0.0.0', '::') else host
     print('Puyallup River Companion dev server')
     print('  root : %s' % ROOT)
-    print('  url  : http://127.0.0.1:%d/index.html' % port)
+    print('  host : %s' % display)
+    print('  url  : http://%s:%d/index.html' % (display, port))
     print('  api  : /api/* -> api/water_report.handler')
+    print('  (LAN test: python3 scripts/dev_server.py --host=0.0.0.0 8000)')
     print('Ctrl-C to stop.')
     try:
         httpd.serve_forever()

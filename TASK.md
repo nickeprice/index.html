@@ -132,8 +132,12 @@ Verification:
 
 ## Remaining ideas (future, after this)
 
-- [ ] Live end-to-end insert test of a real catch against the migrated DB
-- [ ] Mobile GPS "Use My GPS" verified on a real device (desktop tested here)
+- [x] **Real-device GPS "Use My GPS" verified on Safari** — fixed + confirmed working via
+      Cloudflare HTTPS tunnel (Safari requires HTTPS for geolocation). Root causes were
+      (1) iOS needs HTTPS, and (2) the browser→USGS direct bbox call hits USGS NWIS
+      flakiness. Now routed through a reliable server-side `/api/nearby_stations` endpoint
+      with a curated WA river-gauge list + client retry. Service-worker cache bumped.
+
 
 # Phase F — CI + live verification
 

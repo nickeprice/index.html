@@ -1812,18 +1812,20 @@ function useGPS() {
         var lat = pos.coords.latitude;
         var lon = pos.coords.longitude;
         status.innerText = "Captured position. Searching nearby USGS gauges...";
-        var latDiff = 0.4, lonDiff = 0.4;
-        var minLat = lat - latDiff, maxLat = lat + latDiff;
-        var minLon = lon - lonDiff, maxLon = lon + lonDiff;
-        var bBox = minLon.toFixed(5) + ',' + minLat.toFixed(5) + ',' + maxLon.toFixed(5) + ',' + maxLat.toFixed(5);
-        var url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=' + bBox + '&parameterCd=00060,00065&siteStatus=all';
-        logDebug("Querying USGS GPS Box: " + bBox, "NET");
         var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         var fetchTimer = setTimeout(function () { if (controller) controller.abort(); }, 10000);
         try {
-            var response = await fetch(url, { cache: "no-store", signal: controller ? controller.signal : undefined });
-            var data = await response.json();
-            var timeSeries = data.value.timeSeries;
+            // Same-origin server-side USGS lookup (reliable on mobile). Retry once
+            // if the first response is empty (a cold Cloudflare tunnel connection can
+            // return an aborted body on the very first request).
+            var timeSeries = null;
+            for (var attempt = 0; attempt < 2; attempt++) {
+                var response = await fetch('/api/nearby_stations?lat=' + lat + '&lon=' + lon, { cache: "no-store", signal: controller ? controller.signal : undefined });
+                var data = await response.json();
+                timeSeries = (data && data.stations) ? data.stations : [];
+                if (timeSeries && timeSeries.length > 0) break;
+                if (attempt === 0) await new Promise(function (r) { setTimeout(r, 700); });
+            }
             if (!timeSeries || timeSeries.length === 0) {
                 status.innerText = "No USGS stations found in range. Falling back.";
                 setTimeout(fallbackStation, 2000);
@@ -1831,29 +1833,20 @@ function useGPS() {
             }
             var stationsMap = {};
             timeSeries.forEach(function(ts) {
-                var sCode = ts.sourceInfo.siteCode[0].value;
-                var sName = ts.sourceInfo.siteName;
-                var sLoc = ts.sourceInfo.geoLocation.geogLocation;
-                var sLat = sLoc.latitude, sLon = sLoc.longitude;
-                var paramCode = ts.variable.variableCode[0].value;
-                try {
-                    var valuesBlock = ts.values[0].value;
-                    if (!valuesBlock || valuesBlock.length === 0) return;
-                    var latestEntry = valuesBlock[valuesBlock.length - 1];
-                    var latestValStr = latestEntry.value;
-                    var latestDtStr = latestEntry.dateTime;
-                    var latestVal = parseFloat(latestValStr);
-                    if (isNaN(latestVal)) return;
-                    var readingTime = new Date(latestDtStr).getTime();
-                    var ageMs = Date.now() - readingTime;
-                    if (ageMs > 24 * 3600 * 1000) return;
-                    if (paramCode === "00060" || paramCode === "00065") {
-                        if (!stationsMap[sCode]) {
-                            var dist = calcDistance(lat, lon, sLat, sLon);
-                            stationsMap[sCode] = { id: sCode, name: sName, lat: sLat, lon: sLon, distance: dist };
-                        }
-                    }
-                } catch(err) {}
+                var sCode = ts.id;
+                var sName = ts.name;
+                var sLat = ts.lat;
+                var sLon = ts.lon;
+                var sDist = ts.distance_mi;
+                if (!stationsMap[sCode]) {
+                    stationsMap[sCode] = {
+                        id: sCode,
+                        name: sName,
+                        lat: sLat,
+                        lon: sLon,
+                        distance: (sDist !== undefined && sDist != null) ? sDist : calcDistance(lat, lon, sLat, sLon)
+                    };
+                }
             });
             var stationsList = Object.values(stationsMap);
             stationsList.sort(function(a, b) { return a.distance - b.distance; });

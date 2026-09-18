@@ -1,6 +1,62 @@
-## PHASE 2.1 COMPLETE ✅ — Surface real fishing intel (all of a–f shipped). Next phase TBD by user.
+## ACTIVE ➤ Phase 2.2 — UI honesty & readability pass (approved 2026-09-18, Act mode)
 
-# Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
+# Phase 2.2 — Conditions grid, plain-English hero, readable run cards, auto-refresh
+
+## Locked decisions
+1. Water Temp pill DROPPED from grid (stays in telemetry `°F H₂O` line).
+2. Clarity ("Dam releasing…") folds into the hero WHY (no inline badge).
+3. Precip % AND Precip Vol each show a live timing hint: `in {H/M}` before rain
+   starts, `now for {H/M}` while raining (hourly forecast, threshold ≥30%).
+4. Auto-refresh: `loadWaterReport(silent)` every 5 min (visible+online only),
+   on `visibilitychange→visible`, and on `online` (re-fetch, not just a toast).
+   Silent refreshes must NOT overwrite a manually typed Gear Sim CFS.
+
+## A. Conditions grid → 9 pills (`api/water_report.py`, `src/app.js`, `src/styles.css`, `src/services/water.js`)
+- [x] Backend: add `hourly=temperature_2m,precipitation` to the meteo fetch; ship
+      `temp_prev_f`/`temp_delta_f` (trend arrow) and `precip_phase_pct` +
+      `precip_start_text`/`precip_end_text` (`in 3H` / `now for 2H` / `--`).
+- [x] Frontend: Barometer / Precip%+hint / PrecipVol+hint / Cloud / Temp+trend /
+      Wind (arrow + fixed mph, FIX the `mphmph` bug) / Sunrise-Sunset split /
+      Moon / Solunar. Labels: Precip %, Temp, Wind. Grid stays 3 cols.
+
+## B. Hero replaces Movement Index + % timeline (`src/app.js`, `src/styles.css`)
+- [x] Delete `computeMovementIndex()` + movement-index markup + `.run-windows`.
+- [x] `buildFishingHero(rep)`: "👍 Good day" / "⚠️ Mixed" / "👎 Tough" + best
+      window time + why bullets (clarity folded in). Reuses `getFMIColor`.
+
+## C. Species calendar (`api/water_report.py`, `src/app.js`, `src/styles.css`)
+- [x] `build_species_calendar`: skip Pink on even years (2026 hidden).
+- [x] Counts toggle bolder/brighter; labels `Forecast`/`Returned`/`Trapped`/
+      `5-Yr Avg` (Forecast first, bolded).
+- [x] Run meter: full-track cool→hot→cool gradient (peak is the hot stop),
+      translucent progress on top, peak tick stays.
+
+## D. Remove hamburger nav (`index.html`, `src/app.js`, `src/styles.css`, `sanity_pass.js`)
+- [x] Delete ☰ button, `#menu-drawer`, `toggleMenu()`; center station header;
+      drop `toggleMenu()` from `switchTab`.
+- [x] `sanity_pass.js`: remove `toggleMenu` from `need`, drop `.nav-btn` stub.
+
+## E. Accessibility (`src/styles.css`)
+- [x] Body 11px→14px; scale pill values/labels; brighten muted text; ≥44px
+      tap targets; larger counts. Verify 320px reflow.
+
+## F. Auto-refresh + cache bump (`src/app.js`, `sw.js`, `index.html`)
+- [x] `loadWaterReport(silent)` guards Gear-Sim CFS overwrite; 5-min interval
+      (visible+online), `visibilitychange→visible` refresh, `online` re-fetch.
+- [x] Read/refresh affordance: ⟳ button + `updated_time` stamp in the header.
+- [x] SW cache bump v2.00.9 → v2.00.10.
+
+## Verify (whole phase)
+- `find src -name '*.js' -print0 | xargs -0 -n1 node --check`, `node --check sw.js sanity_pass.js`
+- `python3 -m py_compile api/water_report.py`
+- `node sanity_pass.js` (harness updated) → all green
+- Dev-server phone pass: 9 pills, hero, gradient meters, pink hidden in 2026,
+  brighter counts, auto-refresh on foreground + interval, SW update toast intact.
+- `CHANGELOG_INTERNAL.md` entry + commit only after user approves.
+
+---
+# ARCHIVED — Phase 2.1 (shipped)
+
 
 ## Context & locked decisions (READ BEFORE ANY EDIT)
 - Goal: show the real run/movement story honestly. HARD RULE (AGENTS.md): never

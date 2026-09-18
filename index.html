@@ -16,14 +16,14 @@
 </head>
 <body>
 
-<!-- NAVIGATION -->
+<!-- NAVIGATION (top bar: station selector + refresh; tabs live in the bottom bar) -->
 <div id="top-nav">
-    <button class="nav-btn" onclick="toggleMenu()" aria-label="Open navigation menu" aria-expanded="false" aria-controls="menu-drawer">☰</button>
+    <span style="width: 24px;"></span> <!-- left spacer → balances the ⟳ button so the station stays centered -->
     <button id="station-header" onclick="openStationModal()" aria-haspopup="dialog" aria-label="Select river station">
         <span id="active-station-name" style="font-weight: 800; color: #fff; font-size: 14px;">PUYALLUP RIVER AT PUYALLUP, WA</span>
         <span id="active-station-badge" class="station-badge badge-manual">📌 USGS: 12101500</span>
     </button>
-    <span style="width: 20px;"></span> <!-- spacer -->
+    <button class="nav-refresh" onclick="refreshNow()" aria-label="Refresh live data" title="Refresh live data">⟳</button>
 </div>
 
 <!-- STATION SELECTION MODAL -->
@@ -62,11 +62,6 @@
         
         <button class="btn-main" onclick="closeStationModal()" style="background-color: #333; color: #fff; margin-top: 10px; min-height: 44px;">CANCEL</button>
     </div>
-</div>
-<div id="menu-drawer" class="menu-drawer" role="navigation" aria-label="App sections">
-    <button onclick="switchTab('tab-water-report')">1. Water Report</button>
-    <button onclick="switchTab('tab-gear-sim')">2. Gear Sim</button>
-    <button onclick="switchTab('tab-catch-log')">3. Catch Log</button>
 </div>
 
 <!-- TOOL 1: WATER REPORT -->

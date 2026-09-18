@@ -79,6 +79,7 @@ function applyOwnGaugeWaterQuality(waterTempF, turbidityFnu) {
 // paints the 6 stat-grid placeholders that are not server-rendered.
 function applyReportWeather(rep) {
     if (!rep) return;
+    var WIND_ARROWS = { 'N':'\u2191','NNE':'\u2197','NE':'\u2197','ENE':'\u2197','E':'\u2192','ESE':'\u2198','SE':'\u2198','SSE':'\u2198','S':'\u2193','SSW':'\u2199','SW':'\u2199','WSW':'\u2199','W':'\u2190','WNW':'\u2196','NW':'\u2196','NNW':'\u2196' };
     var airT = (rep.air_temp_f !== undefined && rep.air_temp_f !== null && !isNaN(rep.air_temp_f)) ? Math.round(Number(rep.air_temp_f)) : null;
     var wSpeed = (rep.wind_speed_mph !== undefined && rep.wind_speed_mph !== null && !isNaN(rep.wind_speed_mph)) ? Number(rep.wind_speed_mph) : null;
     var wDir = (rep.wind_dir_compass !== undefined && rep.wind_dir_compass !== null) ? rep.wind_dir_compass : null;
@@ -93,7 +94,9 @@ function applyReportWeather(rep) {
         document.querySelectorAll('.air-temp').forEach(function (el) { el.innerText = airT; });
     }
     if (wSpeed != null) {
-        var windTxt = (wDir ? wDir + ' ' : '') + Math.round(wSpeed) + ' mph';
+        // The pill markup now renders a single "mph" unit; this just paints the
+        // arrow + value (fixes the old double "mphmph" from pill + this line).
+        var windTxt = (wDir ? (WIND_ARROWS[wDir] || wDir) + ' ' : '') + Math.round(wSpeed);
         document.querySelectorAll('.wind-val').forEach(function (el) { el.innerText = windTxt; });
     }
     document.querySelectorAll('.precip-pop').forEach(function (el) { el.innerText = (pop != null) ? pop : '--'; });

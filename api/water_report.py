@@ -26,6 +26,61 @@ FORECAST_DAYS = 4
 def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
+def fmt_duration(total_min):
+    """"
+    Format a minute count as a compact '15M' / '3H' / '1H30M' string (or '').
+    """
+    if total_min is None: return ''
+    total_min = int(round(total_min))
+    if total_min < 1: return ''
+    if total_min < 60: return f"{total_min}M"
+    h, m = divmod(total_min, 60)
+    return f"{h}H" + (f"{m}M" if m else "")
+
+def precip_phase(hourly, time_arr, ref_iso):
+    """"
+    Return (phase, start_text, end_text) for the current precipitation story:
+
+      phase:
+        'none'   — no ≥30% hours in the visible horizon (both texts '')
+        'later'  — dry now, next ≥30% spell is upcoming   (start = 'in 3H')
+        'now'    — currently in a ≥30% spell              (end = 'now for 2H')
+        'breaks' — the current spell just ended and the next is hours away,
+                   fall back to that next spell's start (honest 'in 5H')
+
+    Uses Open-Meteo's hourly precipitation_probability (0-100). All strings are
+    display-only hints derived from a real forecast — never fabricated numbers.
+    """
+    try:
+        if not hourly or not time_arr: return 'none', '', ''
+        pp = hourly.get('precipitation_probability')
+        times = [datetime.fromisoformat(h) for h in time_arr]
+        if not pp or not times: return 'none', '', ''
+        ref = datetime.fromisoformat(ref_iso)
+        # Find the nearest hour index (the app's existing "now" anchor).
+        best = min(range(len(times)), key=lambda i: abs((times[i] - ref).total_seconds()))
+        raining = []
+        for k in range(best, len(times)):
+            if k >= len(pp): break
+            if pp[k] is not None and float(pp[k]) >= 30.0:
+                raining.append(k)
+        # Currently in a wet hour?
+        if best < len(raining) and raining[0] == best:
+            # Count consecutive wet hours from here for the duration estimate.
+            run = [best]
+            for k in range(best + 1, len(times)):
+                if k >= len(pp): break
+                if pp[k] is not None and float(pp[k]) >= 30.0: run.append(k)
+            dur_min = (times[run[-1]] - times[run[0]]).total_seconds() / 60.0 + 60.0
+            return 'now', '', 'now for ' + fmt_duration(dur_min)
+        if raining:
+            start_min = (times[raining[0]] - ref).total_seconds() / 60.0
+            return 'later', 'in ' + fmt_duration(start_min), ''
+        # Nothing ≥30% ahead: the last spell may just have ended; still honest '--'.
+        return 'none', '', ''
+    except Exception:
+        return 'none', '', ''
+
 def compass_from_deg(deg):
     """16-point compass label for a bearing in degrees (e.g. 225 -> 'SW')."""
     if deg is None: return None
@@ -380,7 +435,7 @@ def fetch_meteorological_data(lat=LAT, lon=LON):
     meteo_url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
                  f"&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation"
                  f"&daily=sunrise,sunset,moonrise,moonset,cloudcover_mean,precipitation_sum"
-                 f"&hourly=surface_pressure,precipitation_probability&timezone=America%2FLos_Angeles")
+                 f"&hourly=surface_pressure,precipitation_probability,temperature_2m,precipitation&timezone=America%2FLos_Angeles")
     req = urllib.request.Request(meteo_url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as res:
@@ -422,7 +477,13 @@ def build_species_calendar(target_date):
       - status_text for the UI
     """
     out = []
+    # Pink salmon run on ODD years only in Puget Sound. On even years (2026,
+    # 2028, ...) there is no pink run, so do NOT show a pink card at all —
+    # honest data, no stale "NO PEAK PERIOD" entry.
+    odd_year = (target_date.year % 2) == 1
     for species, meta in STOCK_BASELINES.items():
+        if species == "Pink" and not odd_year:
+            continue
         sm, sd, em, ed = meta["peak_window"]
         pm, pd = map(int, meta["peak_date"].split("-"))
         start = datetime(target_date.year, sm, sd)
@@ -647,6 +708,8 @@ class handler(BaseHTTPRequestHandler):
             # fetched once for all 4 days, so they represent NOW, not each day's
             # own forecast. Absent -> null (frontend renders "--", never guesses).
             air_temp_f, wind_speed_mph, wind_dir_deg, pop_pct = None, None, None, None
+            temp_prev_f, temp_delta_f = None, None
+            precip_phase_key, precip_start_text, precip_end_text = 'none', '', ''
             
             if met_data and 'daily' in met_data and 'hourly' in met_data:
                 try:
@@ -670,6 +733,29 @@ class handler(BaseHTTPRequestHandler):
                     cur = met_data.get('current') or {}
                     if cur.get('temperature_2m') is not None:
                         air_temp_f = round(cur['temperature_2m'] * 9.0 / 5.0 + 32.0, 1)
+                        # Temperature trend vs the SAME station ~3 hours earlier
+                        # (honest: hourly forecast on the same lat/lon, not a guess).
+                        try:
+                            ref_iso = cur.get('time') or time_arr[0]
+                            ref_dt = datetime.fromisoformat(ref_iso)
+                            mins_ago = []
+                            for hi, h in enumerate(time_arr):
+                                cand = datetime.fromisoformat(h)
+                                if cand <= ref_dt:
+                                    mins_ago.append((abs((ref_dt - cand).total_seconds()), hi))
+                            if mins_ago:
+                                mins_ago.sort()
+                                prev_h = mins_ago[0][1]
+                                # Prefer ~3h back if available.
+                                for m, hi in mins_ago:
+                                    if 150 <= m / 60.0 <= 210:
+                                        prev_h = hi; break
+                                prev_c = met_data['hourly']['temperature_2m'][prev_h]
+                                if prev_c is not None:
+                                    temp_prev_f = round(prev_c * 9.0 / 5.0 + 32.0, 1)
+                                    temp_delta_f = round(air_temp_f - temp_prev_f, 1)
+                        except Exception:
+                            temp_delta_f = None
                     if cur.get('wind_speed_10m') is not None:
                         wind_speed_mph = round(cur['wind_speed_10m'] * 0.621371, 1)
                     if cur.get('wind_direction_10m') is not None:
@@ -688,6 +774,10 @@ class handler(BaseHTTPRequestHandler):
                             pp = met_data['hourly']['precipitation_probability'][best_i]
                             if pp is not None:
                                 pop_pct = round(float(pp))
+                            # Phase hint: 'in 3H' / 'now for 2H' / '' from the same
+                            # hourly probability forecast (never a fabricated time).
+                            precip_phase_key, precip_start_text, precip_end_text = precip_phase(
+                                met_data['hourly'], time_arr, stamp)
                         except Exception:
                             pop_pct = None
                 except: pass
@@ -748,6 +838,8 @@ class handler(BaseHTTPRequestHandler):
                 "flow_idx": flow_index,
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
                 "air_temp_f": air_temp_f, "wind_speed_mph": wind_speed_mph, "wind_dir_compass": compass_from_deg(wind_dir_deg), "pop_pct": pop_pct,
+                "temp_prev_f": temp_prev_f, "temp_delta_f": temp_delta_f,
+                "precip_phase": precip_phase_key, "precip_start_text": precip_start_text, "precip_end_text": precip_end_text,
                 "lunar_icon": lunar_icon, "cloud_pct": cloud_pct,
                 "sunrise": sunrise_dt.strftime('%-I:%M %p'), "sunset": sunset_dt.strftime('%-I:%M %p'),
                 "civil_in": civil_in.strftime('%-I:%M %p'), "civil_out": civil_out.strftime('%-I:%M %p'),

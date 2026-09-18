@@ -3,6 +3,24 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.2 complete ✅ (UI honesty + readability + auto-refresh)
+9-pill conditions grid rebuilt (Barometer / Precip% + in_NH-now-for hint /
+PrecipVol + hint / Cloud / Temp + trend arrow / Wind + direction arrow, FIXED
+double-"mph" / Sunrise-Sunset split / Moon / Solunar; Water Temp pill dropped,
+it stays in the telemetry line). Backend now ships `temp_delta_f` +
+`precip_phase/start/end` (hourly Open-Meteo `temperature_2m,precipitation`).
+Mystery "Movement Index" + %-timeline REMOVED → `buildFishingHero()`: plain-
+English verdict (Good/Mixed/Tough) + best window + why bullets (clarity "Dam
+releasing…" folded in). Species calendar: Pink hidden on even years (2026),
+counts toggle is a bright button (Forecast/Returned/Trapped/5-Yr Avg), run
+meter is a cool→hot→cool gradient. Hamburger + drawer deleted (bottom tab bar
+owns nav; center station header). Accessibility: body 11→14px, bigger labels,
+brighter muted text. AUTO-REFRESH: `loadWaterReport(true)` every 5 min (visible
++ online), on foreground, on reconnect — never overwrites a typed Gear Sim CFS;
+header ⟳ button added. SW cache v2.00.10. Sanity 28/28 green.
+- Key files: `api/water_report.py`, `src/app.js`, `src/services/water.js`,
+  `src/styles.css`, `index.html`, `sw.js`, `sanity_pass.js`, `TASK.md`.
+
 ## 2026-09-18 — 2.1d CONFIRMED write shipped (real numbers in the UI)
 Human opened the real 2026 WDFW PDFs and confirmed: Puyallup Chinook 18,890 /
 Puyallup Coho 53,588. `refresh_wdfw_forecast.py --confirm --chinook=18890

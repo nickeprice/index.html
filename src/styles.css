@@ -12,13 +12,12 @@
 }
 
 html, body { background-color: var(--bg-main); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
-body { overflow-y: auto; padding-bottom: calc(64px + env(safe-area-inset-bottom)); font-size: 11px; line-height: 1.2; }
+body { overflow-y: auto; padding-bottom: calc(64px + env(safe-area-inset-bottom)); font-size: 14px; line-height: 1.35; }
 
-/* NAV BAR */
+/* NAV BAR (station selector + refresh; tabs live in the bottom bar) */
 #top-nav { position: sticky; top: 0; background-color: #1a1a1a; z-index: 2000; padding: 12px 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-.nav-btn { background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; font-weight: bold; }
-.menu-drawer { display: none; background: #1a1a1a; padding: 10px; border-bottom: 1px solid #333; }
-.menu-drawer button { width: 100%; text-align: left; background: none; border: none; padding: 15px 10px; color: #fff; font-size: 16px; border-bottom: 1px solid #333; margin: 0; }
+.nav-refresh { background: none; border: 1px solid #4a4a4c; border-radius: 8px; color: #fff; font-size: 20px; width: 40px; height: 40px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+.nav-refresh:active { background-color: #2c2c2e; }
 
 /* TABS */
 .tab-content { display: none; padding: 6px 4px; }
@@ -103,27 +102,41 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .run-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .run-card-hdr .spc-name { font-weight: 800; color: var(--text-main); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.4px; }
 .run-status-pill { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 9999px; border: 1px solid #444; color: var(--text-muted); background-color: #1e1e1e; white-space: nowrap; }
-/* Run-window progress track: filled to today, with a peak tick */
-.run-track { position: relative; height: 8px; border-radius: 9999px; background-color: #26262a; overflow: visible; }
-.run-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9999px; background-color: #4ade80; opacity: 0.85; }
-.run-peak { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; background-color: #facc15; transform: translateX(-1.5px); }
-.run-track-lbl { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.62rem; color: var(--text-muted); }
+/* Run-window progress track: full-track cool→hot→cool gradient (peak is the
+   hot stop) so the angler sees WHERE they are on the run curve at a glance.
+   The translucent .run-fill shows how far into the window today is; the peak
+   tick marks the peak. */
+.run-track { position: relative; height: 10px; border-radius: 9999px; background-color: #1c1c1e; overflow: hidden; }
+.run-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 9999px;
+  background: linear-gradient(90deg, #3b82f6 0%, #facc15 35%, #4ade80 50%, #d97706 80%, #71717a 100%); }
+.run-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9999px; background-color: rgba(255,255,255,0.45); }
+.run-peak { position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px; background-color: #ffffff; transform: translateX(-1.5px); box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2; }
+.run-track-lbl { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 5px; font-size: 0.75rem; color: var(--text-muted); }
 .run-lbl-peak { color: #facc15; font-weight: 700; }
-.run-footer { margin-top: 6px; font-size: 0.66rem; color: var(--text-main); border-top: 1px solid #26262a; padding-top: 6px; }
-/* Status colors drive both the pill and a subtle left accent on the card */
+.run-footer { margin-top: 6px; font-size: 0.8rem; color: var(--text-main); border-top: 1px solid #2a2a2c; padding-top: 6px; }
+/* Status colors still drive the pill + left accent; the meter itself is the
+   gradient (peak-position=hottest color), so the old flat per-status fill is
+   gone — the translucent progress conveys timing instead. */
 .spc-peak { border-left: 3px solid var(--accent-green); }
 .spc-peak .run-status-pill { color: var(--accent-green); border-color: var(--accent-green); }
-.spc-peak .run-fill { background-color: var(--accent-green); }
 .spc-pre { border-left: 3px solid var(--accent-yellow); }
 .spc-pre .run-status-pill { color: var(--accent-yellow); border-color: var(--accent-yellow); }
-.spc-pre .run-fill { background-color: var(--accent-yellow); }
 .spc-post { border-left: 3px solid #f59e0b; }
 .spc-post .run-status-pill { color: #f59e0b; border-color: #f59e0b; }
-.spc-post .run-fill { background-color: #f59e0b; }
 .spc-off { border-left: 3px solid #555; }
 .spc-off .run-status-pill { color: var(--text-muted); border-color: #555; }
-.spc-off .run-fill { background-color: #555; }
 .foul-hook { color: var(--accent-red); }
+
+/* Fishing hero (replaces the Movement Index + % timeline): a plain-English
+   verdict + best window + why bullets. */
+.fishing-hero { background-color: #121212; border: 1px solid #2a2a2c; border-radius: 10px; padding: 10px 12px; margin: 4px 0 8px 0; box-sizing: border-box; }
+.hero-verdict { display: block; font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; }
+.hero-peak { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.hero-peak-lbl { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); }
+.hero-peak-time { font-size: 1.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hero-peak-why { font-size: 0.8rem; color: #cbd5e1; }
+.hero-reasons { margin: 4px 0 0 0; padding-left: 18px; color: #d4d4d8; font-size: 0.85rem; line-height: 1.55; }
+.hero-reasons li { margin-bottom: 2px; }
 
 /* WATER REPORT EXACT STYLING */
 .card { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
@@ -262,11 +275,6 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .data-row { display: flex; align-items: flex-start; margin-bottom: 4px; font-size: 13px; }
 .k { color: #a1a1aa; flex: 0 0 95px; font-size: 13px; font-weight: 600; }
 .v { color: #f2f2f7; flex: 1; font-size: 13px; font-weight: 500; }
-.window-box { background-color: #000000; border-radius: 6px; padding: 8px 10px; margin-top: 5px; border: 1px solid #2c2c2e; }
-.window-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
-.window-time { color: #ffffff; font-size: 13px; font-weight: 700; }
-.window-score { font-size: 15px; font-weight: 900; }
-.window-triggers { color: #a1a1aa; font-size: 12px; line-height: 1.3; }
 
 /* CONSOLIDATED RIVER & ENVIRONMENTAL CONDITIONS */
 .seasonal-warning { background-color: #ff453a; color: #fff; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 11px; text-align: center; margin: 4px 0 6px 0; border: 1px solid #fff; line-height: 1.3; }
@@ -285,8 +293,6 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .telemetry-qualities { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 2px; font-size: 12px; color: #cbd5e1; }
 .telemetry-quality { font-weight: 600; }
 .telemetry-quality .water-temp, .telemetry-quality .turbidity-val { color: #7dd3fc; font-weight: 700; }
-/* Clarity badge — a small inline pill in the telemetry row (Puyallup sites only) */
-.clarity-badge { background-color: #1e293b; border: 1px solid #334155; color: #7dd3fc; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 9999px; white-space: nowrap; }
 /* Quiet background timestamp — smaller and muted so it never competes with the data */
 .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
 
@@ -308,58 +314,44 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 /* 3. Weather & Moon Conditions */
 .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
 .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
-.env-badge-val { font-size: 13px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; font-variant-numeric: tabular-nums; }
-.env-badge-lbl { font-size: 9.5px; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; line-height: 1.2; }
-/* Water-temp pill hidden when the own gauge doesn't report 00010 (keeps the 3x3 grid stable). */
-.env-badge-hidden { visibility: hidden; }
+.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+.env-badge-val { font-size: 14px; font-weight: 700; color: #ffffff; min-height: 26px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.3; margin-bottom: 2px; width: 100%; word-break: break-word; font-variant-numeric: tabular-nums; }
+.env-badge-sub { font-size: 10px; font-weight: 700; color: #fde68a; min-height: 12px; line-height: 1.1; margin-bottom: 1px; }
+.env-badge-lbl { font-size: 10px; color: #b6bcc9; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px; line-height: 1.2; }
 /* Moon phase pill: allow wrap so the emoji+name fits on 320px screens. */
 .moon-pill { font-size: 12px; font-weight: 700; line-height: 1.3; word-break: break-word; }
 
-/* Solunar Split Card */
-.solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 24px; }
+/* Solunar + Sun/Moon split pills */
+.solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 26px; }
 .solunar-half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 0 1px; }
 .solunar-half:first-child { border-right: 1px solid #333336; }
 .solunar-val { font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
-.solunar-sublbl { font-size: 8px; color: #8e8e93; text-transform: uppercase; font-weight: 600; line-height: 1; margin-top: 1px; }
+.solunar-sublbl { font-size: 8px; color: #b0b0b8; text-transform: uppercase; font-weight: 700; line-height: 1; margin-top: 1px; }
 
-/* 5. ONE consolidated [ RUN & TIMING ] panel (replaces HATCHERY ESCAPEMENT +
-   SPECIES RUN CALENDAR + LEGAL HOURS TIMELINE). "Status stays, numbers fold":
-   movement index + per-species run cards are always visible; the raw counts
-   (WDFW forecast / Return / Trap / 5-Yr Avg) fold behind a <details> per card;
-   the legal-hours windows live below in the same panel. */
+/* 5. ONE consolidated [ RUN & TIMING ] panel: plain-English fishing hero +
+   per-species run cards (status stays, raw counts fold + readable). */
 .run-timing { margin: 4px 0 6px 0; }
 .run-timing-cards { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 8px 0; }
 
-/* Movement Index — a single always-visible 0-100 line with the WHY folded. */
-.movement-index { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 7px 10px; margin: 4px 0 8px 0; box-sizing: border-box; }
-.movement-lbl { color: #a1a1aa; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
-.movement-val { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-.movement-why { margin-left: auto; }
-.movement-why > summary { list-style: none; cursor: pointer; color: #8e8e93; font-size: 11px; font-weight: 700; letter-spacing: 0.3px; display: flex; align-items: center; }
-.movement-why > summary::-webkit-details-marker { display: none; }
-.movement-why > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; margin-left: 6px; }
-.movement-why[open] > summary::after { content: '\25BE'; }
-.movement-reasons { margin: 6px 0 0 0; padding-left: 16px; color: #cbd5e1; font-size: 11px; line-height: 1.6; }
-.movement-reasons li { margin-bottom: 2px; }
-
-/* Per-species run card already styled at .run-card (top of file); the counts
-   fold adds a compact grid that reuses the esc-row look. */
-.run-counts { margin-top: 8px; border-top: 1px solid #26262a; padding-top: 6px; }
-.run-counts > summary { list-style: none; cursor: pointer; color: #8e8e93; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; display: flex; align-items: center; }
+/* Per-species run card: counts fold now reads as a clear button + brighter
+   one-word labels (Forecast / Returned / Trapped / 5-Yr Avg). */
+.run-counts { margin-top: 8px; border-top: 1px solid #2a2a2c; padding-top: 6px; }
+.run-counts > summary { list-style: none; cursor: pointer; display: flex; align-items: center; }
 .run-counts > summary::-webkit-details-marker { display: none; }
-.run-counts > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; margin-left: 6px; }
-.run-counts[open] > summary::after { content: '\25BE'; }
+.run-counts-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: #ffffff; background-color: #2c55d0; border-radius: 8px; padding: 8px 12px; }
+.run-counts[open] .run-counts-toggle { background-color: #1d3c93; }
 .run-counts-grid { margin: 6px 0 0 0; }
-.esc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; line-height: 1.6; }
-.esc-row-lbl { color: #94a3b8; font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; }
-.esc-row-val { color: #ffffff; font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+.esc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; line-height: 1.7; }
+.esc-row-lbl { color: #b6bcc9; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
+.esc-row-val { color: #ffffff; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.esc-row-forecast .esc-row-lbl { color: #fdba74; }
+.esc-row-forecast .esc-row-val { color: #fdba74; font-size: 15px; }
 
 /* Legal-hours windows stay INSIDE the RUN & TIMING panel. */
 .run-windows { margin-top: 4px; }
 @media (min-width: 600px) {
     .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .env-badge { padding: 8px 6px; }
+    .env-badge { padding: 9px 6px; }
 }
 
 /* DEBUG MATRIX */

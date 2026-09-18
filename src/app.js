@@ -136,18 +136,9 @@ function showToast(msg, kind, ms, action) {
 }
 
 // --- NAVIGATION ---
-function toggleMenu() {
-    var m = document.getElementById('menu-drawer');
-    var open = (m.style.display !== 'block');
-    m.style.display = open ? 'block' : 'none';
-    // Keep the hamburger button's announced state in sync with the drawer.
-    var btn = document.querySelector('.nav-btn');
-    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('tab-active'); });
     document.getElementById(tabId).classList.add('tab-active');
-    toggleMenu();
     // Keep the persistent bottom tab bar in sync (deep links / bootstrap call
     // switchTab too, so the aria-selected + active class must follow the tab).
     var btnMap = {
@@ -499,56 +490,82 @@ function tideCurveSvg(points, extremes) {
         labels + '</svg>';
 }
 
-// Consolidated [ RUN & TIMING ] one-liner: an ALWAYS-visible 0-100 movement
-// index computed from live triggers already fetched, with the WHY folded behind
-// a <details>. Never fabricates: any trigger that is absent/null simply doesn't
-// add points, and the index renders "--" when every source is missing.
-function computeMovementIndex(rep) {
+// Plain-English "hero" for the [ RUN & TIMING ] panel. Replaces the opaque
+// 0-100 Movement Index + the %-timeline: a human verdict line, the best fishing
+// window (from the server's timeline), and 1-3 short why bullets. Everything is
+// derived from the same real triggers (rain freshet, pressure trend, tide highs,
+// moon phase, transit state, netting) — never a fabricated count.
+function buildFishingHero(rep) {
+    if (!rep) return '';
     var score = 0;
     var reasons = [];
     var any = false;
 
-    // Freshet: rain today + falling barometer both push fish.
     if (rep.rain !== null && rep.rain !== undefined && rep.rain > 0.05) {
-        any = true;
-        score += 12;
-        reasons.push('Rain freshet (' + rep.rain.toFixed(2) + ' in)');
+        any = true; score += 12;
+        reasons.push('Rain freshet (' + rep.rain.toFixed(2) + ' in) — fresh push');
     }
     if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta < -0.04) {
-        any = true;
-        score += 10;
-        reasons.push('Pressure drop (' + rep.press_delta.toFixed(2) + ' inHg)');
+        any = true; score += 10;
+        reasons.push('Pressure dropping — fish moving');
     } else if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta > 0.04) {
-        any = true;
-        score -= 6;
-        reasons.push('Pressure rising (lockjaw)');
+        any = true; score -= 6;
+        reasons.push('High pressure settling in — bite can slow');
     }
-    // Tide arrivals (already computed server-side from the NOAA curve) add push.
     if (rep.tide_curve && rep.tide_curve.length) {
         var highs = rep.tide_curve.filter(function (t) { return t.type === 'H'; });
         if (highs.length) {
-            any = true;
-            score += Math.min(10, highs.length * 5);
+            any = true; score += Math.min(10, highs.length * 5);
             reasons.push(highs.length + ' high tide' + (highs.length > 1 ? 's' : '') + ' today');
         }
     }
-    // Moon: new/full swing.
     if (rep.lunar_icon && (rep.lunar_icon.indexOf('New') !== -1 || rep.lunar_icon.indexOf('Full') !== -1)) {
-        any = true;
-        score += 5;
+        any = true; score += 5;
         reasons.push(rep.lunar_icon.replace(/^[^\s]+\s*/, '') + ' swing');
     }
-    // Transit state is a real modeled "is the water moving" signal.
     if (rep.transit_state && rep.transit_state !== '--') {
         any = true;
-        if (rep.transit_state.indexOf('High Velocity') !== -1) { score += 8; reasons.push('High-velocity flow'); }
-        else if (rep.transit_state.indexOf('Bay Staging') !== -1) { score += 4; reasons.push('Bay staging / slow push'); }
+        if (rep.transit_state.indexOf('High Velocity') !== -1) { score += 8; reasons.push('Water moving fast'); }
+        else if (rep.transit_state.indexOf('Bay Staging') !== -1) { score += 4; reasons.push('Fish staging / slow push'); }
         else if (rep.transit_state.indexOf('CORKED') !== -1) { score -= 25; reasons.push('River corked (nets in)'); }
     }
     if (rep.is_netting) { score -= 15; reasons.push('Netting day (Sun/Mon/Tue)'); }
+    if (rep.clarity_outlook) { any = true; reasons.push(rep.clarity_outlook); }
 
-    if (!any) return { value: '--', reasons: ['Live triggers unavailable'] };
-    return { value: Math.max(0, Math.min(100, Math.round(score))), reasons: reasons };
+    var verdict, vColor;
+    if (!any) {
+        verdict = 'Live conditions unavailable';
+        vColor = 'var(--text-muted)';
+    } else if (score >= 20) {
+        verdict = '\uD83D\uDC4D Good day to fish'; vColor = 'var(--accent-green)';
+    } else if (score >= 0) {
+        verdict = '\u26A0\uFE0F Mixed conditions'; vColor = 'var(--accent-yellow)';
+    } else {
+        verdict = '\uD83D\uDC4E Tough conditions'; vColor = 'var(--accent-red)';
+    }
+
+    // Best window: the server already computes rep.windows with start/end + trigger.
+    var best = null;
+    if (rep.windows && rep.windows.length) {
+        for (var w = 0; w < rep.windows.length; w++) {
+            if (!best || rep.windows[w].score > best.score) best = rep.windows[w];
+        }
+    }
+    var peakHtml = '';
+    if (best) {
+        var pCol = getFMIColor(best.score);
+        peakHtml = '<div class="hero-peak">' +
+            '<span class="hero-peak-lbl">Best window</span>' +
+            '<span class="hero-peak-time" style="color:' + pCol + ';">' + best.start_str + ' \u2013 ' + best.end_str + '</span>' +
+            (best.triggers ? '<span class="hero-peak-why">' + best.triggers + '</span>' : '') +
+            '</div>';
+    }
+
+    return '<div class="fishing-hero">' +
+        '<span class="hero-verdict" style="color:' + vColor + ';">' + verdict + '</span>' +
+        peakHtml +
+        '<ul class="hero-reasons">' + reasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
+        '</div>';
 }
 
 // Per-species run card in the [ RUN & TIMING ] panel: status pill + window
@@ -590,6 +607,7 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
                 '<span class="run-status-pill">' + (s.status_text || '') + '</span>' +
             '</div>' +
             '<div class="run-track" role="img" aria-label="Run window">' +
+                '<span class="run-gradient"></span>' +
                 '<span class="run-fill" style="width:' + fillPct + '%;"></span>' +
                 '<span class="run-peak" style="left:' + peakLeft + '%;"></span>' +
             '</div>' +
@@ -600,11 +618,11 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
             '</div>' +
             (peakLine ? '<div class="run-footer">' + peakLine + '</div>' : '') +
             '<details class="run-counts">' +
-                '<summary>Counts</summary>' +
+                '<summary><span class="run-counts-toggle">\uD83D\uDCCA Counts</span></summary>' +
                 '<div class="run-counts-grid">' +
-                    '<div class="esc-row"><span class="esc-row-lbl">WDFW forecast</span><span class="esc-row-val" data-count="wdfw">' + countVal(wdfwForecast) + '</span></div>' +
-                    '<div class="esc-row"><span class="esc-row-lbl">Return</span><span class="esc-row-val" data-count="return">' + (esc ? countVal(esc.totalReturn) : '--') + '</span></div>' +
-                    '<div class="esc-row"><span class="esc-row-lbl">Trap</span><span class="esc-row-val" data-count="trap">' + (esc ? countVal(esc.trapCount) : '--') + '</span></div>' +
+                    '<div class="esc-row esc-row-forecast"><span class="esc-row-lbl">Forecast</span><span class="esc-row-val" data-count="wdfw">' + countVal(wdfwForecast) + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Returned</span><span class="esc-row-val" data-count="return">' + (esc ? countVal(esc.totalReturn) : '--') + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Trapped</span><span class="esc-row-val" data-count="trap">' + (esc ? countVal(esc.trapCount) : '--') + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">5-Yr Avg</span><span class="esc-row-val" data-count="avg">' + (esc ? countVal(esc.fiveYrAvg) : '--') + '</span></div>' +
                 '</div>' +
             '</details>' +
@@ -773,7 +791,10 @@ function renderWaterReportEmptyState(title, hint, offline) {
     logDebug('Water report empty state: ' + title, 'UI');
 }
 
-async function loadWaterReport() {
+// Loads (or silently refreshes) the water report. When `silent` is true this is
+// a background auto-refresh: it must NOT overwrite a Gear Sim CFS the angler
+// typed by hand (the initial load + manual station change still auto-sync).
+async function loadWaterReport(silent) {
     var active = localStorage.getItem('active_station');
     var station = null;
     try {
@@ -834,8 +855,10 @@ async function loadWaterReport() {
         var cardsHtml = '';
 
         // Automatically push Live CFS to Gear Sim (skip on USGS outage so the
-        // manual CFS the angler typed is preserved instead of being blanked).
-        if(reports.length > 0 && reports[0].cfs !== null && reports[0].cfs !== undefined && !reports[0].api_offline) {
+        // manual CFS the angler typed is preserved instead of being blanked,
+        // and skip on silent auto-refresh so a background refresh never clobbers
+        // a CFS the angler typed by hand).
+        if(!silent && reports.length > 0 && reports[0].cfs !== null && reports[0].cfs !== undefined && !reports[0].api_offline) {
             var cfsInput = document.getElementById('flow');
             cfsInput.value = reports[0].cfs;
             syncSelect('flow');
@@ -844,27 +867,24 @@ async function loadWaterReport() {
 
         for(var i=0; i<reports.length; i++) {
             var rep = reports[i];
-            // Movement index + escapement registry for the [ RUN & TIMING ] panel.
-            var movIndex = computeMovementIndex(rep);
+            // Escapement registry for the [ RUN & TIMING ] panel.
             var escStocks = (typeof hatcheryEscapement !== 'undefined' && hatcheryEscapement[String(actId || station.id)])
                 ? hatcheryEscapement[String(actId || station.id)] : null;
-            var movColor = (movIndex.value === '--') ? 'var(--text-muted)' : (movIndex.value >= 70 ? 'var(--accent-green)' : (movIndex.value >= 40 ? 'var(--accent-yellow)' : '#f59e0b'));
-
-            var winHtml = '';
-            for(var j=0; j<rep.windows.length; j++) {
-                var w = rep.windows[j];
-                var col = getFMIColor(w.score);
-                winHtml += '<div class="window-box" style="border-left: 4px solid '+col+';">' +
-                    '<div class="window-hdr"><span class="window-time">'+w.start_str+' &ndash; '+w.end_str+'</span>' +
-                    '<span class="window-score" style="color: '+col+';">'+w.score+'%</span></div>' +
-                    '<div class="window-triggers">&rarr; '+w.triggers+'</div></div>';
-            }
 
             var dStyle = (i === activeDateOffset) ? "block" : "none";
 
             var pCol = (rep.press_delta > 0) ? 'var(--accent-green)' : ((rep.press_delta < 0) ? 'var(--accent-red)' : '#ffffff');
             // Barometric trend from the API's 6-hour pressure window: up-arrow rising, down-arrow falling, dash flat
             var pArr = (rep.press_delta > 0) ? '\u2191' : ((rep.press_delta < 0) ? '\u2193' : '\u2014');
+            // Temperature trend arrow + color (same barometer pattern, honest data).
+            var tCol = (rep.temp_delta_f > 0.4) ? 'var(--accent-green)' : ((rep.temp_delta_f < -0.4) ? 'var(--accent-red)' : '#ffffff');
+            var tArr = (rep.temp_delta_f > 0.4) ? '\u2191' : ((rep.temp_delta_f < -0.4) ? '\u2193' : '\u2014');
+            // Wind: direction arrow + speed (single "mph" unit — FIXES the
+            // duplicate "mphmph" text). 16-point compass -> 8-way arrow.
+            var WIND_ARROWS = { 'N':'\u2191','NNE':'\u2197','NE':'\u2197','ENE':'\u2197','E':'\u2192','ESE':'\u2198','SE':'\u2198','SSE':'\u2198','S':'\u2193','SSW':'\u2199','SW':'\u2199','WSW':'\u2199','W':'\u2190','WNW':'\u2196','NW':'\u2196','NNW':'\u2196' };
+            var windDisplay = (rep.wind_speed_mph != null)
+                ? ((rep.wind_dir_compass ? (WIND_ARROWS[rep.wind_dir_compass] || rep.wind_dir_compass) + ' ' : '') + Math.round(rep.wind_speed_mph) + ' mph')
+                : '--';
 
             var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
             var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gauge Height' : '-- ft Gauge Height';
@@ -881,13 +901,8 @@ async function loadWaterReport() {
                     (hasTurbidity ? '<span class="telemetry-quality">Turbidity <span class="turbidity-val">' + Number(rep.turbidity_fnu).toFixed(1) + '</span> FNU</span>' : '') +
                 '</div>';
             }
-            // Clarity badge: ONLY the Puyallup basin sites report clarity_outlook
-            // (server gates it); render it inline in the telemetry row, small.
-            var isPuyallupSite = (rep.site_id && ['12101500','12093500','12094000'].indexOf(String(rep.site_id)) !== -1);
-            var clarityHtml = '';
-            if (isPuyallupSite && rep.clarity_outlook) {
-                clarityHtml = '<div class="telemetry-qualities"><span class="telemetry-quality clarity-badge">💧 ' + rep.clarity_outlook + '</span></div>';
-            }
+            // Clarity is folded into the fishing hero (buildFishingHero) — no
+            // inline badge in the telemetry row.
             // Distinguish USGS network outages (data_dict api_offline) from a truly seasonal station
             // so a 503 / timeout no longer renders as "seasonal / not reporting".
             var seasonalWarn = '';
@@ -906,43 +921,54 @@ async function loadWaterReport() {
                   '<div class="telemetry-main">' +
                     '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">&bull;</span><span class="gage-val">' + gageVal + '</span></span>' +
                     waterQualityHtml +
-                    clarityHtml +
                   '</div>' +
                   '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                 '</div>' +
                 formatTideRow(rep.tide_chart, rep.tide_curve, rep.tide_points) +
                 '<div class="env-weather-solunar">' +
                   '<div class="env-stat-grid">' +
-                    // Row 1 (Atmospheric): BAROMETER, PoP%, PRECIP VOLUME
+                    // Row 1 (Atmospheric): BAROMETER, PRECIP %, PRECIP VOL (each
+                    // with a live timing hint when the forecast supports it)
                     '<div class="env-badge">' +
                       '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span> ' + pArr + '</div>' +
                       '<div class="env-badge-lbl">Barometer</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val"><span class="precip-pop">' + (rep.pop_pct != null ? rep.pop_pct : '--') + '</span>%</div>' +
-                      '<div class="env-badge-lbl">PoP</div>' +
+                      '<div class="env-badge-sub">' + (rep.precip_start_text || rep.precip_end_text || '') + '</div>' +
+                      '<div class="env-badge-lbl">Precip %</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val"><span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
+                      '<div class="env-badge-sub">' + (rep.precip_start_text || rep.precip_end_text || '') + '</div>' +
                       '<div class="env-badge-lbl">Precip Vol</div>' +
                     '</div>' +
-                    // Row 2: CLOUD%, AIR TEMP, WIND
+                    // Row 2: CLOUD%, TEMP (trend arrow), WIND (direction arrow)
                     '<div class="env-badge">' +
                       '<div class="env-badge-val">' + rep.cloud_pct + '%</div>' +
                       '<div class="env-badge-lbl">Cloud Cover</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="air-temp">' + (rep.air_temp_f != null ? Math.round(rep.air_temp_f) : '--') + '</span>°</div>' +
-                      '<div class="env-badge-lbl">Air Temp</div>' +
+                      '<div class="env-badge-val" style="color:' + tCol + ';"><span class="air-temp">' + (rep.air_temp_f != null ? Math.round(rep.air_temp_f) : '--') + '</span>° ' + tArr + '</div>' +
+                      '<div class="env-badge-lbl">Temp</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="wind-val">' + ((rep.wind_speed_mph != null) ? ((rep.wind_dir_compass ? rep.wind_dir_compass + ' ' : '') + Math.round(rep.wind_speed_mph)) : '--') + '</span>' + (rep.wind_speed_mph != null ? ' mph' : '') + '</div>' +
+                      '<div class="env-badge-val"><span class="wind-val">' + windDisplay + '</span></div>' +
                       '<div class="env-badge-lbl">Wind</div>' +
                     '</div>' +
-                    // Row 3: WATER TEMP (own-gauge only), MOON PHASE, SOLUNAR
-                    '<div class="env-badge' + (hasWaterTemp ? '' : ' env-badge-hidden') + '">' +
-                      '<div class="env-badge-val"><span class="water-temp-pill">' + (hasWaterTemp ? Math.round(Number(rep.water_temp_f)) : '--') + '</span>°</div>' +
-                      '<div class="env-badge-lbl">Water Temp</div>' +
+                    // Row 3: SUNRISE/SUNSET (split), MOON PHASE, SOLUNAR
+                    '<div class="env-badge">' +
+                      '<div class="env-badge-val solunar-split">' +
+                        '<div class="solunar-half">' +
+                          '<span class="solunar-val" style="color:#fbbf24;">\u2191 ' + (rep.sunrise || '--:--') + '</span>' +
+                          '<span class="solunar-sublbl">Sunrise</span>' +
+                        '</div>' +
+                        '<div class="solunar-half">' +
+                          '<span class="solunar-val" style="color:#64d2ff;">\u2193 ' + (rep.sunset || '--:--') + '</span>' +
+                          '<span class="solunar-sublbl">Sunset</span>' +
+                        '</div>' +
+                      '</div>' +
+                      '<div class="env-badge-lbl">Sun / Set</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val moon-pill">' + (rep.lunar_icon || '🌑') + '</div>' +
@@ -963,21 +989,13 @@ async function loadWaterReport() {
                     '</div>' +
                   '</div>' +
                 '</div>' +
-                
-                // 5b. ONE [ RUN & TIMING ] panel: movement-index one-liner
-                // (always visible) + per-species run cards (status/progress/
-                // peak visible, counts folded) + the legal-hours windows below.
+                // 5b. ONE [ RUN & TIMING ] panel: plain-English hero + per-species
+                // run cards. The raw % timeline is gone; the hero carries the
+                // peak time + why.
                 '<div class="run-timing">' +
                   '<div class="sec-hdr">[ RUN &amp; TIMING ]</div>' +
-                  '<div class="movement-index">' +
-                    '<span class="movement-lbl">Movement Index</span>' +
-                    '<span class="movement-val" style="color:' + movColor + ';">' + movIndex.value + '</span>' +
-                    '<details class="movement-why"><summary>Why</summary><ul class="movement-reasons">' +
-                      movIndex.reasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') +
-                    '</ul></details>' +
-                  '</div>' +
+                  buildFishingHero(rep) +
                   buildSpeciesCalendarHtml(rep.species_calendar, escStocks) +
-                  '<div class="run-windows">' + winHtml + '</div>' +
                 '</div>' + '</div></div>';
         }
         document.getElementById('water-report-cards').innerHTML = cardsHtml;
@@ -2224,6 +2242,38 @@ function initGearSimInputDebounce() {
     logDebug('Gear Sim inputs debounced (' + ids.length + ' fields, 250ms trailing)', 'UI');
 }
 
+// --- AUTO-REFRESH ---
+// A homescreen PWA has no pull-to-refresh, so the live telemetry is re-fetched
+// on its own: every 5 minutes while visible+online, the moment the app comes
+// back to the foreground, and when connectivity returns. All three routes call
+// loadWaterReport(true) — a "silent" refresh that updates the whole report +
+// hero but never overwrites a Gear Sim CFS the angler typed by hand.
+var AUTO_REFRESH_MS = 5 * 60 * 1000;
+var autoRefreshTimer = null;
+
+function silenceableRefresh() {
+    if (document.visibilityState === 'visible' && navigator.onLine !== false) {
+        loadWaterReport(true);
+    }
+}
+
+function startAutoRefresh() {
+    if (autoRefreshTimer) return;
+    // Periodic: keep the data fresh while the app sits open.
+    autoRefreshTimer = setInterval(silenceableRefresh, AUTO_REFRESH_MS);
+    // Foregrounding: the classic "I picked up my phone" moment.
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') silenceableRefresh();
+    });
+    logDebug('Auto-refresh armed (every ' + (AUTO_REFRESH_MS / 60000) + ' min + on foreground)', 'PWA');
+}
+
+// Manual refresh affordance (header ⟳) for a standalone PWA.
+function refreshNow() {
+    loadWaterReport(true);
+    showToast('Refreshing live data\u2026', 'info', 2000);
+}
+
 // --- PWA: SERVICE WORKER REGISTRATION ---
 // Called from window.onload, so the document is already fully loaded and the
 // worker install will not compete with first paint. Failures are non-fatal: the
@@ -2270,11 +2320,13 @@ function registerServiceWorker() {
     });
 
     // Tell the angler when connectivity changes, since the water report depends
-    // on it and the offline shell can serve stale numbers.
+    // on it and the offline shell can serve stale numbers. On reconnect, actually
+    // re-fetch so a homescreen install self-heals without a manual refresh.
     if ('onLine' in navigator) {
         window.addEventListener('online', function () {
             showToast('Back online - refreshing live data', 'success', 2500);
             logDebug('Network restored', 'PWA');
+            silenceableRefresh();
         });
         window.addEventListener('offline', function () {
             showToast('Offline - showing cached river data', 'warn', 4000);
@@ -2309,6 +2361,7 @@ window.onload = function() {
     initGearSimInputDebounce();
     applyTabDeepLink();
     registerServiceWorker();
+    startAutoRefresh();
     getGPS();
     initAuth();
     if (typeof setCatchScope === 'function') setCatchScope(CATCH_SCOPE);

@@ -198,7 +198,7 @@ function behaviorChecks(done) {
   }
   global.document = {
     getElementById: el,
-    querySelector: (sel) => { if (sel === '.nav-btn') { const b = el('_nav_btn'); b.setAttribute = () => {}; return b; } return null; },
+    querySelector: () => null,
     querySelectorAll: (sel) => {
       if (sel === '.tab-content') {
         return ['tab-water-report', 'tab-gear-sim', 'tab-catch-log'].map((id) => {
@@ -228,7 +228,7 @@ function behaviorChecks(done) {
     }
     return depth === 0 ? src.slice(idx, end) : null;
   }
-  const need = ['debounce', 'showToast', 'toggleMenu', 'switchTab', 'applyTabDeepLink', 'renderWaterReportEmptyState', 'setCatchScope'];
+  const need = ['debounce', 'showToast', 'switchTab', 'applyTabDeepLink', 'renderWaterReportEmptyState', 'setCatchScope'];
   let code = '';
   // Bring in the top-level var showToast depends on
   {

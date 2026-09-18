@@ -3,6 +3,15 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.1e done: app feel (bottom tab bar, pinch zoom, date-tap)
+Persistent fixed bottom tab bar (Water Report / Gear Sim / Catch Log) with
+`role="tablist"` + `aria-selected`; `switchTab` now syncs the bar so deep links /
+bootstrap keep it accurate. Viewport zoom restrictions dropped (pinch zoom back).
+Date header is now a `<button onclick="resetToToday()">` (returns to Today when
+paged forward, no-op at 0); long station names ellipsize. Body bottom padding +
+safe-area for the fixed bar. SW cache v2.00.7.
+- Key files: `index.html`, `src/app.js`, `src/styles.css`, `sw.js`.
+
 ## 2026-09-18 — Phase 2.1d done: WDFW forecast hybrid scraper
 `scripts/refresh_wdfw_forecast.py` resolves the STABLE WDFW index → real 2026
 Chinook/Coho PDF URLs, downloads, attempts stdlib zlib text extraction. The PDFs

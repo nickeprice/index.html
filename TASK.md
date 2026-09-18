@@ -1,4 +1,4 @@
-## ACTIVE ➤ Commit 2.1e — App feel (files: `index.html`, `src/app.js`, `src/styles.css`). After it: 2.1f 9-pill grid.
+## ACTIVE ➤ Commit 2.1f — Conditions grid: 9 pills (files: `api/water_report.py`, `src/services/water.js`, `src/app.js`, `src/styles.css`). Last commit of Phase 2.1.
 
 # Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
 
@@ -134,19 +134,30 @@
 
 ## Commit 2.1e — App feel (resurrected D + E, previously dropped)
 
-- [ ] `index.html` — persistent fixed bottom tab bar (Water Report / Gear Sim /
+- [x] `index.html` — persistent fixed bottom tab bar (Water Report / Gear Sim /
       Catch Log) calling the existing `switchTab`; keep the menu-drawer; add
       `role="tablist"`/`aria-selected`; body bottom padding + safe-area.
       - Potential bugs: `switchTab` toggles `.tab-active` — the bar must stay synced
         when deep links / bootstraps switch tabs.
-      - Verification: sanity `switchTab` behavior; phone 1-tap switching.
-- [ ] `index.html` — drop `user-scalable=no` / `maximum-scale=1.0` (restore pinch zoom).
-      - Verification: sanity markup still passes; pinch-zoom works.
-- [ ] `src/app.js` — tapping the date header returns to "Today" when paged forward
+      - Fixed: `switchTab` now also toggles `tab-btn-active` + `aria-selected` on
+        `#bottom-tab-bar .tab-btn` (deep links / `startFishing` / `stopFishing`
+        all call `switchTab`, so the bar always follows). Verified headless.
+      - Verification: sanity `switchTab` behavior; headless test (markup has
+        `role="tablist"` + `aria-selected`; switchTab syncs the bar).
+- [x] `index.html` — drop `user-scalable=no` / `maximum-scale=1.0` (restore pinch zoom).
+      - Verification: viewport is now `width=device-width, initial-scale=1.0`; sanity markup passes.
+- [x] `src/app.js` — tapping the date header returns to "Today" when paged forward
       (reset `activeDateOffset=0`); truncate overflowing station name with CSS.
       - Potential bugs: date text click must not conflict with prev/next buttons.
-- [ ] `src/styles.css` — bottom-bar styles (fixed, safe-area inset), station-name
+      - Fixed: `#date-nav-text` became a `<button onclick="resetToToday()">` with its
+        own tap target (prev/next are separate buttons); `resetToToday()` no-ops at 0.
+        `#active-station-name` gets `max-width + text-overflow: ellipsis`.
+      - Verification: headless — resetToToday resets offset + re-renders, no-op at Today.
+- [x] `src/styles.css` — bottom-bar styles (fixed, safe-area inset), station-name
       ellipsis, date-tap cursor.
+      - Verification: `.bottom-tab-bar` fixed + `env(safe-area-inset-bottom)`; body
+        padding-bottom bumped; sanity green 28/28.
+- [x] `sw.js` — cache bumped to `v2.00.7` (html/styles/app changed).
 
 ## Commit 2.1f — Conditions grid: 9 pills (carried over B + C)
 

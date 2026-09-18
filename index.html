@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#1a1a1a">
 <meta name="description" content="Live water report, fishing window scoring and a deterministic Gear Sim for the Puyallup, White, Carbon, Green and Nisqually rivers.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -74,9 +74,9 @@
     <div id="date-reg-header" class="date-reg-header">
         <button class="date-nav-btn date-nav-prev" id="btn-prev-date" onclick="stepDate(-1)" aria-label="Previous day">&lt;</button>
 
-        <!-- 1. Date Text -->
+        <!-- 1. Date Text (tap to return to Today when paged forward) -->
         <div class="date-nav-center">
-            <span id="date-nav-text" class="date-nav-text">Loading date...</span>
+            <button type="button" id="date-nav-text" class="date-nav-text" onclick="resetToToday()" aria-label="Reset to today" title="Tap to return to today">Loading date...</button>
             <span id="date-today-badge" class="date-today-badge" style="display:none;">(Today)</span>
         </div>
 
@@ -267,6 +267,13 @@
 </div>
 
 <div id="debug-console"></div>
+
+<!-- PERSISTENT BOTTOM TAB BAR (Water Report / Gear Sim / Catch Log) -->
+<nav id="bottom-tab-bar" class="bottom-tab-bar" role="tablist" aria-label="Primary navigation">
+    <button type="button" role="tab" id="tab-btn-water-report" class="tab-btn tab-btn-active" aria-selected="true" onclick="switchTab('tab-water-report')">Water Report</button>
+    <button type="button" role="tab" id="tab-btn-gear-sim" class="tab-btn" aria-selected="false" onclick="switchTab('tab-gear-sim')">Gear Sim</button>
+    <button type="button" role="tab" id="tab-btn-catch-log" class="tab-btn" aria-selected="false" onclick="switchTab('tab-catch-log')">Catch Log</button>
+</nav>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="src/utils/regulations.js"></script>

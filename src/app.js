@@ -469,15 +469,19 @@ function updateActiveDateUI() {
         if (sStr) activeStation = JSON.parse(sStr);
     } catch(e) {}
     var riverId = activeStation ? activeStation.id : "12101500";
+    var riverName = (activeStation && activeStation.name) ? activeStation.name : 'Puyallup River';
     var gpsCoords = (activeStation && activeStation.isGps) ? { lat: activeStation.lat, lon: activeStation.lon } : (window.userGPSCoords || null);
 
     // 3. Dynamic Regulations Engine Evaluation
     if (typeof checkRiverStatus === 'function') {
-        var reg = checkRiverStatus(d, riverId, gpsCoords);
+        // New engine signature: checkRiverStatus(date, gpsCoords, activeRiverName) -> ruled by src/utils/regulations.js.
+        var reg = checkRiverStatus(d, gpsCoords, riverName);
         var pill = document.getElementById('river-status-pill');
         if (pill) {
-            pill.innerText = reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED';
-            pill.className = 'reg-status-pill ' + (reg.isOpen ? 'status-pill-open' : 'status-pill-closed');
+            var reasonText = (reg && reg.reason) ? (' — ' + String(reg.reason)) : '';
+            pill.innerText = (reg && reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED') + reasonText;
+            pill.className = 'reg-status-pill ' + (reg && reg.isOpen ? 'status-pill-open' : 'status-pill-closed');
+            pill.title = (reg && reg.ruleDetail) ? String(reg.ruleDetail) : 'WDFW regulation status for ' + riverName;
         }
     }
 
@@ -789,7 +793,7 @@ function getGPS() {
             var coords = pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
             document.getElementById('log-gps').value = coords;
             window.userGPSCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            logDebug("GPS Lock: " + coords, "SYS");
+            logDebug("GPS Lock acquired (coordinates written to the private catch form)", "SYS");
             updateActiveDateUI();
         }, function(err){
             document.getElementById('log-gps').value = "Denied";
@@ -1183,10 +1187,18 @@ async function loadDatabase() {
         var r = normalizeFeedRow(rows[i]);
         if (!r) continue;
         var tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + (r.name || '--') + '</td>' +
-            '<td>' + formatCatchTime(r.time) + '</td>' +
-            '<td>' + ((r.flow !== undefined && r.flow !== null) ? r.flow : '--') + '</td>' +
-            '<td>' + (r.spc || '--') + '</td>';
+        var tdName = document.createElement('td');
+        tdName.textContent = (r.name !== undefined && r.name !== null && r.name !== '') ? String(r.name) : '--';
+        var tdTime = document.createElement('td');
+        tdTime.textContent = formatCatchTime(r.time);
+        var tdFlow = document.createElement('td');
+        tdFlow.textContent = (r.flow !== undefined && r.flow !== null) ? String(r.flow) : '--';
+        var tdSpc = document.createElement('td');
+        tdSpc.textContent = (r.spc !== undefined && r.spc !== null && r.spc !== '') ? String(r.spc) : '--';
+        tr.appendChild(tdName);
+        tr.appendChild(tdTime);
+        tr.appendChild(tdFlow);
+        tr.appendChild(tdSpc);
         tbody.appendChild(tr);
         rendered++;
     }
@@ -1483,108 +1495,95 @@ function fallbackStation() {
 
 function useGPS() {
     var status = document.getElementById('gps-status');
-    status.innerText = "Capturing device coordinates...";
-    
+    status.innerText = "Waiting for GPS (grant the location prompt)...";
     if (!navigator.geolocation) {
-        status.innerText = "❌ Geolocation not supported. Falling back.";
+        status.innerText = "Geolocation not supported. Falling back.";
         setTimeout(fallbackStation, 1500);
         return;
     }
-
+    var settled = false;
+    var watchdog = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        status.innerText = "GPS took too long. Falling back.";
+        logDebug("GPS location timed out - falling back to default station", "ERR");
+        fallbackStation();
+    }, 15000);
     navigator.geolocation.getCurrentPosition(async function(pos) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(watchdog);
         var lat = pos.coords.latitude;
         var lon = pos.coords.longitude;
-        status.innerText = `📍 Captured: ${lat.toFixed(4)}, ${lon.toFixed(4)}. Searching USGS...`;
-        
-        // Build a bounding box (approx 20-30 miles is ~0.4 degrees)
-        var latDiff = 0.4;
-        var lonDiff = 0.4;
-        var minLat = lat - latDiff;
-        var maxLat = lat + latDiff;
-        var minLon = lon - lonDiff;
-        var maxLon = lon + lonDiff;
-        var bBox = `${minLon.toFixed(5)},${minLat.toFixed(5)},${maxLon.toFixed(5)},${maxLat.toFixed(5)}`;
-        
-        // ParameterCd=00060 (Discharge) or 00065 (Gage height)
-        var url = `https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=${bBox}&parameterCd=00060,00065&siteStatus=all`;
+        status.innerText = "Captured position. Searching nearby USGS gauges...";
+        var latDiff = 0.4, lonDiff = 0.4;
+        var minLat = lat - latDiff, maxLat = lat + latDiff;
+        var minLon = lon - lonDiff, maxLon = lon + lonDiff;
+        var bBox = minLon.toFixed(5) + ',' + minLat.toFixed(5) + ',' + maxLon.toFixed(5) + ',' + maxLat.toFixed(5);
+        var url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&bBox=' + bBox + '&parameterCd=00060,00065&siteStatus=all';
         logDebug("Querying USGS GPS Box: " + bBox, "NET");
-        
+        var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var fetchTimer = setTimeout(function () { if (controller) controller.abort(); }, 10000);
         try {
-            var response = await fetch(url, { cache: "no-store" });
+            var response = await fetch(url, { cache: "no-store", signal: controller ? controller.signal : undefined });
             var data = await response.json();
             var timeSeries = data.value.timeSeries;
             if (!timeSeries || timeSeries.length === 0) {
-                status.innerText = "❌ No active USGS stations found in range. Falling back.";
+                status.innerText = "No USGS stations found in range. Falling back.";
                 setTimeout(fallbackStation, 2000);
                 return;
             }
-            
-            // Group by site and calculate distance
             var stationsMap = {};
             timeSeries.forEach(function(ts) {
                 var sCode = ts.sourceInfo.siteCode[0].value;
                 var sName = ts.sourceInfo.siteName;
                 var sLoc = ts.sourceInfo.geoLocation.geogLocation;
-                var sLat = sLoc.latitude;
-                var sLon = sLoc.longitude;
+                var sLat = sLoc.latitude, sLon = sLoc.longitude;
                 var paramCode = ts.variable.variableCode[0].value;
-                
                 try {
                     var valuesBlock = ts.values[0].value;
                     if (!valuesBlock || valuesBlock.length === 0) return;
-                    
-                    var latestEntry = valuesBlock[0];
+                    var latestEntry = valuesBlock[valuesBlock.length - 1];
                     var latestValStr = latestEntry.value;
                     var latestDtStr = latestEntry.dateTime;
-                    
-                    // 1. Numerical Value Check
                     var latestVal = parseFloat(latestValStr);
-                    if (isNaN(latestVal)) return; // Discards null, empty, "Seasonal", "Ice", "Discontinued" etc.
-                    
-                    // 2. 24-Hour Freshness Check
+                    if (isNaN(latestVal)) return;
                     var readingTime = new Date(latestDtStr).getTime();
                     var ageMs = Date.now() - readingTime;
-                    if (ageMs > 24 * 3600 * 1000) return; // Discards readings older than 24 hours
-                    
+                    if (ageMs > 24 * 3600 * 1000) return;
                     if (paramCode === "00060" || paramCode === "00065") {
                         if (!stationsMap[sCode]) {
                             var dist = calcDistance(lat, lon, sLat, sLon);
-                            stationsMap[sCode] = {
-                                id: sCode,
-                                name: sName,
-                                lat: sLat,
-                                lon: sLon,
-                                distance: dist
-                            };
+                            stationsMap[sCode] = { id: sCode, name: sName, lat: sLat, lon: sLon, distance: dist };
                         }
                     }
                 } catch(err) {}
             });
-            
-            // Sort by distance and pick closest
             var stationsList = Object.values(stationsMap);
             stationsList.sort(function(a, b) { return a.distance - b.distance; });
-            
             if (stationsList.length > 0) {
                 var closest = stationsList[0];
-                status.innerText = `📍 Found: ${closest.name} (${closest.distance.toFixed(1)} mi)`;
-                setTimeout(function() {
-                    selectPreset(closest.id, closest.lat, closest.lon, closest.name, true);
-                }, 1500);
+                status.innerText = "Found: " + closest.name + " (" + closest.distance.toFixed(1) + " mi)";
+                setTimeout(function() { selectPreset(closest.id, closest.lat, closest.lon, closest.name, true); }, 1500);
             } else {
-                status.innerText = "❌ No active gauge stations in range. Falling back.";
+                status.innerText = "No active gauge stations in range. Falling back.";
                 setTimeout(fallbackStation, 2000);
             }
         } catch(e) {
-            status.innerText = "❌ USGS API Error. Falling back.";
+            status.innerText = "USGS search failed. Falling back.";
             logDebug("USGS GPS box error: " + e.message, "ERR");
             setTimeout(fallbackStation, 2000);
+        } finally {
+            clearTimeout(fetchTimer);
         }
     }, function(err) {
-        status.innerText = "❌ GPS Access Denied. Falling back.";
-        logDebug("Geolocation error: " + err.message, "ERR");
+        if (settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        status.innerText = (err && err.code === 3) ? "GPS timed out. Falling back." : "GPS Access Denied. Falling back.";
+        logDebug("Geolocation error: " + (err ? err.message : "unknown"), "ERR");
         setTimeout(fallbackStation, 1500);
-    });
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 });
 }
 
 async function searchStation() {

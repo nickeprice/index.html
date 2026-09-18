@@ -18,9 +18,12 @@ async function fetchCFSMomentum(siteId) {
         const readings = (series && series[0] && series[0].values && series[0].values[0]) ? series[0].values[0].value : null;
         if (!readings || readings.length < 2) return;
 
-        // 4-hour delta: latest reading minus oldest reading in the PT4H window.
-        const oldest = parseFloat(readings[0].value);
-        const latest = parseFloat(readings[readings.length - 1].value);
+        // Sort chronologically so the 4-hour delta never depends on USGS return order.
+        const sorted = readings.slice().sort(function (a, b) {
+            return new Date(a.dateTime) - new Date(b.dateTime);
+        });
+        const oldest = parseFloat(sorted[0].value);
+        const latest = parseFloat(sorted[sorted.length - 1].value);
         if (isNaN(oldest) || isNaN(latest)) return;
         const delta = latest - oldest;
 
@@ -292,9 +295,12 @@ function buildEscapementSection(siteId) {
     for (var s = 0; s < rec.stocks.length; s++) {
         var st = rec.stocks[s];
         var badge = escWowBadge(st.wow);
+        var speciesName = String(st.name || 'Stock').replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
         html += '<div class="esc-card">' +
                 '<div class="esc-card-hdr">' +
-                  '<span class="esc-species">' + st.name + '</span>' +
+                  '<span class="esc-species">' + speciesName + '</span>' +
                   '<span class="esc-trend" style="color:' + badge.color + ';">' + badge.text + '</span>' +
                 '</div>' +
                 '<div class="esc-row"><span class="esc-row-lbl">Total Return</span><span class="esc-row-val">' + escNum(st.totalReturn) + '</span></div>' +

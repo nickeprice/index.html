@@ -19,7 +19,7 @@ create extension if not exists "pgcrypto";
 -- ----------------------------------------------------------------------------
 create table if not exists public.catches (
     id                uuid                     not null default gen_random_uuid(),
-    user_id           uuid                     not null,
+    user_id           uuid                     not null default auth.uid(),
     created_at        timestamptz              not null default timezone('utc', now()),
     species           text                     not null,
     hook_location     text,

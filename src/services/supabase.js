@@ -148,6 +148,7 @@ function toCatchRow(payload) {
         }
     }
     return {
+        user_id: (payload.user_id !== undefined && payload.user_id !== null) ? payload.user_id : undefined,
         angler_name: payload.name,
         catch_time: t.toISOString(),
         flow: payload.flow,

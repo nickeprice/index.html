@@ -54,54 +54,22 @@ async function fetchCFSMomentum(siteId) {
     }
 }
 
-// Proxy water-temp map: active river gauge ID -> trusted USGS temp-proxy gauge ID.
-// Most discharge gauges do not report water temperature (00010), so we borrow it from
-// a nearby spring-fed gauge in the same basin. Gauges absent from this map render "--".
-const waterTempProxies = {
-    '12101500': '12102078', // Puyallup River at Puyallup -> Clarks Creek (spring-fed)
-    '12093500': '12102078'  // Puyallup River near Orting -> Clarks Creek (spring-fed)
-};
-
-function setWaterTempPlaceholder() {
-    window.waterTempF = null;   // Gear Sim falls back to the baseline zone when temp is unknown
-    document.querySelectorAll('.water-temp').forEach(function(el) {
-        el.innerText = '--';
+// Own-gauge water temp + turbidity. Locked decision: query ONLY the active
+// station's OWN USGS gauge (00010 temp, 63680 turbidity) via the water-report
+// API payload — no proxy, no cross-gauge fallback, no guessing. When the
+// station does not report them, both stay hidden entirely (the card renders
+// only the fields that carry a value).
+function applyOwnGaugeWaterQuality(waterTempF, turbidityFnu) {
+    var hasTemp = (waterTempF !== undefined && waterTempF !== null && !isNaN(waterTempF));
+    window.waterTempF = hasTemp ? Number(waterTempF) : null;   // Gear Sim falls back to the baseline zone when temp is unknown
+    document.querySelectorAll('.water-temp').forEach(function (el) {
+        el.innerText = hasTemp ? Math.round(Number(waterTempF)) : '--';
     });
-}
-
-// Resolve the active river's proxy gauge, then pull 00010 (water temp) for it.
-// Rivers with no mapping fall back to "--" without throwing.
-async function fetchProxyWaterTemp(activeSiteId) {
-    var proxyId = activeSiteId ? waterTempProxies[String(activeSiteId)] : null;
-
-    if (!proxyId) {
-        logDebug("No water temp proxy for " + (activeSiteId || 'unknown') + " — showing --", "NET");
-        setWaterTempPlaceholder();
-        return;
-    }
-
-    try {
-        const url = 'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=' + proxyId + '&parameterCd=00010&siteStatus=all';
-        const response = await fetch(url);
-        const data = await response.json();
-        const series = data && data.value ? data.value.timeSeries : null;
-        const readings = (series && series[0] && series[0].values && series[0].values[0]) ? series[0].values[0].value : null;
-        const celsius = (readings && readings.length > 0) ? parseFloat(readings[0].value) : NaN;
-
-        if (isNaN(celsius)) {
-            throw new Error("Invalid water temp from proxy " + proxyId);
-        }
-
-        const fahrenheit = Math.round((celsius * 9/5) + 32);
-        window.waterTempF = fahrenheit;   // consumed by the Gear Sim strike-zone engine
-        document.querySelectorAll('.water-temp').forEach(function(el) {
-            el.innerText = fahrenheit;
-        });
-        logDebug("Water temp proxy " + proxyId + " -> " + fahrenheit + "F", "NET");
-    } catch(e) {
-        logDebug("Proxy water temp error: " + e.message, "ERR");
-        setWaterTempPlaceholder();
-    }
+    document.querySelectorAll('.turbidity-val').forEach(function (el) {
+        el.innerText = (turbidityFnu !== undefined && turbidityFnu !== null && !isNaN(turbidityFnu))
+            ? Number(turbidityFnu).toFixed(1)
+            : '--';
+    });
 }
 
 // 16-point compass label for a wind bearing in degrees (e.g. 225 -> "SW")

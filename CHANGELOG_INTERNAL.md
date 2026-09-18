@@ -64,3 +64,14 @@ Puyallup River at Puyallup, WA (1.0 mi)" selected the gauge. USGS NWIS bbox rema
 flaky upstream; the curated-sites endpoint is the robust path.
 - Key files: `api/water_report.py`, `src/app.js`, `sw.js`, `scripts/dev_server.py`,
   `sanity_pass.js`.
+
+## 2026-09-18 — Phase G: UI/UX polish (water report, header, regulations, merged catch log)
+Own-gauge-only water temp/turbidity (00010/63680, no proxy map), tide curve beside
+tide pills, species calendar beside escapement, uniform tide boxes, CFS trend
+restored, station modal only from centered button, plain OPEN/CLOSED reg pill, and
+merged My Catches + Brag Board into one list with a yours/everyone toggle (logging
+decoupled from the Gear Sim). Deleted 3 live DB test rows via idempotent migration.
+- Key files: `api/water_report.py`, `src/app.js`, `src/services/water.js`,
+  `src/styles.css`, `index.html`, `sw.js`, `sanity_pass.js`,
+  `supabase/migrations/20260918000100_delete_test_rows.sql`.
+

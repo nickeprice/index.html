@@ -92,6 +92,27 @@ function staticIntegrity() {
   scripts.length && scripts[scripts.length - 1].includes('app.js')
     ? ok('script load order ends with app.js', scripts.join(' → '))
     : fail('script load order ends with app.js', scripts.join(' → '));
+
+  // Catch Log merge: ONE list with a yours/everyone toggle (private rows keep edit/delete)
+  const merged = html.includes('id="catch-log-table"') && html.includes('id="catch-log-body"') &&
+    html.includes('id="scope-yours"') && html.includes('id="scope-everyone"') &&
+    html.includes('onclick="setCatchScope');
+  merged ? ok('catch log merged into one list + yours/everyone toggle', 'catch-log-body + scope buttons')
+    : fail('catch log merged into one list + yours/everyone toggle', '');
+  (!html.includes('id="my-catches-table"') && !html.includes('id="db-table"'))
+    ? ok('split My Catches / Brag Board tables removed', 'single merged table only')
+    : fail('split My Catches / Brag Board tables removed', 'stale tables found');
+
+  // Header: station opens the modal only from a centered <button> (no full-width flex:1 div)
+  /<button id="station-header"/.test(html)
+    ? ok('station header is a centered button', 'no full-width click target')
+    : fail('station header is a centered button', 'expected <button id="station-header">');
+
+  // Water temp/turbidity: ONLY the active station's own gauge — proxy map must be gone
+  const waterSrc = fs.readFileSync(path.join(ROOT, 'src', 'services', 'water.js'), 'utf8');
+  (!waterSrc.includes('waterTempProxies') && !waterSrc.includes('fetchProxyWaterTemp'))
+    ? ok('no cross-gauge water-temp proxy in water.js', 'own-gauge payload only')
+    : fail('no cross-gauge water-temp proxy in water.js', 'proxy remnants found');
 }
 
 // HTTP and API checks
@@ -120,6 +141,11 @@ async function httpChecks() {
     (reports.length === 4 && day0.tide_curve && day0.species_calendar)
       ? ok('API returns 4 report days with tide_curve + species_calendar', `days=${reports.length}`)
       : fail('API returns 4 report days with tide_curve + species_calendar', `days=${reports.length}`);
+    // Own-gauge water quality: the report exposes water_temp_f + turbidity_fnu
+    // (may be null when the station doesn't report them — the UI hides then).
+    ('water_temp_f' in day0 && 'turbidity_fnu' in day0)
+      ? ok('API exposes own-gauge water_temp_f + turbidity_fnu', `temp=${day0.water_temp_f} turb=${day0.turbidity_fnu}`)
+      : fail('API exposes own-gauge water_temp_f + turbidity_fnu', 'missing keys in report');
   }
 
   // /api/nearby_stations — the server-side USGS lookup for the GPS flow.
@@ -148,7 +174,7 @@ function behaviorChecks(done) {
         className: '', classList: {
           add: (c) => { (classes[id] = classes[id] || new Set()).add(c); },
           remove: (c) => { if (classes[id]) classes[id].delete(c); },
-          toggle: (c) => { (classes[id] = classes[id] || new Set()).has(c) ? classes[id].delete(c) : classes[id].add(c); },
+          toggle: (c, force) => { (classes[id] = classes[id] || new Set()); force === undefined ? (classes[id].has(c) ? classes[id].delete(c) : classes[id].add(c)) : (force ? classes[id].add(c) : classes[id].delete(c)); },
           has: (c) => !!(classes[id] && classes[id].has(c))
         },
         setAttribute: () => {}, appendChild: () => {}, removeChild: () => {},
@@ -189,12 +215,20 @@ function behaviorChecks(done) {
     }
     return depth === 0 ? src.slice(idx, end) : null;
   }
-  const need = ['debounce', 'showToast', 'toggleMenu', 'switchTab', 'applyTabDeepLink', 'renderWaterReportEmptyState'];
+  const need = ['debounce', 'showToast', 'toggleMenu', 'switchTab', 'applyTabDeepLink', 'renderWaterReportEmptyState', 'setCatchScope'];
   let code = '';
   // Bring in the top-level var showToast depends on
   {
     const m = src.match(/var TOAST_KIND_CLASS = \{[\s\S]*?\};/);
     if (m) code += m[0] + '\n';
+  // CATCH_SCOPE state + stubs for the renderers setCatchScope invokes
+  {
+    const m = src.match(/var CATCH_SCOPE = 'yours';/);
+    if (m) code += m[0] + '\n';
+    code += 'function renderMyCatches() { return Promise.resolve(); }\n';
+    code += 'function loadDatabase() { return Promise.resolve(); }\n';
+  }
+
   }
   for (const n of need) {
     const e = extract(n);
@@ -238,6 +272,26 @@ function behaviorChecks(done) {
     (box.innerHTML.indexOf('No river data') !== -1 && box.innerHTML.indexOf('empty-state') !== -1)
       ? ok('water report empty state renders', 'empty-state + title')
       : fail('water report empty state renders', box.innerHTML);
+
+    // --- catch log yours/everyone toggle ---
+    setCatchScope('yours');
+    const yoursActive = elements['scope-yours'].classList.has('scope-active');
+    const headYours = elements['catch-log-head'].innerHTML.indexOf('Species') !== -1;
+    setCatchScope('everyone');
+    const everyoneActive = elements['scope-everyone'].classList.has('scope-active');
+    const headEveryone = elements['catch-log-head'].innerHTML.indexOf('Name') !== -1;
+    (yoursActive && everyoneActive && headYours && headEveryone)
+      ? ok('catch log yours/everyone toggle switches scope + headers', 'yours→Species, everyone→Name')
+      : fail('catch log yours/everyone toggle switches scope + headers', '');
+
+    // --- logData decoupled from the Gear Sim ---
+    // logData() must not bail when currentStats is null (no runSim required).
+    const logFn = src.slice(src.indexOf('async function logData()'));
+    const logEnd = logFn.indexOf('\n}\n') + 3;
+    const logBody = logFn.slice(0, logEnd);
+    !/if \(!currentStats\) return;/.test(logBody)
+      ? ok('logData works without runSim (no currentStats gate)', 'form-driven logging')
+      : fail('logData works without runSim (no currentStats gate)', 'still gated on currentStats');
 
     finish(done);
   }, 80);

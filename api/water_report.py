@@ -28,10 +28,16 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
     if not site_id or site_id == "12096500":
         site_id = USGS_SITE
 
-    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065&siteStatus=all"
+    # Query ONLY the active station's own gauge. Discharge (00060) + gage height
+    # (00065) are always requested; water temp (00010) and turbidity (63680) are
+    # included on the same single call so the payload either carries the station's
+    # own readings or nothing at all — never a proxy/cross-gauge substitute.
+    url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites={site_id}&parameterCd=00060,00065,00010,63680&siteStatus=all"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     default_name = "Puyallup River at Puyallup, WA" if site_id == USGS_SITE else f"USGS Station {site_id}"
-    data_dict = {"site_name": default_name, "cfs": None, "gage": None, "is_active": False, "updated_time": "Updated: Telemetry Offline", "api_offline": True}
+    data_dict = {"site_name": default_name, "cfs": None, "gage": None,
+                 "water_temp_f": None, "turbidity_fnu": None,
+                 "is_active": False, "updated_time": "Updated: Telemetry Offline", "api_offline": True}
     try:
         with urllib.request.urlopen(req, timeout=8, context=SSL_CONTEXT) as response:
             try:
@@ -63,6 +69,8 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
             latest_dt_str = ""
             latest_cfs_time = None
             latest_gage_time = None
+            latest_temp_time = None
+            latest_turb_time = None
 
             for ts in time_series:
                 param_code = ts['variable']['variableCode'][0]['value']
@@ -105,6 +113,17 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
                             if latest_gage_time is None or reading_dt >= latest_gage_time:
                                 latest_gage_time = reading_dt
                                 data_dict["gage"] = val
+                        elif param_code == "00010":
+                            # Water temperature (deg C) from the ACTIVE station's OWN gauge.
+                            # Convert to Fahrenheit exactly once; absent -> None (hidden by UI).
+                            if latest_temp_time is None or reading_dt >= latest_temp_time:
+                                latest_temp_time = reading_dt
+                                data_dict["water_temp_f"] = round((val * 9.0 / 5.0) + 32.0, 1)
+                        elif param_code == "63680":
+                            # Turbidity (FNU) from the ACTIVE station's OWN gauge.
+                            if latest_turb_time is None or reading_dt >= latest_turb_time:
+                                latest_turb_time = reading_dt
+                                data_dict["turbidity_fnu"] = round(val, 1)
                 except:
                     continue
 
@@ -593,6 +612,7 @@ class handler(BaseHTTPRequestHandler):
                 "id": f"day-{i}",
                 "title": dt.strftime('%A, %b %d'), "tag": "TODAY" if i == 0 else "TOMORROW" if i == 1 else dt.strftime('%A').upper(),
                 "peak": peak_potential, "cfs": int(round(usgs_data["cfs"])) if usgs_data["cfs"] is not None else None, "gage": round(usgs_data["gage"], 2) if usgs_data["gage"] is not None else None,
+                "water_temp_f": usgs_data.get("water_temp_f"), "turbidity_fnu": usgs_data.get("turbidity_fnu"),
                 "flow_idx": flow_index,
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
                 "lunar_icon": lunar_icon, "cloud_pct": cloud_pct,

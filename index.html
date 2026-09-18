@@ -19,10 +19,10 @@
 <!-- NAVIGATION -->
 <div id="top-nav">
     <button class="nav-btn" onclick="toggleMenu()" aria-label="Open navigation menu" aria-expanded="false" aria-controls="menu-drawer">☰</button>
-    <div id="station-header" onclick="openStationModal()">
+    <button id="station-header" onclick="openStationModal()" aria-haspopup="dialog" aria-label="Select river station">
         <span id="active-station-name" style="font-weight: 800; color: #fff; font-size: 14px;">PUYALLUP RIVER AT PUYALLUP, WA</span>
         <span id="active-station-badge" class="station-badge badge-manual">📌 USGS: 12101500</span>
-    </div>
+    </button>
     <span style="width: 20px;"></span> <!-- spacer -->
 </div>
 
@@ -246,28 +246,21 @@
             <div class="col"><label for="hook-loc">Hook Location</label><select id="hook-loc"><option value="Fair" selected>Mouth (Fair)</option><option value="Foul (Belly)">Belly (Foul)</option><option value="Foul (Back)">Back (Foul)</option><option value="Foul (Tail)">Tail (Foul)</option></select></div>
         </div>
         
-        <button class="btn-main" id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
+        <button class="btn-main" id="btn-log" onclick="logData()">LOG CATCH DATA</button>
 
-        <h2>My Catches</h2>
-        <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Your private catch log — only you can see it. Edit or delete from here.</p>
-        <div class="table-wrapper" id="my-catches-wrap">
-            <table id="my-catches-table">
-                <thead>
+        <h2 class="purple-heading">Catch Log</h2>
+        <div class="catch-scope-toggle" role="group" aria-label="Catch log view">
+            <button type="button" id="scope-yours" class="scope-btn scope-active" onclick="setCatchScope('yours')">Yours</button>
+            <button type="button" id="scope-everyone" class="scope-btn" onclick="setCatchScope('everyone')">Everyone</button>
+        </div>
+        <p id="catch-scope-note" style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Your private catch log — only you can see it. Edit or delete from here.</p>
+
+        <div class="table-wrapper" id="catch-log-wrap" style="display:block;">
+            <table id="catch-log-table">
+                <thead id="catch-log-head">
                     <tr><th>Species</th><th>Time</th><th>Flow</th><th>Score</th><th></th></tr>
                 </thead>
-                <tbody id="my-catches-body"></tbody>
-            </table>
-        </div>
-
-        <h2>Brag Board</h2>
-        <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.</p>
-        
-        <div class="table-wrapper">
-            <table id="db-table">
-                <thead>
-                    <tr><th>Name</th><th>Time</th><th>Flow</th><th>Fish</th></tr>
-                </thead>
-                <tbody id="db-body"></tbody>
+                <tbody id="catch-log-body"></tbody>
             </table>
         </div>
     </div>

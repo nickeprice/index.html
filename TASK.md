@@ -188,3 +188,58 @@ Verification:
       earlier `20260917000200` env-columns migration was already live).
 
 
+
+# Phase G — UI/UX polish pass (2026-09-18)
+
+- [x] `api/water_report.py` — water temp + turbidity now come from the ACTIVE
+      station's OWN USGS gauge only (params 00010 / 63680 on the same single
+      telemetry call). Exposed as `water_temp_f` / `turbidity_fnu` per report
+      day. No proxy, no cross-gauge fallback, no guessing.
+      - Potential bugs: the `has_fresh_discharge_or_gage` gate stays on 00060/00065,
+        so a station that reports temp but no discharge won't mark active; the
+        freshness check (<=24h) applies to all four params identically.
+      - Verification: live `/api/water_report` on 12113000 returns `turbidity_fnu=2.3`,
+        on 12115000 returns `water_temp_f=50.4`; 12101500 returns nulls (hidden UI).
+- [x] `src/services/water.js` — removed `waterTempProxies`, `fetchProxyWaterTemp`,
+      `setWaterTempPlaceholder`. Added `applyOwnGaugeWaterQuality(tempF, turbFnu)`
+      which syncs `window.waterTempF` (Gear Sim) and paints `.water-temp` /
+      `.turbidity-val` from the report payload.
+      - Verification: `grep` shows no proxy remnants; sanity check passes.
+- [x] `src/app.js` — water report card layout polish:
+      - Tide curve SVG moved INSIDE the tide panel beside the pills
+        (`formatTideRow(tideStr, tideCurve)`); orphaned `[ TIDE CURVE ]` section removed.
+      - Species run calendar moved beside the hatchery escapement in a shared
+        `.run-grid` (stacked mobile / side-by-side at >=900px).
+      - Water temp + turbidity render in the "CFS & Gauge Height" telemetry area
+        only when the own gauge reports them; hidden entirely otherwise.
+      - CFS trend badge (↑ Rising / ↓ Dropping / Stable) restored inline after CFS.
+      - Verification: `node _validate_card.js` (tide pills + curve + quality blocks),
+        dev-server API pass, `node --check`.
+- [x] `src/app.js` + `index.html` + `src/styles.css` — header: station selector is now
+      a centered `<button id="station-header">` (removed the full-width `flex:1`
+      click target) so tapping empty header space does not open the modal.
+      - Verification: sanity check `station header is a centered button`.
+- [x] `src/app.js` + `index.html` + `src/styles.css` — regulations pill reverted to
+      plain "● RIVER OPEN" / "● RIVER CLOSED" (removed the `reason` suffix and the
+      zone-detail block under it). `reg-detail` is now always cleared.
+      - Verification: `updateActiveDateUI` only sets the pill innerText + title.
+- [x] `index.html` + `src/app.js` + `src/styles.css` — catch log merged: "My Catches" +
+      "Brag Board" are now ONE list (`catch-log-table`) with a "yours / everyone"
+      toggle (`setCatchScope`). Private rows keep Edit/Delete; public scope shows
+      Name/Time/Flow/Fish. Logging is decoupled from the Gear Sim (no `runSim`
+      gate; form-driven payload with optional sim geometry).
+      - Verification: sanity checks `catch log merged`, `toggle switches scope +
+        headers`, `logData works without runSim`.
+- [x] `sw.js` — bumped cache to `v2.00.4` so phones pick up the new bundle.
+- [x] `sanity_pass.js` — added 11 new checks (merged table markup, no split tables,
+      centered station button, no water-temp proxy, own-gauge API keys, scope
+      toggle behavior, logData decoupling). Full pass: 26/26 green earlier in
+      session; the only intermittent failure is the LIVE USGS `/api/nearby_stations`
+      upstream (code path untouched, passed when USGS is up).
+- [x] Phase 5 DB cleanup — `supabase/migrations/20260918000100_delete_test_rows.sql`
+      (idempotent, exact PKs) removed the two `2026-09-18T03:17Z` rows and the
+      `2026-09-18T04:29Z` row; KEPT the `2026-09-17T13:30Z` row.
+      - Verification: live query returns exactly 1 row (`141d8fbf…`,
+        2026-09-17T13:30Z, Nick/Coho/984/5).
+
+

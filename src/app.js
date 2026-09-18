@@ -169,7 +169,8 @@ function applyAuthState(signedIn, name) {
         if (!signedIn) {
             btnLog.innerText = 'SIGN IN TO LOG CATCHES';
             btnLog.className = 'btn-main locked';
-        } else if (currentStats) {
+        } else {
+            // Logging is decoupled from the Gear Sim: no runSim() required.
             btnLog.innerText = 'LOG CATCH DATA';
             btnLog.className = 'btn-main ready';
         }
@@ -207,7 +208,7 @@ async function startFishing() {
     applyAuthState(true, res.name || name);
     if (res.offline) logDebug('Local-only guest session (Supabase unreachable)', 'AUTH');
     syncPendingCatches();
-    if (typeof renderMyCatches === 'function') renderMyCatches();
+    if (typeof setCatchScope === 'function') setCatchScope(CATCH_SCOPE);
     switchTab('tab-gear-sim');
 }
 
@@ -216,8 +217,7 @@ async function stopFishing() {
     setFieldValue('auth-name', '');
     currentStats = null;
     applyAuthState(false, '');
-    loadDatabase();
-    if (typeof renderMyCatches === 'function') renderMyCatches();
+    if (typeof setCatchScope === 'function') setCatchScope(CATCH_SCOPE);
     switchTab('tab-catch-log');
 }
 
@@ -372,9 +372,15 @@ function getFMIColor(score) {
     }
 }
 
-function formatTideRow(tideStr) {
+function formatTideRow(tideStr, tideCurve) {
     if (!tideStr || tideStr.indexOf('Syncing') !== -1) {
-        return '<div class="env-tide-row"><span class="tide-empty">' + (tideStr || 'Tide Data Syncing...') + '</span></div>';
+        // Keep the curve beside the pills so there is never an orphaned
+        // "TIDE CURVE" section anywhere else on the card.
+        var curveHtml = tideCurveSvg(tideCurve);
+        return '<div class="env-tide-row">' +
+            '<span class="tide-empty">' + (tideStr || 'Tide Data Syncing...') + '</span>' +
+            (curveHtml ? '<div class="tide-curve-wrap">' + curveHtml + '</div>' : '') +
+            '</div>';
     }
     var items = tideStr.split(' | ');
     var html = '<div class="env-tide-row">';
@@ -394,7 +400,9 @@ function formatTideRow(tideStr) {
             html += '<div class="tide-pill"><span class="tide-time" style="color: #64d2ff;">' + item + '</span></div>';
         }
     }
-    html += '</div>';
+    // The tide curve rides inside the same panel, right beside the pills.
+    html += '<div class="tide-curve-wrap">' + tideCurveSvg(tideCurve) + '</div>' +
+        '</div>';
     return html;
 }
 
@@ -528,31 +536,15 @@ function updateActiveDateUI() {
         var reg = checkRiverStatus(d, gpsCoords, riverName);
         var pill = document.getElementById('river-status-pill');
         if (pill) {
-            var reasonText = (reg && reg.reason) ? (' — ' + String(reg.reason)) : '';
-            pill.innerText = (reg && reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED') + reasonText;
+            // Plain pill: just OPEN / CLOSED. No reason or zone-detail text on the
+            // pill itself — the title attr keeps the full rule detail for assistive tech.
+            pill.innerText = (reg && reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED');
             pill.className = 'reg-status-pill ' + (reg && reg.isOpen ? 'status-pill-open' : 'status-pill-closed');
             pill.title = (reg && reg.ruleDetail) ? String(reg.ruleDetail) : 'WDFW regulation status for ' + riverName;
         }
         var regDetail = document.getElementById('reg-detail');
         if (regDetail) {
-            var detailBits = [];
-            if (reg && reg.zone && reg.zone.zone_name) detailBits.push(String(reg.zone.zone_name));
-            if (reg && reg.openSeasons && reg.openSeasons.length) {
-                var spSet = [];
-                for (var oi = 0; oi < reg.openSeasons.length; oi++) {
-                    if (reg.openSeasons[oi] && reg.openSeasons[oi].species) spSet.push(String(reg.openSeasons[oi].species));
-                }
-                var spList = Array.from(new Set(spSet)).join(', ');
-                if (spList) detailBits.push('Open: ' + spList);
-            }
-            if (reg && reg.ruleDetail) detailBits.push(String(reg.ruleDetail));
             regDetail.innerHTML = '';
-            for (var di = 0; di < detailBits.length; di++) {
-                var span = document.createElement('div');
-                if (di === 0) span.className = 'reg-zone';
-                span.textContent = detailBits[di];
-                regDetail.appendChild(span);
-            }
         }
     }
 
@@ -710,6 +702,19 @@ async function loadWaterReport() {
 
             var cfsVal = (rep.cfs !== null && rep.cfs !== undefined) ? Number(rep.cfs).toLocaleString('en-US') + ' CFS' : '-- CFS';
             var gageVal = (rep.gage !== null && rep.gage !== undefined) ? rep.gage.toFixed(2) + ' ft Gauge Height' : '-- ft Gauge Height';
+            // Own-gauge water quality (locked: active station's OWN USGS 00010 /
+            // 63680 only — never a proxy). Rendered ONLY when the station reports
+            // them; otherwise the whole block is omitted so nothing fake shows.
+            var hasWaterTemp = (rep.water_temp_f !== undefined && rep.water_temp_f !== null && !isNaN(rep.water_temp_f));
+            var hasTurbidity = (rep.turbidity_fnu !== undefined && rep.turbidity_fnu !== null && !isNaN(rep.turbidity_fnu));
+            var waterQualityHtml = '';
+            if (hasWaterTemp || hasTurbidity) {
+                waterQualityHtml = '<div class="telemetry-qualities">' +
+                    (hasWaterTemp ? '<span class="telemetry-quality"><span class="water-temp">' + Math.round(Number(rep.water_temp_f)) + '</span>°F H₂O</span>' : '') +
+                    (hasWaterTemp && hasTurbidity ? '<span class="telemetry-sep">&bull;</span>' : '') +
+                    (hasTurbidity ? '<span class="telemetry-quality">Turbidity <span class="turbidity-val">' + Number(rep.turbidity_fnu).toFixed(1) + '</span> FNU</span>' : '') +
+                '</div>';
+            }
             // Distinguish USGS network outages (data_dict api_offline) from a truly seasonal station
             // so a 503 / timeout no longer renders as "seasonal / not reporting".
             var seasonalWarn = '';
@@ -727,10 +732,11 @@ async function loadWaterReport() {
                 '<div class="env-telemetry-row">' +
                   '<div class="telemetry-main">' +
                     '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">&bull;</span><span class="gage-val">' + gageVal + '</span></span>' +
+                    waterQualityHtml +
                   '</div>' +
                   '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                 '</div>' +
-                formatTideRow(rep.tide_chart) +
+                formatTideRow(rep.tide_chart, rep.tide_curve) +
                 '<div class="env-weather-solunar">' +
                   '<div class="env-stat-grid">' +
                     // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, CLOUD COVER
@@ -746,10 +752,10 @@ async function loadWaterReport() {
                       '<div class="env-badge-val">' + rep.cloud_pct + '%</div>' +
                       '<div class="env-badge-lbl">Cloud Cover</div>' +
                     '</div>' +
-                    // Row 2 (Tactical): TEMPERATURE, WIND, SOLUNAR
+                    // Row 2 (Tactical): AIR TEMP, WIND, SOLUNAR (water temp now lives in the telemetry area)
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="air-temp">--</span>° Air &middot; <span class="water-temp">--</span>° H₂O</div>' +
-                      '<div class="env-badge-lbl">Temperature</div>' +
+                      '<div class="env-badge-val"><span class="air-temp">--</span>° Air</div>' +
+                      '<div class="env-badge-lbl">Air Temp</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val"><span class="wind-val">' + (rep.wind || '-- mph') + '</span></div>' +
@@ -771,17 +777,27 @@ async function loadWaterReport() {
                   '</div>' +
                 '</div>' +
                 
-                // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid)
-                escapementHtml +
-
-                // 5c. TIDE CURVE + SPECIES RUN CALENDAR
-                '<div class="sec-hdr">[ TIDE CURVE ]</div>' + tideCurveSvg(rep.tide_curve) +
-                buildSpeciesCalendarHtml(rep.species_calendar) +
+                // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid),
+                // with the species run calendar riding beside it in the same panel.
+                '<div class="run-grid">' +
+                  escapementHtml +
+                  buildSpeciesCalendarHtml(rep.species_calendar) +
+                '</div>' +
 
                 // 6. LEGAL HOURS TIMELINE
                 '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
         }
         document.getElementById('water-report-cards').innerHTML = cardsHtml;
+        // Paint the own-gauge water temp/turbidity into the telemetry area
+        // (already server-rendered in the card HTML) and sync window.waterTempF
+        // for the Gear Sim.
+        var firstRep = reports[0];
+        if (typeof applyOwnGaugeWaterQuality === 'function') {
+            applyOwnGaugeWaterQuality(
+                (firstRep && firstRep.water_temp_f !== undefined) ? firstRep.water_temp_f : null,
+                (firstRep && firstRep.turbidity_fnu !== undefined) ? firstRep.turbidity_fnu : null
+            );
+        }
         // An empty payload would otherwise leave the tab as a blank black screen.
         if (!reports || reports.length === 0) {
             renderWaterReportEmptyState(
@@ -798,15 +814,15 @@ async function loadWaterReport() {
         // Phase 2: refresh escapement figures from the live Socrata feed (graceful -- on failure)
         refreshEscapement(actId || station.id);
 
-        // Live telemetry: four fully independent reads (USGS CFS momentum, USGS
-        // proxy water temp, Open-Meteo surface conditions). Each already swallows
-        // its own errors, so they run concurrently and repaint as they land.
+        // Live telemetry: two independent reads (USGS CFS momentum, Open-Meteo
+        // surface conditions). Water temp + turbidity no longer need their own
+        // call — they ride in the water-report payload from the active station's
+        // OWN gauge (00010 / 63680) and are painted straight from the card HTML.
         Promise.all([
             fetchCFSMomentum(actId || station.id),
-            fetchProxyWaterTemp(actId || station.id),
             fetchWeatherConditions(station.lat, station.lon)
         ]).then(function () {
-            logDebug('Telemetry batch settled (CFS, water temp, weather)', 'NET');
+            logDebug('Telemetry batch settled (CFS momentum, weather)', 'NET');
         });
     } catch(e) {
         logDebug("API Error: " + e.message, "ERR");
@@ -825,7 +841,6 @@ async function loadWaterReport() {
             );
         }
         Promise.all([
-            fetchProxyWaterTemp(station.id),
             fetchWeatherConditions(station.lat, station.lon)
         ]);
     }
@@ -1295,11 +1310,45 @@ function bestZoneRig(zone, bottomVelocity, lbTest, ldMat, mlLb, mlMat, foamKey, 
     return best;
 }
 
-    // Brag Board renderer: public columns only (Name / Time / Flow / Fish). Reads the
-// Supabase view first and falls back to the local buffer when offline or unconfigured.
+    // Catch Log renderer — merged single list with a "yours / everyone" toggle.
+// The ONE list shows either the signed-in angler's private rows (with Edit/Delete)
+// or the public board (Name / Time / Flow / Fish). The active scope is tracked in
+// CATCH_SCOPE so sign-in/sign-out and new logs re-render the right side.
+var CATCH_SCOPE = 'yours';   // 'yours' | 'everyone'
+
+function setCatchScope(scope) {
+    CATCH_SCOPE = (scope === 'everyone') ? 'everyone' : 'yours';
+    var yoursBtn = document.getElementById('scope-yours');
+    var everyoneBtn = document.getElementById('scope-everyone');
+    var note = document.getElementById('catch-scope-note');
+    if (yoursBtn) yoursBtn.classList.toggle('scope-active', CATCH_SCOPE === 'yours');
+    if (everyoneBtn) everyoneBtn.classList.toggle('scope-active', CATCH_SCOPE === 'everyone');
+    if (note) {
+        note.textContent = (CATCH_SCOPE === 'yours')
+            ? 'Your private catch log — only you can see it. Edit or delete from here.'
+            : 'Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.';
+    }
+    // Swap the table headers to match the active scope, then render.
+    var head = document.getElementById('catch-log-head');
+    if (head) {
+        head.innerHTML = (CATCH_SCOPE === 'yours')
+            ? '<tr><th>Species</th><th>Time</th><th>Flow</th><th>Score</th><th></th></tr>'
+            : '<tr><th>Name</th><th>Time</th><th>Flow</th><th>Fish</th></tr>';
+    }
+    if (CATCH_SCOPE === 'yours') {
+        if (typeof renderMyCatches === 'function') renderMyCatches();
+    } else {
+        loadDatabase();
+    }
+}
+
+// Public board renderer (the "everyone" scope of the merged list): only
+// Name / Time / Flow / Fish. Reads the Supabase view first and falls back to
+// the local buffer when offline or unconfigured.
 async function loadDatabase() {
-    var tbody = document.getElementById('db-body');
-    if (tbody) tbody.innerHTML = '';
+    var tbody = document.getElementById('catch-log-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
     var rows = [];
     var fromCloud = false;
@@ -1344,10 +1393,10 @@ async function loadDatabase() {
     if (rendered === 0) {
         var empty = document.createElement('tr');
         empty.innerHTML = '<td colspan="4" class="empty-state">' +
-            '<div class="empty-state-icon">🎣</div>' +
+            '<div class="empty-state-icon">\ud83c\udfa3</div>' +
             '<div class="empty-state-title">No catches on the board yet</div>' +
             '<div class="empty-state-hint">' + (fromCloud
-                ? 'Be the first to post — run the Gear Sim, then FEED DATA.'
+                ? 'Be the first to post — log a catch from the form above and it lands here.'
                 : 'You are offline or signed out, so this shows your local log only. Sign in to sync to the public board.') +
             '</div>' +
             '</td>';
@@ -1355,25 +1404,27 @@ async function loadDatabase() {
     }
 
     if (typeof refreshZonePreview === 'function') refreshZonePreview();
-    logDebug('Brag board: ' + rendered + ' row(s) ' + (fromCloud ? 'from Supabase' : 'from local buffer'), 'DB');
+    logDebug('Catch log (everyone): ' + rendered + ' row(s) ' + (fromCloud ? 'from Supabase' : 'from local buffer'), 'DB');
 }
 
-// --- MY CATCHES (private log: list, edit, delete) ---
+// --- YOUR CATCHES (private log: list, edit, delete) — the "yours" scope ---
 var _myCatches = [];
 
 async function renderMyCatches() {
-    var wrap = document.getElementById('my-catches-wrap');
-    var tbody = document.getElementById('my-catches-body');
+    var tbody = document.getElementById('catch-log-body');
     if (!tbody) return;
     tbody.innerHTML = '';
 
     // Show an empty/disabled state until a session exists.
     var signedIn = AuthState && AuthState.signedIn;
     if (!signedIn || typeof Supa === 'undefined') {
-        wrap.style.display = 'none';
+        var signInEmpty = document.createElement('tr');
+        signInEmpty.innerHTML = '<td colspan="5" class="empty-state">' +
+            '<div class="empty-state-title">Sign in to see your catches</div>' +
+            '<div class="empty-state-hint">Enter your name above and tap START FISHING, then log your first catch.</div></td>';
+        tbody.appendChild(signInEmpty);
         return;
     }
-    wrap.style.display = 'block';
 
     var rows = null;
     try { rows = await Supa.fetchMyCatches(); } catch (e) { rows = []; }
@@ -1383,7 +1434,7 @@ async function renderMyCatches() {
         var empty = document.createElement('tr');
         empty.innerHTML = '<td colspan="5" class="empty-state">' +
             '<div class="empty-state-title">No logged catches yet</div>' +
-            '<div class="empty-state-hint">Run the Gear Sim, then FEED DATA from the Gear Sim tab.</div></td>';
+            '<div class="empty-state-hint">Fill in the form above and tap LOG CATCH DATA — no Gear Sim needed.</div></td>';
         tbody.appendChild(empty);
         return;
     }
@@ -1649,17 +1700,8 @@ async function runSim() {
     sBar.style.backgroundColor = color;
     sBar.style.width = Math.max(6, (score / 5) * 90) + '%';
 
-    var btnLog = document.getElementById('btn-log');
-    if (!AuthState.signedIn) {
-        btnLog.innerText = 'SIGN IN TO LOG CATCHES';
-        btnLog.className = 'btn-main locked';
-    } else if (blownOut) {
-        btnLog.innerText = 'LOG ANYWAY (FORCE)';
-        btnLog.className = 'btn-main force';
-    } else {
-        btnLog.innerText = 'LOG CATCH DATA';
-        btnLog.className = 'btn-main ready';
-    }
+    // Logging is decoupled from the Gear Sim — the catch-log button keeps its
+    // own label/state (set by applyAuthState) and is never gated on the sim.
 
     var sugBox = document.getElementById('suggestions');
     sugBox.style.display = 'block';
@@ -1681,15 +1723,20 @@ async function logData() {
         showToast('Start a session first: enter your name and tap START FISHING.', 'warn', 5000);
         return;
     }
-    if (!currentStats) return;
-
     var foamRaw = getStr('foam');
     var activeRep = getActiveReport();
+    // Decoupled from the Gear Sim: logging works straight from the form. When a
+    // sim HAS been run we still carry its solved geometry (hook/height/zone) so
+    // logs keep the rich private columns, but nothing here requires runSim().
+    var simFlow = (currentStats && currentStats.flow != null) ? currentStats.flow : null;
+    var liveFlow = getNum('flow') || (activeRep && activeRep.cfs != null ? activeRep.cfs : 0);
+    var flowValue = (simFlow != null) ? simFlow : (liveFlow || 1040);
+    var hookValue = (currentStats && currentStats.hook != null) ? currentStats.hook : (parseFloat(getStr('hook')) || 2);
     var payload = {
         name: AuthState.name || 'Anonymous',
         time: getStr('log-datetime'),
         gps: getStr('log-gps'),
-        flow: currentStats.flow,
+        flow: flowValue,
         spc: getStr('species'),
         loc: getStr('hook-loc'),
         ldLen: getNum('ld-len'),
@@ -1700,7 +1747,7 @@ async function logData() {
         weight: getNum('weight'),
         rodFt: getRodLengthFt(),
         dist: getNum('distance'),
-        hook: currentStats.hook,
+        hook: hookValue,
         yarn: getNum('yarn'),
         foam: foamRaw,
         bdMat: getStr('bd-mat'),
@@ -1713,10 +1760,10 @@ async function logData() {
         windSpeed: (typeof window.currentWindMph !== 'undefined' && window.currentWindMph != null) ? window.currentWindMph : null,
         windDir: (typeof window.currentWindDir !== 'undefined' && window.currentWindDir != null) ? window.currentWindDir : null,
         moon: (activeRep && activeRep.lunar_icon != null) ? activeRep.lunar_icon : null,
-        hgt: Number(currentStats.hgt.toFixed(2)),
-        zoneMin: Number(currentStats.zoneMin.toFixed(2)),
-        zoneMax: Number(currentStats.zoneMax.toFixed(2)),
-        score: Number(currentStats.score.toFixed(2))
+        hgt: (currentStats && currentStats.hgt != null) ? Number(currentStats.hgt.toFixed(2)) : null,
+        zoneMin: (currentStats && currentStats.zoneMin != null) ? Number(currentStats.zoneMin.toFixed(2)) : null,
+        zoneMax: (currentStats && currentStats.zoneMax != null) ? Number(currentStats.zoneMax.toFixed(2)) : null,
+        score: (currentStats && currentStats.score != null) ? Number(currentStats.score.toFixed(2)) : null
     };
 
     // 1. Offline buffer first, so a logged catch is never lost.
@@ -1744,11 +1791,10 @@ async function logData() {
         logDebug('Queued for retry: ' + ((res && res.error) || 'offline'), 'SYNC');
     }
 
-    document.getElementById('btn-log').innerText = 'FEED DATA (RUN SIM FIRST)';
+    document.getElementById('btn-log').innerText = 'LOG CATCH DATA';
     document.getElementById('btn-log').className = 'btn-main';
     currentStats = null;
-    await loadDatabase();
-    if (typeof renderMyCatches === 'function') renderMyCatches();
+    if (typeof setCatchScope === 'function') setCatchScope(CATCH_SCOPE);
     switchTab('tab-catch-log');
 }
 
@@ -2064,7 +2110,6 @@ window.onload = function() {
     registerServiceWorker();
     getGPS();
     initAuth();
-    loadDatabase();
-    if (typeof renderMyCatches === 'function') renderMyCatches();
+    if (typeof setCatchScope === 'function') setCatchScope(CATCH_SCOPE);
     loadWaterReport();
 };

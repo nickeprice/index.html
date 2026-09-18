@@ -85,6 +85,11 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .mini-btn:hover { background-color: #444; }
 .mini-btn-danger { color: var(--accent-red); border-color: #7f1d1d; }
 .mini-btn-danger:hover { background-color: #3a1010; }
+/* Catch Log "yours / everyone" scope toggle — segmented control above the ONE list */
+.catch-scope-toggle { display: flex; gap: 6px; margin: 0 0 8px 0; }
+.scope-btn { flex: 1; min-height: 40px; padding: 0 10px; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-muted); background-color: #151517; border: 1px solid #2c2c2e; border-radius: 8px; cursor: pointer; }
+.scope-btn.scope-active { color: #fff; background-color: var(--bg-panel); border-color: var(--accent-blue); }
+.scope-btn:active { opacity: 0.8; }
 /* Tide curve SVG */
 .tide-svg { width: 100%; height: auto; display: block; margin: 6px 0 10px 0; }
 .tide-line { stroke: #64d2ff; stroke-width: 2; }
@@ -250,17 +255,30 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .telemetry-val { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; white-space: nowrap; }
 .cfs-val, .gage-val { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; color: #ffffff; }
 .telemetry-sep { font-size: 13px; font-weight: 700; color: #64748b; }
-.cfs-trend-badge { font-weight: 700; font-size: 11px; display: inline-block; }
+/* CFS trend badge: restored inline right after the CFS value (Rising/Dropping/Stable). */
+.cfs-trend-badge { font-weight: 700; font-size: 11px; display: inline-block; margin-left: 2px; }
+/* Own-gauge water quality line: temp + turbidity only render when the active
+   station's OWN USGS gauge reports them (never a proxy). */
+.telemetry-qualities { display: inline-flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 2px; font-size: 12px; color: #cbd5e1; }
+.telemetry-quality { font-weight: 600; }
+.telemetry-quality .water-temp, .telemetry-quality .turbidity-val { color: #7dd3fc; font-weight: 700; }
 /* Quiet background timestamp — smaller and muted so it never competes with the data */
 .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
 
 /* 2. Marine / Tide Row */
 .env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 6px; box-sizing: border-box; }
-.tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 8px; padding: 8px 10px; display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; flex: 1 1 calc(50% - 8px); min-width: 130px; box-sizing: border-box; line-height: 1.25; }
+/* Uniform tide boxes on mobile: every pill takes exactly half the row minus the
+   gap, wrapping cleanly. min-width:0 lets short labels shrink instead of forcing
+   an uneven overflow, and flex-grow is capped so a lone pill doesn't stretch. */
+.tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 8px; padding: 8px 6px; display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; flex: 0 1 calc(50% - 8px); box-sizing: border-box; line-height: 1.25; min-width: 0; }
 .tide-type { color: #64d2ff; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
 .tide-time { color: #ffffff; font-weight: 700; font-size: 14px; }
 .tide-level { color: #7dd3fc; font-weight: 600; font-size: 14px; }
 .tide-empty { color: #a1a1aa; font-size: 14px; font-weight: 600; text-align: center; width: 100%; padding: 8px 0; }
+/* The tide curve rides inside the tide panel, full-width below the pills, so
+   there is no orphaned "TIDE CURVE" section anywhere. */
+.tide-curve-wrap { width: 100%; margin-top: 6px; }
+.tide-curve-wrap .tide-svg { margin: 0; }
 
 /* 3. Weather & Moon Conditions */
 .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
@@ -293,6 +311,20 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .esc-row-val { color: #ffffff; font-weight: 700; font-size: 12px; }
 .esc-empty { color: #8e8e93; font-size: 11px; font-weight: 600; text-align: center; padding: 6px 0 2px 0; line-height: 1.35; }
 
+/* Species run calendar sits beside the hatchery escapement in the same panel.
+   Stacked on mobile (escapement first, calendar below); side-by-side on wide. */
+.run-grid { display: flex; flex-direction: column; gap: 0; margin: 4px 0 6px 0; }
+.run-grid .esc-slot, .run-grid .species-cal { min-width: 0; }
+.run-grid .esc-slot { margin: 0; }
+.run-grid .species-cal { margin: 0 0 6px 0; }
+.run-grid .sec-hdr { margin-top: 4px; }
+
+@media (min-width: 900px) {
+    .run-grid { flex-direction: row; gap: 10px; align-items: flex-start; }
+    .run-grid .esc-slot { flex: 1 1 0; }
+    .run-grid .species-cal { flex: 1 1 0; margin: 0; }
+}
+
 @media (min-width: 600px) {
     .tide-pill { flex: 1 1 0; min-width: 0; }
     .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -309,7 +341,11 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .log-entry { border-bottom: 1px solid #333; padding: 4px 0; }
 
 /* STATION SELECTOR */
-#station-header { display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1; text-align: center; }
+/* Centered station BUTTON only — a real <button> that spans just its content,
+   so tapping empty header space no longer opens the modal. The nav stays
+   space-between, which centers it between the hamburger and the spacer. */
+#station-header { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; text-align: center; background: none; border: none; padding: 0 10px; box-sizing: border-box; min-height: 38px; }
+#station-header:active { opacity: 0.7; }
 .station-badge { background-color: #2c2c2e; font-weight: 700; font-size: 9px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-top: 2px; }
 .badge-gps { color: var(--accent-green); border: 1px solid var(--accent-green); }
 .badge-manual { color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }

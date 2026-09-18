@@ -1,0 +1,46 @@
+# Global Operating Rules
+- You are an expert developer. Provide concise, highly optimized, and modern solutions.
+- Never explain basic programming concepts unless explicitly asked.
+- Avoid large file rewrites. Always use targeted `replace_in_file` operations for existing files.
+- If a file exceeds 400 lines, do not rewrite the entire file under any circumstances.
+
+# Workflow: Plan vs. Act Enforcement
+
+### 1. Plan Mode (The Architect)
+- **Goal:** Map out dependencies, logic, and potential pitfalls without altering source code.
+- When asked to plan a feature, bug fix, or refactor:
+  1. Explore only the essential files needed to understand the scope.
+  2. Identify potential bugs, edge cases (e.g., rate-limiting in web scrapers, null inputs), and breaking changes.
+  3. Create or update `TASK.md` in the root directory.
+- **TASK.md Format Requirements:**
+  - Must use checkable markdown boxes (`- [ ]`).
+  - Each task must specify the exact file path.
+  - Each task must list specific **Potential Bugs** and a concrete **Verification Step** (e.g., a specific terminal command or script run).
+- Notify the user when `TASK.md` is complete so they can switch to Act Mode.
+
+### 2. Act Mode (The Executor)
+- **Goal:** Execute `TASK.md` linearly while minimizing token usage and context bloat.
+- When starting or resuming in Act Mode:
+  1. Read `TASK.md` and identify the next unchecked item.
+  2. Read ONLY the specific file required for that single step.
+  3. Write defensive code to handle the "Potential Bugs" listed for that step.
+  4. Run the "Verification Step".
+  5. Upon successful verification, mark the task complete (`- [x]`) in `TASK.md`.
+- Move strictly sequentially. Never jump ahead or touch files outside the current step's scope.
+
+# Guardrails & Safety Limits
+
+### Terminal & Execution Loops
+- NEVER run the same failing terminal command more than twice consecutively.
+- If a command, script, or test fails twice with the same or similar error, STOP.
+- Output a brief summary of the error and explicitly ask the user for guidance to prevent token drain.
+- Do not run blocking foreground processes (like persistent dev servers) directly in the tool window.
+
+### Context Management & Memory
+- To maintain context across session resets, maintain a `CHANGELOG_INTERNAL.md` file.
+- At the conclusion of a major feature or `TASK.md` completion, append a 2-line summary to `CHANGELOG_INTERNAL.md` noting the date, the objective achieved, and the key files altered.
+- When starting a completely new chat session, silently read `CHANGELOG_INTERNAL.md` to restore recent context before asking the user how to proceed.
+
+# Continuous Improvement
+- If the user issues a correction about code style, architecture preferences, or tool usage during a session, pause and ask: *"Would you like me to add this preference to `.clinerules` for future reference?"*
+- If the user agrees, update this `.clinerules` file immediately.

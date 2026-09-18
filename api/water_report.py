@@ -358,12 +358,16 @@ def build_species_calendar(target_date):
                 status_text = "SEASON OVER"
         out.append({
             "species": species,
-            "window_start": start.strftime("%b %d"),
-            "window_end": end.strftime("%b %d"),
-            "peak_date": f"{pm:02d}-{pd:02d}",
+            "window_start": start.strftime("%b %-d"),
+            "window_end": end.strftime("%b %-d"),
+            "peak_date": peak.strftime("%b %-d"),
             "days_until_peak": days_until_peak,
             "position": position,
-            "status_text": status_text
+            "status_text": status_text,
+            # Run-progress bar data (0..1): how far "today" is across the window,
+            # and where the peak sits — the client draws these without parsing text.
+            "progress": round(max(0.0, min(1.0, (target_date - start).days / float(max(1, (end - start).days)))), 3),
+            "peak_frac": round(max(0.0, min(1.0, (peak - start).days / float(max(1, (end - start).days)))), 3)
         })
     return out
 
@@ -601,7 +605,12 @@ class handler(BaseHTTPRequestHandler):
             
             tide_strs = [f"{'High' if ext['type'] == 'H' else 'Low'}: {ext['dt'].strftime('%-I:%M %p')} ({ext['height']:.1f} ft)" for ext in day_extremes]
             tide_chart_str = " | ".join(tide_strs) if tide_strs else "Tide Data Syncing..."
-            tide_curve = [{"t": ext["dt"].strftime("%H:%M"), "h": round(ext["height"], 2), "type": ext["type"]} for ext in day_extremes]
+            tide_curve = [{"t": ext["dt"].strftime("%-I:%M %p"), "h": round(ext["height"], 2), "type": ext["type"]} for ext in day_extremes]
+            # Real hourly NOAA tide curve for THIS day (all_tides_curve is already
+            # fetched at 1-hour resolution) — lets the chart draw a true smooth
+            # area curve instead of a 4-point zigzag. Times are 12-hour display.
+            tide_points = [{"t": pt["dt"].strftime("%-I:%M %p"), "h": round(pt["height"], 2)}
+                           for pt in all_tides_curve if pt["dt"].date() == dt.date()]
 
             species_calendar = build_species_calendar(dt)
 
@@ -622,6 +631,7 @@ class handler(BaseHTTPRequestHandler):
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
                 "push_status": push_status, "tide_chart": tide_chart_str, "tide_curve": tide_curve,
+                "tide_points": tide_points,
                 "species_calendar": species_calendar, "windows": timeline_windows, "is_netting": is_netting_day,
                 "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"], "api_offline": bool(usgs_data.get("api_offline", False)),
                 "site_name": usgs_data["site_name"], "site_id": site

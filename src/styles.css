@@ -90,25 +90,39 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .scope-btn { flex: 1; min-height: 40px; padding: 0 10px; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; color: var(--text-muted); background-color: #151517; border: 1px solid #2c2c2e; border-radius: 8px; cursor: pointer; }
 .scope-btn.scope-active { color: #fff; background-color: var(--bg-panel); border-color: var(--accent-blue); }
 .scope-btn:active { opacity: 0.8; }
-/* Tide curve SVG */
-.tide-svg { width: 100%; height: auto; display: block; margin: 6px 0 10px 0; }
-.tide-line { stroke: #64d2ff; stroke-width: 2; }
-.tide-dot { fill: #64d2ff; }
-.tide-svg-label { fill: var(--text-muted); font-size: 9px; }
-/* Species run calendar */
-.species-cal { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 10px 0; }
-.species-cal-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background-color: var(--bg-panel); border-left: 3px solid #444; font-size: 0.75rem; flex-wrap: wrap; }
-.species-cal-row .spc-name { font-weight: 700; color: var(--text-main); }
-.species-cal-row .spc-window { color: var(--text-muted); }
-.species-cal-row .spc-status { font-weight: 600; }
-.spc-peak { border-left-color: var(--accent-green); }
-.spc-peak .spc-status { color: var(--accent-green); }
-.spc-pre { border-left-color: var(--accent-yellow); }
-.spc-pre .spc-status { color: var(--accent-yellow); }
-.spc-post { border-left-color: #f59e0b; }
-.spc-post .spc-status { color: #f59e0b; }
-.spc-off { border-left-color: #666; }
-.spc-off .spc-status { color: var(--text-muted); }
+/* Tide area chart (real hourly curve) */
+.tide-svg { width: 100%; height: auto; display: block; margin: 4px 0 6px 0; }
+.tide-area { fill: url(#tide-grad); }
+.tide-line { stroke: #64d2ff; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tide-baseline { stroke: #2c2c2e; stroke-width: 1; }
+.tide-ext-dot { fill: #64d2ff; }
+.tide-ext-label { fill: #cbd5e1; font-size: 10px; }
+/* Species run calendar — one clean CARD per stock: status pill + progress bar */
+.species-cal { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 10px 0; }
+.run-card { background-color: #151517; border: 1px solid #2c2c2e; border-radius: 10px; padding: 10px 12px; box-sizing: border-box; }
+.run-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.run-card-hdr .spc-name { font-weight: 800; color: var(--text-main); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.4px; }
+.run-status-pill { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 9999px; border: 1px solid #444; color: var(--text-muted); background-color: #1e1e1e; white-space: nowrap; }
+/* Run-window progress track: filled to today, with a peak tick */
+.run-track { position: relative; height: 8px; border-radius: 9999px; background-color: #26262a; overflow: visible; }
+.run-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9999px; background-color: #4ade80; opacity: 0.85; }
+.run-peak { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; background-color: #facc15; transform: translateX(-1.5px); }
+.run-track-lbl { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.62rem; color: var(--text-muted); }
+.run-lbl-peak { color: #facc15; font-weight: 700; }
+.run-footer { margin-top: 6px; font-size: 0.66rem; color: var(--text-main); border-top: 1px solid #26262a; padding-top: 6px; }
+/* Status colors drive both the pill and a subtle left accent on the card */
+.spc-peak { border-left: 3px solid var(--accent-green); }
+.spc-peak .run-status-pill { color: var(--accent-green); border-color: var(--accent-green); }
+.spc-peak .run-fill { background-color: var(--accent-green); }
+.spc-pre { border-left: 3px solid var(--accent-yellow); }
+.spc-pre .run-status-pill { color: var(--accent-yellow); border-color: var(--accent-yellow); }
+.spc-pre .run-fill { background-color: var(--accent-yellow); }
+.spc-post { border-left: 3px solid #f59e0b; }
+.spc-post .run-status-pill { color: #f59e0b; border-color: #f59e0b; }
+.spc-post .run-fill { background-color: #f59e0b; }
+.spc-off { border-left: 3px solid #555; }
+.spc-off .run-status-pill { color: var(--text-muted); border-color: #555; }
+.spc-off .run-fill { background-color: #555; }
 .foul-hook { color: var(--accent-red); }
 
 /* WATER REPORT EXACT STYLING */
@@ -266,18 +280,18 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .telemetry-updated { color: #94a3b8; font-size: 10px; font-weight: 500; }
 
 /* 2. Marine / Tide Row */
-.env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-wrap: wrap; align-items: stretch; justify-content: space-between; gap: 8px; margin-bottom: 6px; box-sizing: border-box; }
-/* Uniform tide boxes on mobile: every pill takes exactly half the row minus the
-   gap, wrapping cleanly. min-width:0 lets short labels shrink instead of forcing
-   an uneven overflow, and flex-grow is capped so a lone pill doesn't stretch. */
-.tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 8px; padding: 8px 6px; display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; flex: 0 1 calc(50% - 8px); box-sizing: border-box; line-height: 1.25; min-width: 0; }
-.tide-type { color: #64d2ff; font-weight: 800; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
-.tide-time { color: #ffffff; font-weight: 700; font-size: 14px; }
-.tide-level { color: #7dd3fc; font-weight: 600; font-size: 14px; }
+.env-tide-row { background-color: #121212; border: 1px solid #27272a; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; box-sizing: border-box; }
+/* Uniform 4-up event boxes on mobile (2 highs + 2 lows) — every box identical,
+   no ragged wrapping. Falls to 2-up only if a day has more events. */
+.tide-pills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.tide-pill { background-color: #1e1e1e; border: 1px solid #38383a; border-radius: 8px; padding: 7px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; box-sizing: border-box; line-height: 1.2; min-width: 0; text-align: center; }
+.tide-type { color: #64d2ff; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.tide-time { color: #ffffff; font-weight: 700; font-size: 12px; }
+.tide-level { color: #7dd3fc; font-weight: 600; font-size: 11px; }
 .tide-empty { color: #a1a1aa; font-size: 14px; font-weight: 600; text-align: center; width: 100%; padding: 8px 0; }
 /* The tide curve rides inside the tide panel, full-width below the pills, so
    there is no orphaned "TIDE CURVE" section anywhere. */
-.tide-curve-wrap { width: 100%; margin-top: 6px; }
+.tide-curve-wrap { width: 100%; }
 .tide-curve-wrap .tide-svg { margin: 0; }
 
 /* 3. Weather & Moon Conditions */
@@ -326,7 +340,6 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 }
 
 @media (min-width: 600px) {
-    .tide-pill { flex: 1 1 0; min-width: 0; }
     .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .env-badge { padding: 8px 6px; }
     .esc-card { padding: 8px 6px; }

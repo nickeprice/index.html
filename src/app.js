@@ -372,18 +372,28 @@ function getFMIColor(score) {
     }
 }
 
-function formatTideRow(tideStr, tideCurve) {
+// Parse a 12-hour display time ("4:15 AM") back into decimal hours for chart
+// x-placement. Falls back to parsing "HH:MM" for defensive compatibility.
+function tideHourOf(label) {
+    var m = String(label || '').trim().match(/^(\d{1,2}):(\d{2})\s*([AP]M)?$/i);
+    if (!m) return 0;
+    var h = parseInt(m[1], 10) % 12;
+    if (/pm/i.test(m[3] || '')) h += 12;
+    return h + parseInt(m[2], 10) / 60;
+}
+
+function formatTideRow(tideStr, tideCurve, tidePoints) {
     if (!tideStr || tideStr.indexOf('Syncing') !== -1) {
         // Keep the curve beside the pills so there is never an orphaned
         // "TIDE CURVE" section anywhere else on the card.
-        var curveHtml = tideCurveSvg(tideCurve);
+        var curveHtml = tideCurveSvg(tidePoints, tideCurve);
         return '<div class="env-tide-row">' +
             '<span class="tide-empty">' + (tideStr || 'Tide Data Syncing...') + '</span>' +
             (curveHtml ? '<div class="tide-curve-wrap">' + curveHtml + '</div>' : '') +
             '</div>';
     }
     var items = tideStr.split(' | ');
-    var html = '<div class="env-tide-row">';
+    var html = '<div class="env-tide-row"><div class="tide-pills">';
     for (var k = 0; k < items.length; k++) {
         var item = items[k].trim();
         var match = item.match(/^(High|Low):\s*([0-9:AMP\s]+)\s*\(([0-9.-]+\s*ft)\)/i);
@@ -400,41 +410,80 @@ function formatTideRow(tideStr, tideCurve) {
             html += '<div class="tide-pill"><span class="tide-time" style="color: #64d2ff;">' + item + '</span></div>';
         }
     }
+    html += '</div>';
     // The tide curve rides inside the same panel, right beside the pills.
-    html += '<div class="tide-curve-wrap">' + tideCurveSvg(tideCurve) + '</div>' +
+    html += '<div class="tide-curve-wrap">' + tideCurveSvg(tidePoints, tideCurve) + '</div>' +
         '</div>';
     return html;
 }
 
-// Compact SVG tide-curve sparkline. Points are the day's tide extremes; the line is
-// a smoothed polyline so an angler can see the rise/fall shape at a glance.
-function tideCurveSvg(points) {
-    if (!points || !points.length) return '';
-    var W = 300, H = 60, pad = 6;
-    var hrs = points.map(function (p) { return parseInt(p.t.split(':')[0], 10) + parseInt(p.t.split(':')[1], 10) / 60; });
-    var hs = points.map(function (p) { return p.h; });
-    var minT = Math.min.apply(null, hrs), maxT = Math.max.apply(null, hrs);
+// Smooth full-height tide area chart. Draws the day's REAL hourly NOAA curve
+// (tidePoints) with light Catmull-Rom smoothing, fills the area under it with a
+// subtle gradient, and labels ONLY the high/low extremes (tideCurve) with dots +
+// compact 12-hour times. Falls back to the old 4-point zigzag if no hourly
+// data arrived (e.g. offline cached payload).
+function tideCurveSvg(points, extremes) {
+    var smooth = points && points.length > 1;
+    var src = smooth ? points : (extremes || []);
+    if (!src || !src.length) return '';
+    var W = 320, H = 96, padX = 12, padY = 18;
+    var hrs = src.map(function (p) { return tideHourOf(p.t); });
+    var hs = src.map(function (p) { return Number(p.h); });
     var minH = Math.min.apply(null, hs), maxH = Math.max.apply(null, hs);
-    var spanT = (maxT - minT) || 1, spanH = (maxH - minH) || 1;
-    var pts = points.map(function (p, i) {
-        var x = pad + ((hrs[i] - minT) / spanT) * (W - 2 * pad);
-        var y = H - pad - ((hs[i] - minH) / spanH) * (H - 2 * pad);
-        return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
-    });
-    var d = 'M' + pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' L');
-    var labels = '';
-    for (var j = 0; j < pts.length; j++) {
-        labels += '<text x="' + pts[j][0] + '" y="' + (pts[j][1] - 4) + '" text-anchor="middle" class="tide-svg-label">' +
-            points[j].t + ' · ' + (points[j].type === 'H' ? 'H' : 'L') + ' ' + points[j].h.toFixed(1) + 'ft</text>';
+    var spanH = (maxH - minH) || 1;
+    // Pad the vertical range so labels don't clip at the top/bottom edges.
+    minH -= spanH * 0.18; maxH += spanH * 0.18; spanH = (maxH - minH) || 1;
+
+    function X(t) { return padX + (t / 23) * (W - 2 * padX); }
+    function Y(h) { return H - padY - ((h - minH) / spanH) * (H - 2 * padY); }
+
+    var lineD;
+    if (smooth) {
+        // Catmull-Rom -> cubic bezier path through every hourly point.
+        var P = src.map(function (p, i) { return { x: X(hrs[i]), y: Y(Number(p.h)) }; });
+        lineD = 'M' + P[0].x.toFixed(1) + ',' + P[0].y.toFixed(1);
+        for (var i = 0; i < P.length - 1; i++) {
+            var p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || p2;
+            lineD += ' C' + (p1.x + (p2.x - p0.x) / 6).toFixed(1) + ',' + (p1.y + (p2.y - p0.y) / 6).toFixed(1) +
+                ' ' + (p2.x - (p3.x - p1.x) / 6).toFixed(1) + ',' + (p2.y - (p3.y - p1.y) / 6).toFixed(1) +
+                ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+        }
+    } else {
+        lineD = 'M' + src.map(function (p, i) { return X(hrs[i]).toFixed(1) + ',' + Y(Number(p.h)).toFixed(1); }).join(' L');
     }
-    return '<svg viewBox="0 0 ' + W + ' ' + (H + 14) + '" class="tide-svg" role="img" aria-label="Tide curve for the day">' +
-        '<polyline points="' + pts.map(function (p) { return p.join(','); }).join(' ') + '" class="tide-line" fill="none" />' +
-        '<circle cx="' + pts[0][0] + '" cy="' + pts[0][1] + '" r="2.5" class="tide-dot" />' +
-        '<circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="2.5" class="tide-dot" />' +
+
+    var areaD = lineD + ' L' + (W - padX).toFixed(1) + ',' + (H - padY).toFixed(1) +
+        ' L' + padX.toFixed(1) + ',' + (H - padY).toFixed(1) + ' Z';
+
+    // Label ONLY the extremes (highs above the dot, lows below) so the labels
+    // never collide into the dense 9px mess the old version had.
+    var labels = '';
+    if (extremes && extremes.length) {
+        for (var j = 0; j < extremes.length; j++) {
+            var e = extremes[j];
+            var cx = X(tideHourOf(e.t)), cy = Y(Number(e.h));
+            var up = (e.type === 'H');
+            labels += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="3.2" class="tide-ext-dot" />' +
+                '<text x="' + cx.toFixed(1) + '" y="' + (up ? cy - 7 : cy + 14).toFixed(1) + '" text-anchor="middle" class="tide-ext-label">' +
+                (e.t || '') + ' · ' + (up ? 'H' : 'L') + ' ' + Number(e.h).toFixed(1) + 'ft</text>';
+        }
+    }
+
+    return '<svg viewBox="0 0 ' + W + ' ' + (H + 8) + '" class="tide-svg" role="img" aria-label="Tide curve for the day">' +
+        '<defs><linearGradient id="tide-grad" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#64d2ff" stop-opacity="0.45"/>' +
+        '<stop offset="1" stop-color="#64d2ff" stop-opacity="0"/>' +
+        '</linearGradient></defs>' +
+        '<path d="' + areaD + '" class="tide-area" />' +
+        '<path d="' + lineD + '" class="tide-line" fill="none" />' +
+        '<line x1="' + padX + '" y1="' + (H - padY).toFixed(1) + '" x2="' + (W - padX) + '" y2="' + (H - padY).toFixed(1) + '" class="tide-baseline" />' +
         labels + '</svg>';
 }
 
-// Per-species run calendar block: one row per modeled stock with window + status.
+// Per-species run calendar block: one CARD per modeled stock with a colored
+// status pill, a horizontal run-progress bar (window start -> end, peak tick,
+// filled to today's progress), and one quiet footer line. No more ragged
+// 3-text-blob rows — each card is a clean, aligned, scannable unit.
 function buildSpeciesCalendarHtml(calendar) {
     if (!calendar || !calendar.length) return '';
     var html = '<div class="sec-hdr">[ SPECIES RUN CALENDAR ]</div><div class="species-cal">';
@@ -444,10 +493,27 @@ function buildSpeciesCalendarHtml(calendar) {
         var peakLine = (s.days_until_peak !== null && s.days_until_peak !== undefined)
             ? ((s.days_until_peak >= 0 ? 'Peak in ' + s.days_until_peak + 'd' : 'Peak was ' + Math.abs(s.days_until_peak) + 'd ago'))
             : '';
-        html += '<div class="species-cal-row ' + statusClass + '">' +
-            '<span class="spc-name">' + s.species + '</span>' +
-            '<span class="spc-window">' + s.window_start + ' – ' + s.window_end + ' · peak ' + s.peak_date + '</span>' +
-            '<span class="spc-status">' + s.status_text + (peakLine ? ' (' + peakLine + ')' : '') + '</span>' +
+        // Progress bar geometry (0..1 fractions from the API; safe defaults if absent).
+        var prog = (typeof s.progress === 'number') ? Math.max(0, Math.min(1, s.progress)) : 0;
+        var peakFrac = (typeof s.peak_frac === 'number') ? Math.max(0, Math.min(1, s.peak_frac)) : 0.5;
+        var fillPct = (prog * 100).toFixed(1);
+        var peakLeft = (peakFrac * 100).toFixed(1);
+
+        html += '<div class="run-card ' + statusClass + '">' +
+            '<div class="run-card-hdr">' +
+                '<span class="spc-name">' + s.species + '</span>' +
+                '<span class="run-status-pill">' + (s.status_text || '') + '</span>' +
+            '</div>' +
+            '<div class="run-track" role="img" aria-label="Run window">' +
+                '<span class="run-fill" style="width:' + fillPct + '%;"></span>' +
+                '<span class="run-peak" style="left:' + peakLeft + '%;"></span>' +
+            '</div>' +
+            '<div class="run-track-lbl">' +
+                '<span class="run-lbl-start">' + (s.window_start || '') + '</span>' +
+                '<span class="run-lbl-peak">Peak ' + (s.peak_date || '') + '</span>' +
+                '<span class="run-lbl-end">' + (s.window_end || '') + '</span>' +
+            '</div>' +
+            (peakLine ? '<div class="run-footer">' + peakLine + '</div>' : '') +
         '</div>';
     }
     html += '</div>';
@@ -736,7 +802,7 @@ async function loadWaterReport() {
                   '</div>' +
                   '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                 '</div>' +
-                formatTideRow(rep.tide_chart, rep.tide_curve) +
+                formatTideRow(rep.tide_chart, rep.tide_curve, rep.tide_points) +
                 '<div class="env-weather-solunar">' +
                   '<div class="env-stat-grid">' +
                     // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, CLOUD COVER

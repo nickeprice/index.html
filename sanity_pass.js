@@ -146,6 +146,16 @@ async function httpChecks() {
     ('water_temp_f' in day0 && 'turbidity_fnu' in day0)
       ? ok('API exposes own-gauge water_temp_f + turbidity_fnu', `temp=${day0.water_temp_f} turb=${day0.turbidity_fnu}`)
       : fail('API exposes own-gauge water_temp_f + turbidity_fnu', 'missing keys in report');
+    // Phase H: the real hourly tide curve (tide_points) with 12-hour times feeds
+    // the smooth area chart; species run cards need progress/peak_frac geometry.
+    const tpts = day0.tide_points || [];
+    (tpts.length > 1 && /([AP]M)$/.test((tpts[0] || {}).t || ''))
+      ? ok('API returns real hourly tide_points with 12-hour times', `${tpts.length} points, e.g. ${(tpts[0] || {}).t}`)
+      : fail('API returns real hourly tide_points with 12-hour times', `points=${tpts.length}`);
+    const firstSpc = (day0.species_calendar || [])[0] || {};
+    (firstSpc.progress !== undefined && firstSpc.peak_frac !== undefined)
+      ? ok('species calendar carries run progress + peak geometry', `progress=${firstSpc.progress} peak_frac=${firstSpc.peak_frac}`)
+      : fail('species calendar carries run progress + peak geometry', 'progress/peak_frac missing');
   }
 
   // /api/nearby_stations — the server-side USGS lookup for the GPS flow.

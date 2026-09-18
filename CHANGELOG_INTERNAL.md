@@ -3,6 +3,15 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.1c done: clarity signal (White River / Mud Mountain Dam)
+`fetch_dam_clarity()` reads USGS DAILY-VALUES (14-day series, 12098500 00060 +
+12098000 62614) and derives an honest `clarity_outlook` — Puyallup sites only
+(live: "Dam releasing (reservoir dropping)" on 12101500, `None` on Green).
+Frontend renders a small `.clarity-badge` pill inline in the telemetry row,
+gated on site_id ∈ Puyallup basin. NOTE: iv feed only returns single/dormant
+records, so dv was the right honest trend source (never fabricates FNU).
+- Key files: `api/water_report.py`, `src/app.js`, `src/styles.css`.
+
 ## 2026-09-18 — Phase 2.1b done: consolidated RUN & TIMING panel
 Merged `[ HATCHERY ESCAPEMENT ]` + `[ SPECIES RUN CALENDAR ]` + `[ LEGAL HOURS
 TIMELINE ]` into ONE `[ RUN & TIMING ]` panel: always-visible MOVEMENT INDEX

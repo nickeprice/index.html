@@ -1,4 +1,4 @@
-## ACTIVE ➤ Commit 2.1c — Clarity signal (White River / Mud Mountain Dam; files: `api/water_report.py`, `src/app.js`). After it: 2.1d forecast scraper → 2.1e app feel → 2.1f 9-pill grid.
+## ACTIVE ➤ Commit 2.1d — WDFW forecast hybrid scraper (`scripts/refresh_wdfw_forecast.py`, NEW). After it: 2.1e app feel → 2.1f 9-pill grid.
 
 # Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
 
@@ -84,17 +84,25 @@
 
 ## Commit 2.1c — Clarity signal (White River / Mud Mountain Dam)
 
-- [ ] `api/water_report.py` — for Puyallup sites ONLY, a 2nd USGS read of
+- [x] `api/water_report.py` — for Puyallup sites ONLY, a 2nd USGS read of
       12098500 (White River near Buckley, 00060 streamflow) + 12098000 (Mud Mountain
       Lake, 00054 storage + 62614 elevation). Derive `clarity_outlook`:
       reservoir ELEVATION DROPPING + White FLOW RISING →
       "Dam releasing → turbidity rising downstream"; stable → "clearing".
       - Potential bugs: ONLY for sites 12101500 / 12093500 / 12094000; null-safe
         elsewhere; never invent an FNU value (AGENTS.md no fabrication).
-      - Verification: confirmed these gauges report those params (00060/00054/62614
-        live); API exposes `clarity_outlook` on Puyallup, absent/null elsewhere.
-- [ ] `src/app.js` — inline `clarity_outlook` as a small badge in the telemetry row,
+      - NOTE: used the USGS DAILY-VALUES (dv) endpoint (14-day series) instead of
+        iv — the iv feed returns only 1 record for these params (White River 00060
+        is currently dormant; Mud Mountain returns a single fresh reading), so a
+        real trend needs the daily series. Honest: single/dormant data → `None`.
+      - Verification: `fetch_dam_clarity()` direct test →
+        `'Dam releasing (reservoir dropping)'` (real 917.47 ft elevation trend);
+        live API on Puyallup 12101500 → that outlook; Green 12113000 → `None`.
+- [x] `src/app.js` — inline `clarity_outlook` as a small badge in the telemetry row,
       Puyallup sites only (NOT a new section).
+      - Verification: badge renders in `.env-telemetry-row` (`.clarity-badge` pill)
+        only when `site_id ∈ {12101500,12093500,12094000}` AND outlook present;
+        sanity green.
 
 ## Commit 2.1d — WDFW forecast hybrid scraper (`scripts/refresh_wdfw_forecast.py`, NEW)
 

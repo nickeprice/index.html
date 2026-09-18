@@ -143,7 +143,80 @@ def fetch_usgs_telemetry(site_id=USGS_SITE):
 
     return data_dict
 
-# Curated Washington river gauges (USGS IDs) for the "Use My GPS" flow.
+def fetch_dam_clarity():
+    """White River / Mud Mountain Dam clarity signal (Puyallup basin only).
+
+    Reads TWO USGS sites via the DAILY-VALUES (dv) endpoint — one value per day
+    gives an honest multi-day TREND, which the instantaneous (iv) feed lacks
+    (it only returns the last few hours, and White River near Buckley 00060 is
+    currently dormant). Parameters:
+      12098500 — White River near Buckley (00060 streamflow, cfs)
+      12098000 — Mud Mountain Lake     (62614 reservoir elevation, ft)
+
+    Derives an honest text outlook from the daily trend, never invents a
+    turbidity/FNU value:
+      elevation dropping + flow rising  -> "Dam releasing -> turbidity rising"
+      elevation dropping (any flow)     -> "Dam releasing (reservoir dropping)"
+      elevation rising                  -> "Reservoir filling (clearing)"
+      stable / no trend data            -> "Clearing / stable"
+      no data at all                    -> None (UI hides the badge)
+
+    Returns a short string or None. Never throws; the caller gates this on
+    Puyallup-basin sites only.
+    """
+    end = datetime.now()
+    start = end - timedelta(days=14)
+    url = ("https://waterservices.usgs.gov/nwis/dv/?format=json"
+           f"&sites=12098500,12098000&parameterCd=00060,62614"
+           f"&startDT={start:%Y-%m-%d}&endDT={end:%Y-%m-%d}")
+    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    try:
+        with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as res:
+            data = json.loads(res.read().decode('utf-8'))
+    except Exception:
+        return None
+
+    # Collect a real daily series per parameter, sorted by date.
+    series = {}
+    for ts in (data.get('value', {}).get('timeSeries', []) or []):
+        code = ts['variable']['variableCode'][0]['value']
+        records = (ts.get('values') or [{}])[0].get('value') or []
+        try:
+            pairs = sorted(
+                ((datetime.fromisoformat(r['dateTime']).date(), float(r['value']))
+                 for r in records
+                 if r.get('value') not in (None, '') and float(r['value']) > -900000),
+                key=lambda p: p[0]
+            )
+        except Exception:
+            continue
+        if pairs:
+            series[code] = pairs
+
+    if not series:
+        return None
+
+    # Compare the most recent reading against the prior available reading (could
+    # be a few days earlier if WDFW/USGS publish laggily — still a real trend).
+    elev_down = flow_up = False
+    if '62614' in series and len(series['62614']) >= 2:
+        prev_e, cur_e = series['62614'][-2][1], series['62614'][-1][1]
+        elev_down = (cur_e < prev_e)
+        elev_rising = (cur_e > prev_e)
+    if '00060' in series and len(series['00060']) >= 2:
+        prev_f, cur_f = series['00060'][-2][1], series['00060'][-1][1]
+        flow_up = (cur_f > prev_f)
+
+    if elev_down and flow_up:
+        return "Dam releasing \u2192 turbidity rising downstream"
+    if elev_down:
+        return "Dam releasing (reservoir dropping)"
+    if '62614' in series and len(series['62614']) >= 2 and elev_rising:
+        return "Reservoir filling (clearing upstream)"
+    return "Clearing / stable"
+
+
+
 # Using sites= (instead of the flaky bBox= query — USGS NWIS bBox often 503s/timeouts
 # while the multi-site list endpoint is fast and reliable) means "nearest" always
 # resolves to a real *river* gauge, not random tributaries/ditches from a bbox.
@@ -524,6 +597,9 @@ class handler(BaseHTTPRequestHandler):
 
         forecast_dates = [now + timedelta(days=d) for d in range(FORECAST_DAYS)]
         usgs_data = fetch_usgs_telemetry(site) 
+        # Clarity signal: only the Puyallup / White / Carbon basin gauges read the
+        # Mud Mountain dam + White River trend (off-basin rivers get None -> UI hides).
+        clarity_outlook = fetch_dam_clarity() if site in NETTING_SITES else None
         met_data = fetch_meteorological_data(req_lat, req_lon)
         all_tides_curve, all_tides_extremes = fetch_noaa_tides_bulletproof(now, FORECAST_DAYS)
 
@@ -640,6 +716,7 @@ class handler(BaseHTTPRequestHandler):
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
                 "net_status": net_status, "angler_desc": angler_desc,
                 "push_status": push_status, "transit_state": transit_state, "transit_time": transit_time,
+                "clarity_outlook": clarity_outlook,
                 "tide_chart": tide_chart_str, "tide_curve": tide_curve,
                 "tide_points": tide_points,
                 "species_calendar": species_calendar, "windows": timeline_windows, "is_netting": is_netting_day,

@@ -862,6 +862,13 @@ async function loadWaterReport() {
                     (hasTurbidity ? '<span class="telemetry-quality">Turbidity <span class="turbidity-val">' + Number(rep.turbidity_fnu).toFixed(1) + '</span> FNU</span>' : '') +
                 '</div>';
             }
+            // Clarity badge: ONLY the Puyallup basin sites report clarity_outlook
+            // (server gates it); render it inline in the telemetry row, small.
+            var isPuyallupSite = (rep.site_id && ['12101500','12093500','12094000'].indexOf(String(rep.site_id)) !== -1);
+            var clarityHtml = '';
+            if (isPuyallupSite && rep.clarity_outlook) {
+                clarityHtml = '<div class="telemetry-qualities"><span class="telemetry-quality clarity-badge">💧 ' + rep.clarity_outlook + '</span></div>';
+            }
             // Distinguish USGS network outages (data_dict api_offline) from a truly seasonal station
             // so a 503 / timeout no longer renders as "seasonal / not reporting".
             var seasonalWarn = '';
@@ -880,6 +887,7 @@ async function loadWaterReport() {
                   '<div class="telemetry-main">' +
                     '<span class="telemetry-val"><span class="cfs-val">' + cfsVal + '</span><span class="telemetry-sep">&bull;</span><span class="gage-val">' + gageVal + '</span></span>' +
                     waterQualityHtml +
+                    clarityHtml +
                   '</div>' +
                   '<div class="telemetry-updated">' + (rep.updated_time || '') + '</div>' +
                 '</div>' +

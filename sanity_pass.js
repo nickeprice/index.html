@@ -22,10 +22,13 @@ const ROOT = path.resolve(__dirname);
 let PORT = 0;   // resolved to a free port in main()
 let failures = [];
 let passes = 0;
+// --quiet: print only failures + the PASSED/FAILED summary (token-lean CI/local use).
+// Default (no flag / --verbose): full per-check listing.
+let QUIET = process.argv.includes('--quiet');
 
-function ok(name, detail) { passes++; console.log(`  ✓ ${name}${detail ? ' — ' + detail : ''}`); }
+function ok(name, detail) { passes++; if (!QUIET) console.log(`  ✓ ${name}${detail ? ' — ' + detail : ''}`); }
 function fail(name, detail) { failures.push(name); console.log(`  ✗ ${name}${detail ? ' — ' + detail : ''}`); }
-function describe(name) { console.log('\n## ' + name); }
+function describe(name) { if (!QUIET) console.log('\n## ' + name); }
 
 // Start the dev server
 function startServer() {
@@ -311,8 +314,10 @@ function behaviorChecks(done) {
 
 // Runner
 async function main() {
-  console.log('Sanity pass — Puyallup River Companion');
-  console.log('======================================');
+  if (!QUIET) {
+    console.log('Sanity pass — Puyallup River Companion');
+    console.log('======================================');
+  }
 
   describe('Syntax');
   try {
@@ -351,7 +356,7 @@ async function main() {
     if (server) stopServer(server);
   }
 
-  console.log('\n======================================');
+  if (!QUIET) console.log('\n======================================');
   console.log(`PASSED ${passes} | FAILED ${failures.length}`);
   if (failures.length) {
     console.log('Failures: ' + failures.join('; '));

@@ -1,77 +1,39 @@
 # Internal Change Log
 
-## 2026-09-17 — Phase B: catch-write fixes, environment enrichment, and feature work
-Fixed the Cheater-rig insert break (dropped `corky_size`, numeric `hook_size`), captured
-gauge/barometer/water-temp/wind/moon into private catch rows, and added My Catches
-(edit/delete), a regulations detail panel, and rig preset persistence.
-- Key files: `src/app.js`, `src/services/supabase.js`, `src/services/water.js`,
-  `src/styles.css`, `index.html`, `supabase/migrations/20260917000200_catch_writes_env_columns.sql`.
+Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
+context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
-## 2026-09-17 — Live DB fully migrated
-Pushed all four migrations to the live Supabase project (pztcfsqifbfkjvosygcy): init_schema,
-normalize_rls, catch_writes_env_columns, and set_user_id_default. Verified live: `user_id`
-now defaults to `auth.uid()` (guest inserts work), `corky_size` dropped, env columns added.
-- Key file: `supabase/migrations/20260917000300_set_user_id_default.sql`.
+## 2026-09-18 — Phase 2.1a done; token-reduction pass applied
+Backend accuracy shipped: real `transit_state`/`transit_time`, netting scoped to
+Puyallup/White/Carbon (`NETTING_SITES`), fake `active_fish` Gaussian deleted,
+`src/data/wdfw_forecasts.json` schema added (+ precache). Then cut full-history
+docs (TASK.md 429->158, CHANGELOG pruned), added `docs/CONTRACT.md`,
+`scripts/check.sh`/`scripts/smoke.sh`, `sanity_pass.js --quiet`, and lean
+`.clinerules`.
+- Key files: `api/water_report.py`, `src/data/wdfw_forecasts.json`, `sw.js`,
+  `TASK.md`, `.clinerules`, `docs/ARCHIVE.md`, `docs/CONTRACT.md`,
+  `scripts/check.sh`, `scripts/smoke.sh`, `sanity_pass.js`, `CHANGELOG_INTERNAL.md`.
 
-## 2026-09-17 — Phase D: tide chart, species run calendar, calibration enrichment
-API now returns `tide_curve` + `species_calendar` per report day; frontend renders a
-compact tide sparkline and per-species run-status rows. Recreated `get_global_calibration`
-with water-temp/wind/moon in the return (drop-then-create to avoid SQLSTATE 42P13) and
-applied to the live project as migration 20260917000400; client maps the new fields.
-- Key files: `api/water_report.py`, `src/app.js`, `src/styles.css`,
-  `src/services/supabase.js`, `supabase/migrations/20260917000400_calibration_env_columns.sql`.
+## 2026-09-18 — Phase 2.1 plan persisted (handoff for a fresh Act chat)
+Approved plan: surface REAL fishing intel, no fabrication. Removed the fake
+`active_fish` Gaussian + cancelled hero line; netting scoped to Puyallup/White;
+consolidate escapement+calendar+windows into one RUN & TIMING panel ("status
+stays, numbers fold" via <details>); add movement index, clarity signal
+(White River/Mud Mountain dam), WDFW forecast hybrid scraper, 9-pill grid, and
+resurrected bottom-nav/pinch-zoom app feel.
+- Key files: `TASK.md`, `.clinerules`, `CHANGELOG_INTERNAL.md`.
 
-## 2026-09-17 — Phase E: environment-matched community sonar
-communitySonar now weights each logged catch by how well its recorded water temp / wind /
-moon match today's live conditions (envMatchWeight: 1.0 exact .. 0.25 poor, legacy rows
-unpenalised at 1.0); computeStrikeZone uses the env-matched sample count for the zone
-pull and reports how many samples matched. Verified with a headless node test.
-- Key file: `src/app.js`.
-
-## 2026-09-18 — Phase F: sanity pass + CI + live verification
-Added `sanity_pass.js` (zero-dependency 18-check runner: syntax, markup/a11y integrity,
-HTTP/API shape, behavior via DOM-stubbed app.js) and `.github/workflows/sanity.yml`
-(push/PR + manual). First CI run passed (run 35306760950, job success). Also fixed a
-real a11y bug the pass caught (station-search input lacked an accessible name).
-Verified live: 3 existing catches prove the user_id default + write fixes work; their
-null env columns are a timing artifact (predate the enrichment commit). GitHub Pages
-not enabled - no deployed stale bundle. Source env wiring verified; a fresh in-app
-catch on the current build should populate env columns.
-- Key files: `sanity_pass.js`, `.github/workflows/sanity.yml`, `index.html`, `README.md`.
-
-## 2026-09-18 — Live end-to-end catch insert verified ✅
-Logged a fresh catch through the current build (guest session + Gear Sim + FEED DATA).
-Live `public.catches` new row: water_temp_f=53, wind_speed_mph=0.5,
-wind_dir_compass=SSE, moon_phase="First Quarter", barometer=29.99, gauge_height=10.18,
-foam text, hook_size integer, sim_score=5. `public_catch_feed` shows it at the top with
-only name/time/flow/fish. Full write path + env enrichment + RLS public read confirmed.
-
-## 2026-09-18 — Real-device GPS fixed and verified (Safari)
-The "Use My GPS" flow failed on iPhone Safari for two reasons: (1) iOS requires HTTPS
-for geolocation, and (2) the browser->USGS direct bbox call hit USGS NWIS flakiness
-(bbox queries 503/timeout). Fixed by:
-- Route the GPS station lookup through a new same-origin `/api/nearby_stations?lat=&lon=`
-  endpoint that queries a curated list of 15 WA river gauges (reliable multi-site USGS
-  endpoint, filtered to fresh <=24h readings, sorted by distance) instead of the flaky
-  bbox query. Better: returns real river gauges, not random creeks.
-- Client retries once if the endpoint returns empty (covers a cold Cloudflare edge).
-- Bumped service-worker cache to v2.00.3 so phones get the new bundle.
-- dev_server.py: added `--host=` option (default 127.0.0.1 unchanged) so LAN/phone
-  testing is possible (`--host=0.0.0.0`).
-- sanity_pass.js: now covers `/api/nearby_stations` (19 checks all green).
-Verified on the phone via Cloudflare HTTPS tunnel: Safari granted location, "Found:
-Puyallup River at Puyallup, WA (1.0 mi)" selected the gauge. USGS NWIS bbox remains
-flaky upstream; the curated-sites endpoint is the robust path.
-- Key files: `api/water_report.py`, `src/app.js`, `sw.js`, `scripts/dev_server.py`,
-  `sanity_pass.js`.
-
-## 2026-09-18 — Phase G: UI/UX polish (water report, header, regulations, merged catch log)
-Own-gauge-only water temp/turbidity (00010/63680, no proxy map), tide curve beside
-tide pills, species calendar beside escapement, uniform tide boxes, CFS trend
-restored, station modal only from centered button, plain OPEN/CLOSED reg pill, and
-merged My Catches + Brag Board into one list with a yours/everyone toggle (logging
-decoupled from the Gear Sim). Deleted 3 live DB test rows via idempotent migration.
+## 2026-09-18 — Phase G–H + real-device GPS shipped
+Phase G: own-gauge water quality, merged My Catches + Brag Board, centered
+station button, plain OPEN/CLOSED reg pill. GPS: Safari HTTPS + reliable
+`/api/nearby_stations` + retry. Phase H: smooth tide area chart + species run
+cards. Sanity pass 29 checks, live env verified.
 - Key files: `api/water_report.py`, `src/app.js`, `src/services/water.js`,
-  `src/styles.css`, `index.html`, `sw.js`, `sanity_pass.js`,
-  `supabase/migrations/20260918000100_delete_test_rows.sql`.
+  `src/styles.css`, `index.html`, `sw.js`, `sanity_pass.js`.
 
+## Archive (older phases, one-liners)
+- 2026-09-17 Phase E: env-matched community sonar weighting — `src/app.js`.
+- 2026-09-17 Phase D: tide chart + species calendar + calibration env RPC — API/app/styles/migration.
+- 2026-09-17 Phase B: catch-write fixes (Cheater rig, hook_size int) + env columns + My Catches.
+- 2026-09-17 Phase A: correctness/safety — unified regs engine, XSS fixes, GPS hygiene.
+- 2026-09-17 Live DB fully migrated (init_schema, normalize_rls, catch_writes, set_user_id_default).

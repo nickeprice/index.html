@@ -480,28 +480,94 @@ function tideCurveSvg(points, extremes) {
         labels + '</svg>';
 }
 
-// Per-species run calendar block: one CARD per modeled stock with a colored
-// status pill, a horizontal run-progress bar (window start -> end, peak tick,
-// filled to today's progress), and one quiet footer line. No more ragged
-// 3-text-blob rows — each card is a clean, aligned, scannable unit.
-function buildSpeciesCalendarHtml(calendar) {
+// Consolidated [ RUN & TIMING ] one-liner: an ALWAYS-visible 0-100 movement
+// index computed from live triggers already fetched, with the WHY folded behind
+// a <details>. Never fabricates: any trigger that is absent/null simply doesn't
+// add points, and the index renders "--" when every source is missing.
+function computeMovementIndex(rep) {
+    var score = 0;
+    var reasons = [];
+    var any = false;
+
+    // Freshet: rain today + falling barometer both push fish.
+    if (rep.rain !== null && rep.rain !== undefined && rep.rain > 0.05) {
+        any = true;
+        score += 12;
+        reasons.push('Rain freshet (' + rep.rain.toFixed(2) + ' in)');
+    }
+    if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta < -0.04) {
+        any = true;
+        score += 10;
+        reasons.push('Pressure drop (' + rep.press_delta.toFixed(2) + ' inHg)');
+    } else if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta > 0.04) {
+        any = true;
+        score -= 6;
+        reasons.push('Pressure rising (lockjaw)');
+    }
+    // Tide arrivals (already computed server-side from the NOAA curve) add push.
+    if (rep.tide_curve && rep.tide_curve.length) {
+        var highs = rep.tide_curve.filter(function (t) { return t.type === 'H'; });
+        if (highs.length) {
+            any = true;
+            score += Math.min(10, highs.length * 5);
+            reasons.push(highs.length + ' high tide' + (highs.length > 1 ? 's' : '') + ' today');
+        }
+    }
+    // Moon: new/full swing.
+    if (rep.lunar_icon && (rep.lunar_icon.indexOf('New') !== -1 || rep.lunar_icon.indexOf('Full') !== -1)) {
+        any = true;
+        score += 5;
+        reasons.push(rep.lunar_icon.replace(/^[^\s]+\s*/, '') + ' swing');
+    }
+    // Transit state is a real modeled "is the water moving" signal.
+    if (rep.transit_state && rep.transit_state !== '--') {
+        any = true;
+        if (rep.transit_state.indexOf('High Velocity') !== -1) { score += 8; reasons.push('High-velocity flow'); }
+        else if (rep.transit_state.indexOf('Bay Staging') !== -1) { score += 4; reasons.push('Bay staging / slow push'); }
+        else if (rep.transit_state.indexOf('CORKED') !== -1) { score -= 25; reasons.push('River corked (nets in)'); }
+    }
+    if (rep.is_netting) { score -= 15; reasons.push('Netting day (Sun/Mon/Tue)'); }
+
+    if (!any) return { value: '--', reasons: ['Live triggers unavailable'] };
+    return { value: Math.max(0, Math.min(100, Math.round(score))), reasons: reasons };
+}
+
+// Per-species run card in the [ RUN & TIMING ] panel: status pill + window
+// progress bar + peak line ALWAYS visible; the raw counts (WDFW forecast /
+// Return / Trap / 5-Yr Avg) fold behind a <details> per card so "status stays,
+// numbers fold". escStocks is the water.js hatchery registry (may be absent => "--").
+function buildSpeciesCalendarHtml(calendar, escStocks) {
     if (!calendar || !calendar.length) return '';
-    var html = '<div class="sec-hdr">[ SPECIES RUN CALENDAR ]</div><div class="species-cal">';
+    var html = '<div class="run-timing-cards">';
     for (var i = 0; i < calendar.length; i++) {
         var s = calendar[i];
         var statusClass = 'spc-' + (s.position || 'off');
         var peakLine = (s.days_until_peak !== null && s.days_until_peak !== undefined)
             ? ((s.days_until_peak >= 0 ? 'Peak in ' + s.days_until_peak + 'd' : 'Peak was ' + Math.abs(s.days_until_peak) + 'd ago'))
             : '';
-        // Progress bar geometry (0..1 fractions from the API; safe defaults if absent).
         var prog = (typeof s.progress === 'number') ? Math.max(0, Math.min(1, s.progress)) : 0;
         var peakFrac = (typeof s.peak_frac === 'number') ? Math.max(0, Math.min(1, s.peak_frac)) : 0.5;
         var fillPct = (prog * 100).toFixed(1);
         var peakLeft = (peakFrac * 100).toFixed(1);
+        // Species-safe key for count folding: match hatchery registry by exact
+        // species name (Chinook/Coho/Pink vs the registry's Chinook/Coho/Jacks).
+        var escKey = String(s.species || '').toLowerCase();
+        var esc = null;
+        if (escStocks && escStocks.stocks) {
+            for (var e = 0; e < escStocks.stocks.length; e++) {
+                if (String(escStocks.stocks[e].name || '').toLowerCase() === escKey) { esc = escStocks.stocks[e]; break; }
+            }
+        }
+        var wdfwForecast = null; // filled by 2.1d from src/data/wdfw_forecasts.json
+        var countVal = function (v) { return (v === null || v === undefined || isNaN(v)) ? '--' : Number(v).toLocaleString('en-US'); };
+        var escName = esc ? esc.name : (s.species || '');
+        var escNameEsc = String(escName).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
 
-        html += '<div class="run-card ' + statusClass + '">' +
+        html += '<div class="run-card ' + statusClass + '" data-species="' + escKey + '">' +
             '<div class="run-card-hdr">' +
-                '<span class="spc-name">' + s.species + '</span>' +
+                '<span class="spc-name">' + escNameEsc + '</span>' +
                 '<span class="run-status-pill">' + (s.status_text || '') + '</span>' +
             '</div>' +
             '<div class="run-track" role="img" aria-label="Run window">' +
@@ -514,6 +580,15 @@ function buildSpeciesCalendarHtml(calendar) {
                 '<span class="run-lbl-end">' + (s.window_end || '') + '</span>' +
             '</div>' +
             (peakLine ? '<div class="run-footer">' + peakLine + '</div>' : '') +
+            '<details class="run-counts">' +
+                '<summary>Counts</summary>' +
+                '<div class="run-counts-grid">' +
+                    '<div class="esc-row"><span class="esc-row-lbl">WDFW forecast</span><span class="esc-row-val" data-count="wdfw">' + countVal(wdfwForecast) + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Return</span><span class="esc-row-val" data-count="return">' + (esc ? countVal(esc.totalReturn) : '--') + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">Trap</span><span class="esc-row-val" data-count="trap">' + (esc ? countVal(esc.trapCount) : '--') + '</span></div>' +
+                    '<div class="esc-row"><span class="esc-row-lbl">5-Yr Avg</span><span class="esc-row-val" data-count="avg">' + (esc ? countVal(esc.fiveYrAvg) : '--') + '</span></div>' +
+                '</div>' +
+            '</details>' +
         '</div>';
     }
     html += '</div>';
@@ -733,8 +808,9 @@ async function loadWaterReport() {
             badge.innerText = (station.isGps ? "📍 GPS: " : "📌 USGS: ") + actId;
         }
         
-        // Phase 2: hatchery escapement block (built once for the active river, injected into the card)
-        var escapementHtml = '<div class="esc-slot" data-site="' + (actId || station.id) + '">' + buildEscapementSection(actId || station.id) + '</div>';
+        // Phase 2: hatchery escapement counts now live INSIDE the merged
+        // [ RUN & TIMING ] per-species cards (see buildSpeciesCalendarHtml);
+        // refreshEscapement fills their count rows async after card render.
 
         var cardsHtml = '';
 
@@ -749,6 +825,11 @@ async function loadWaterReport() {
 
         for(var i=0; i<reports.length; i++) {
             var rep = reports[i];
+            // Movement index + escapement registry for the [ RUN & TIMING ] panel.
+            var movIndex = computeMovementIndex(rep);
+            var escStocks = (typeof hatcheryEscapement !== 'undefined' && hatcheryEscapement[String(actId || station.id)])
+                ? hatcheryEscapement[String(actId || station.id)] : null;
+            var movColor = (movIndex.value === '--') ? 'var(--text-muted)' : (movIndex.value >= 70 ? 'var(--accent-green)' : (movIndex.value >= 40 ? 'var(--accent-yellow)' : '#f59e0b'));
 
             var winHtml = '';
             for(var j=0; j<rep.windows.length; j++) {
@@ -843,15 +924,21 @@ async function loadWaterReport() {
                   '</div>' +
                 '</div>' +
                 
-                // 5b. PHASE 2 HATCHERY ESCAPEMENT (below the 3x2 conditions grid),
-                // with the species run calendar riding beside it in the same panel.
-                '<div class="run-grid">' +
-                  escapementHtml +
-                  buildSpeciesCalendarHtml(rep.species_calendar) +
-                '</div>' +
-
-                // 6. LEGAL HOURS TIMELINE
-                '<div class="sec-hdr">[ LEGAL HOURS TIMELINE ]</div>' + winHtml + '</div></div>';
+                // 5b. ONE [ RUN & TIMING ] panel: movement-index one-liner
+                // (always visible) + per-species run cards (status/progress/
+                // peak visible, counts folded) + the legal-hours windows below.
+                '<div class="run-timing">' +
+                  '<div class="sec-hdr">[ RUN &amp; TIMING ]</div>' +
+                  '<div class="movement-index">' +
+                    '<span class="movement-lbl">Movement Index</span>' +
+                    '<span class="movement-val" style="color:' + movColor + ';">' + movIndex.value + '</span>' +
+                    '<details class="movement-why"><summary>Why</summary><ul class="movement-reasons">' +
+                      movIndex.reasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') +
+                    '</ul></details>' +
+                  '</div>' +
+                  buildSpeciesCalendarHtml(rep.species_calendar, escStocks) +
+                  '<div class="run-windows">' + winHtml + '</div>' +
+                '</div>' + '</div></div>';
         }
         document.getElementById('water-report-cards').innerHTML = cardsHtml;
         // Paint the own-gauge water temp/turbidity into the telemetry area

@@ -1,4 +1,4 @@
-## ACTIVE ➤ Commit 2.1b — Consolidated RUN & TIMING panel (files: `src/app.js`, `src/services/water.js`, `src/styles.css`). After it: 2.1c clarity → 2.1d forecast scraper → 2.1e app feel → 2.1f 9-pill grid.
+## ACTIVE ➤ Commit 2.1c — Clarity signal (White River / Mud Mountain Dam; files: `api/water_report.py`, `src/app.js`). After it: 2.1d forecast scraper → 2.1e app feel → 2.1f 9-pill grid.
 
 # Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
 
@@ -51,32 +51,34 @@
       - Verification: file exists + valid JSON; `python3 -m py_compile`; app loads.
 ## Commit 2.1b — Consolidated RUN & TIMING panel (`src/app.js` + `src/styles.css`)
 
-- [ ] Replace the THREE separate sections
+- [x] Replace the THREE separate sections
       (`[ HATCHERY ESCAPEMENT & RUN MOMENTUM ]` + `[ SPECIES RUN CALENDAR ]` +
       `[ LEGAL HOURS TIMELINE ]`) with ONE `[ RUN & TIMING ]` panel. Species rendered
       ONCE per card. Per-species card = status pill + window progress bar + peak line
       (ALWAYS visible) + counts `WDFW forecast / Return / Trap / 5-Yr Avg` (FOLDED
       behind `<details>/<summary>` per card).
       - CRITICAL: escapement counts load ASYNC via Socrata (`refreshEscapement` in
-        water.js) into a separate `.esc-slot` AFTER card HTML renders; species
-        calendar renders synchronously. Merging means `refreshEscapement` must UPDATE
-        the merged per-species cards (fill count rows by species key), NOT replace a
-        whole section.
+        water.js) AFTER card HTML renders. Merging means `refreshEscapement` fills the
+        merged per-species cards' count cells (`data-species` + `data-count` keys on
+        `.run-card`), NOT replace a whole section. `buildEscapementSection` +
+        `.esc-slot` removed (dead).
       - Potential bugs: species key must match exactly between
-        `buildSpeciesCalendarHtml` (~app.js:487) and `hatcheryEscapement` stocks
-        (~water.js:172); off-track rivers → clean "no tracking" empty state (never
-        blank/crash).
-      - Verification: `node --check`; dev-server shows ONE panel, species once, counts
-        fill async; `node sanity_pass.js` green.
-- [ ] MOVEMENT INDEX (0-100) one-liner, ALWAYS visible; the WHY (`reasons[]` list)
+        `buildSpeciesCalendarHtml` (lowercased `s.species`) and `hatcheryEscapement`
+        stocks (lowercased `st.name`); off-track rivers → cards still render with
+        `--` in the counts fold (never blank/crash).
+      - Verification: `node --check`; headless render test (Chinook shows
+        `12,345 / 88 / 10,000`, Coho shows `--` for nulls, counts fold present);
+        `node sanity_pass.js` 28/28 green; API smoke on Puyallup 12101500 OK.
+- [x] MOVEMENT INDEX (0-100) one-liner, ALWAYS visible; the WHY (`reasons[]` list)
       folds behind a `<details>`. Compute from live triggers already fetched (freshet
-      delta, tide phase/arrival, moon, pressure trend, water-temp window, clarity).
+      delta, tide phase/arrival, moon, pressure trend, transit state, netting).
       Every point in `reasons[]` must be human-readable plain text — no magic number.
       - Potential bugs: clamp 0-100; `--` when triggers missing; never fabricate a
         trigger. textContent only.
-      - Verification: index renders on Puyallup + Green; clamps; sanity green.
-- [ ] Legal-hours windows stay INSIDE the RUN panel (same `.window-box` markup, ~app.js:754).
-      - Verification: windows still render + keyboard-accessible.
+      - Verification: headless test — `{rain:0.2, press_delta:-0.08, 2 highs,
+        Bay Staging}` → `36` with 4 human reasons; clamps; sanity green.
+- [x] Legal-hours windows stay INSIDE the RUN panel (same `.window-box` markup, ~app.js:754).
+      - Verification: windows render inside `.run-windows` in the panel; sanity green.
 
 
 

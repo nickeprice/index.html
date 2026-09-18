@@ -252,39 +252,9 @@ function escWowBadge(wow) {
     return { text: '\u2014 Stable', color: '#94a3b8' };
 }
 
-// Fixed (non-collapsible) section: header + one card per life stage, on the same
-// .env-stat-grid tracks and card shell as the 3x2 conditions grid above it.
-function buildEscapementSection(siteId) {
-    var rec = siteId ? hatcheryEscapement[String(siteId)] : null;
-    var html = '<div class="esc-section">' +
-        '<div class="sec-hdr">[ HATCHERY ESCAPEMENT &amp; RUN MOMENTUM ]</div>';
-
-    if (!rec) {
-        return html + '<div class="esc-empty">No hatchery escapement tracking for this river yet.</div></div>';
-    }
-
-    html += '<div class="env-stat-grid">';
-
-    for (var s = 0; s < rec.stocks.length; s++) {
-        var st = rec.stocks[s];
-        var badge = escWowBadge(st.wow);
-        var speciesName = String(st.name || 'Stock').replace(/[&<>"']/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-        });
-        html += '<div class="esc-card">' +
-                '<div class="esc-card-hdr">' +
-                  '<span class="esc-species">' + speciesName + '</span>' +
-                  '<span class="esc-trend" style="color:' + badge.color + ';">' + badge.text + '</span>' +
-                '</div>' +
-                '<div class="esc-row"><span class="esc-row-lbl">Total Return</span><span class="esc-row-val">' + escNum(st.totalReturn) + '</span></div>' +
-                '<div class="esc-row"><span class="esc-row-lbl">Trap Count</span><span class="esc-row-val">' + escNum(st.trapCount) + '</span></div>' +
-                '<div class="esc-row"><span class="esc-row-lbl">5-Yr Avg</span><span class="esc-row-val">' + escNum(st.fiveYrAvg) + '</span></div>' +
-            '</div>';
-    }
-
-    return html + '</div>' +
-        '</div>';
-}
+// Escapement counts now render inside the merged [ RUN & TIMING ] per-species
+// cards (buildSpeciesCalendarHtml in app.js); refreshEscapement fills their
+// count rows async after the card HTML renders.
 
 // Query the Socrata dataset for EVERY facility mapped to the river (dynamic IN clause)
 // and derive, per life stage:
@@ -412,13 +382,30 @@ async function loadEscapementData(siteId) {
     return rec;
 }
 
-// Re-paint the escapement slot once the live numbers land. Rivers with no facility
-// mapping keep the static "no tracking" state that was rendered synchronously.
+// Re-paint the escapement counts inside the merged [ RUN & TIMING ] per-species
+// cards once the live numbers land. Each count row carries data-count (wdfw /
+// return / trap / avg) inside a card carrying data-species, so we fill only the
+// matching cells — never replace the whole section (the species/status/progress
+// geometry stays put). Rivers with no facility mapping keep their "--" placeholders.
 async function refreshEscapement(siteId) {
     var key = siteId ? String(siteId) : '';
     if (!hatcheryEscapement[key]) return;
     await loadEscapementData(key);
-    document.querySelectorAll('.esc-slot').forEach(function(el) {
-        if (el.getAttribute('data-site') === key) el.innerHTML = buildEscapementSection(key);
+    var rec = hatcheryEscapement[key];
+    document.querySelectorAll('.run-card[data-species]').forEach(function(card) {
+        var sp = card.getAttribute('data-species');
+        if (!sp) return;
+        var hit = null;
+        for (var i = 0; i < rec.stocks.length; i++) {
+            if (String(rec.stocks[i].name || '').toLowerCase() === sp) { hit = rec.stocks[i]; break; }
+        }
+        if (!hit) return;
+        var set = function(countKey, val) {
+            var cell = card.querySelector('[data-count="' + countKey + '"]');
+            if (cell) cell.textContent = (val === null || val === undefined || isNaN(val)) ? '--' : Number(val).toLocaleString('en-US');
+        };
+        set('return', hit.totalReturn);
+        set('trap', hit.trapCount);
+        set('avg', hit.fiveYrAvg);
     });
 }

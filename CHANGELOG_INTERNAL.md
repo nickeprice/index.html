@@ -3,6 +3,16 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.1b done: consolidated RUN & TIMING panel
+Merged `[ HATCHERY ESCAPEMENT ]` + `[ SPECIES RUN CALENDAR ]` + `[ LEGAL HOURS
+TIMELINE ]` into ONE `[ RUN & TIMING ]` panel: always-visible MOVEMENT INDEX
+(0-100, human `reasons[]` behind `<details>`), per-species run cards (status
+pill + progress bar + peak line always visible; `WDFW forecast / Return / Trap /
+5-Yr Avg` counts folded per card), legal-hours windows kept inside.
+`refreshEscapement` now fills count cells by `data-species`/`data-count` instead
+of replacing a section; dead `buildEscapementSection` + `.esc-slot` removed.
+- Key files: `src/app.js`, `src/services/water.js`, `src/styles.css`.
+
 ## 2026-09-18 — Phase 2.1a done; token-reduction pass applied
 Backend accuracy shipped: real `transit_state`/`transit_time`, netting scoped to
 Puyallup/White/Carbon (`NETTING_SITES`), fake `active_fish` Gaussian deleted,

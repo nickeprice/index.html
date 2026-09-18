@@ -1,0 +1,19 @@
+{
+  "_readme": "Curated WDFW run forecasts. Values are ONLY written after HUMAN CONFIRMATION from scripts/refresh_wdfw_forecast.py (AGENTS.md: never fabricate). Until then each stock's forecast stays null and the UI renders '--'.",
+  "stocks": [
+    {
+      "stock": "Puyallup Chinook",
+      "run": "spring/summer Chinook",
+      "year": 2026,
+      "forecast": null,
+      "source_url": null
+    },
+    {
+      "stock": "Puyallup Coho",
+      "run": "coho",
+      "year": 2026,
+      "forecast": null,
+      "source_url": null
+    }
+  ]
+}

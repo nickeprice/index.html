@@ -18,6 +18,9 @@ STOCK_BASELINES = {
     "Pink":    {"peak_window": (8, 1, 9, 15), "peak_date": "08-20", "avg_run": 150000, "present": False}
 }
 NETTING_DAYS = [6, 0, 1] 
+# Netting (gillnet sets by tribes) is a Puyallup/White/Carbon basin reality ONLY.
+# Off-basin rivers (Green, Nisqually, Skagit, ...) must never read "Nets In".
+NETTING_SITES = {"12101500", "12093500", "12094000"}
 FORECAST_DAYS = 4 
 
 def mm_to_in(mm): return mm / 25.4
@@ -303,8 +306,16 @@ def fetch_meteorological_data(lat=LAT, lon=LON):
             return json.loads(res.read().decode('utf-8'))
     except: return None
 
-def calculate_escapement_curve(target_date):
-    active_stocks, base_score = [], 10.0
+def calculate_stock_base_score(target_date):
+    """Baseline (0-25ish) that the dynamic timeline adds to per-minute scores.
+
+    The old version fabricated a fake "~N entering today" Gaussian count
+    (`avg_run * curve_mult * 0.04`) and shipped it as `active_fish`. That number
+    was invented — REMOVED permanently (AGENTS.md: never fabricate). The honest
+    run anchor is the WDFW forecast (Commit 2.1d) + real trap counts. We keep
+    only the structure: how far today sits inside each stock's real peak window.
+    """
+    base_score = 10.0
     for species, meta in STOCK_BASELINES.items():
         if not meta.get("present", True): continue
         sm, sd, em, ed = meta["peak_window"]
@@ -313,12 +324,10 @@ def calculate_escapement_curve(target_date):
             pm, pd = map(int, meta["peak_date"].split("-"))
             peak_dt = datetime(target_date.year, pm, pd)
             days_from_peak = abs((target_date - peak_dt).days)
-            curve_mult = math.exp(-0.5 * (days_from_peak / 14.0) ** 2) 
-            daily_fish = int(meta["avg_run"] * curve_mult * 0.04)
-            active_stocks.append(f"<b>{species}</b> (~{daily_fish:,} entering)")
+            curve_mult = math.exp(-0.5 * (days_from_peak / 14.0) ** 2)
             score = 8.0 + (17.0 * curve_mult)
             if score > base_score: base_score = score
-    return " &bull; ".join(active_stocks) if active_stocks else "Resident / Pre-Run", base_score
+    return base_score
 
 
 def build_species_calendar(target_date):
@@ -572,12 +581,12 @@ class handler(BaseHTTPRequestHandler):
             rain_in = mm_to_in(rain_mm)
             press_curr_inHg, press_prev_inHg = hpa_to_inhg(press_curr_hpa), hpa_to_inhg(press_prev_hpa)
 
-            is_netting_day = dt.weekday() in NETTING_DAYS
+            is_netting_day = dt.weekday() in NETTING_DAYS and site in NETTING_SITES
             net_status = "NETS IN (Severe Migration Block)" if is_netting_day else "River Open (Nets Out)"
             angler_desc, angler_mult = ("High (Weekend)", 0.80) if dt.weekday() in [5, 6] else ("Low/Moderate (Weekday)", 1.0)
             
             transit_time, transit_state, flow_index, transit_hrs = calculate_transit_time_and_flow(usgs_data["cfs"], is_netting_day)
-            active_str, stock_base = calculate_escapement_curve(dt)
+            stock_base = calculate_stock_base_score(dt)
             env_score, flow_mult, push_status = calculate_macro_environment(flow_index, press_curr_inHg, press_prev_inHg, rain_in, lunar_val, is_netting_day)
             
             civil_in, civil_out = sunrise_dt - timedelta(minutes=35), sunset_dt + timedelta(minutes=35)
@@ -629,8 +638,9 @@ class handler(BaseHTTPRequestHandler):
                 "civil_in": civil_in.strftime('%-I:%M %p'), "civil_out": civil_out.strftime('%-I:%M %p'),
                 "moon_upper": moon_upper_str, "moon_lower": moon_lower_str,
                 "lines_in": lines_in.strftime('%-I:%M %p'), "lines_out": lines_out.strftime('%-I:%M %p'),
-                "active_fish": active_str, "net_status": net_status, "angler_desc": angler_desc,
-                "push_status": push_status, "tide_chart": tide_chart_str, "tide_curve": tide_curve,
+                "net_status": net_status, "angler_desc": angler_desc,
+                "push_status": push_status, "transit_state": transit_state, "transit_time": transit_time,
+                "tide_chart": tide_chart_str, "tide_curve": tide_curve,
                 "tide_points": tide_points,
                 "species_calendar": species_calendar, "windows": timeline_windows, "is_netting": is_netting_day,
                 "is_active": usgs_data["is_active"], "updated_time": usgs_data["updated_time"], "api_offline": bool(usgs_data.get("api_offline", False)),

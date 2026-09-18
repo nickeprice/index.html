@@ -1,4 +1,4 @@
-## ACTIVE ➤ Commit 2.1d — WDFW forecast hybrid scraper (`scripts/refresh_wdfw_forecast.py`, NEW). After it: 2.1e app feel → 2.1f 9-pill grid.
+## ACTIVE ➤ Commit 2.1e — App feel (files: `index.html`, `src/app.js`, `src/styles.css`). After it: 2.1f 9-pill grid.
 
 # Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
 
@@ -106,7 +106,7 @@
 
 ## Commit 2.1d — WDFW forecast hybrid scraper (`scripts/refresh_wdfw_forecast.py`, NEW)
 
-- [ ] Fetch STABLE index `https://wdfw.wa.gov/fishing/management/north-falcon/forecasts`,
+- [x] Fetch STABLE index `https://wdfw.wa.gov/fishing/management/north-falcon/forecasts`,
       match `<a>` text for current-year "Chinook forecasts" + "coho forecast", resolve
       the `href` (URL changes yearly; the index is stable). Download the PDF, extract
       the candidate Puyallup number, PRINT it + source for HUMAN CONFIRMATION BEFORE
@@ -115,8 +115,20 @@
         degrade to printing the resolved PDF URL + hint, and NEVER write unverified
         numbers (AGENTS.md no-fabricate). One toggle: `--confirm` writes only the
         confirmed number.
-      - Verification: `python3 -m py_compile scripts/refresh_wdfw_forecast.py`; run →
-        prints 2026 Chinook/Coho hrefs + candidate; no file write without `--confirm`.
+      - VERIFIED: resolved the real 2026 URLs (chinook `2026-2025-chinook-forecasts-03102026-revision.pdf`,
+        coho `2026-coho-forecast-summary-draft-handout-02272026.pdf`). The PDFs are
+        VECTOR-GRAPHIC TABLES with no text layer (stdlib zlib decompression yields
+        only drawing ops) — no honest automated extraction is possible without a
+        PDF lib/OCR, so the script prints the source URLs + hint and writes nothing.
+      - SAFETY: `--confirm` now also requires `--yes` (double-confirm) so a
+        placeholder number can never silently land in the JSON. During testing a
+        careless `--confirm --chinook=34000 --coho=48000` wrote seed guesses into
+        the real JSON — caught, reverted to null, and hardened with `--yes`.
+      - Verification: `python3 -m py_compile`; run resolves links + prints URLs,
+        writes nothing; unsafe invocations refused; JSON stays `[null, null]`.
+      - NOTE: forecasts remain `null` (UI "--") until a HUMAN opens the two PDFs
+        and runs `--confirm --chinook=<N> --coho=<M> --yes`. The seed guesses 34k/48k
+        are NOT written (unverified).
 
 
 

@@ -3,6 +3,17 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.1d done: WDFW forecast hybrid scraper
+`scripts/refresh_wdfw_forecast.py` resolves the STABLE WDFW index → real 2026
+Chinook/Coho PDF URLs, downloads, attempts stdlib zlib text extraction. The PDFs
+are vector-graphic tables (no text layer) → honest degrade: prints URLs + hint,
+writes nothing. `--confirm` now requires `--yes` double-confirm (safety, after a
+careless test wrote 34k/48k seed guesses — caught + reverted to null). Forecasts
+stay null (UI "--") until a HUMAN opens the PDFs and confirms real numbers.
+check.sh + sanity compile-list now include the new script.
+- Key files: `scripts/refresh_wdfw_forecast.py`, `src/data/wdfw_forecasts.json`,
+  `scripts/check.sh`, `sanity_pass.js`.
+
 ## 2026-09-18 — Phase 2.1c done: clarity signal (White River / Mud Mountain Dam)
 `fetch_dam_clarity()` reads USGS DAILY-VALUES (14-day series, 12098500 00060 +
 12098000 62614) and derives an honest `clarity_outlook` — Puyallup sites only

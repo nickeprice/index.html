@@ -9,7 +9,7 @@ echo "== syntax =="
 find src -name '*.js' -print0 | xargs -0 -n1 node --check
 node --check sw.js
 node --check sanity_pass.js
-python3 -m py_compile api/water_report.py scripts/dev_server.py scripts/scrape_wdfw.py
+python3 -m py_compile api/water_report.py scripts/dev_server.py scripts/scrape_wdfw.py scripts/refresh_wdfw_forecast.py
 echo "syntax OK"
 
 if [[ "${1:-}" == "--quick" ]]; then

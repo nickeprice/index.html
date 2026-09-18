@@ -328,7 +328,7 @@ async function main() {
     fail('node --check on JS + sw.js', String(e.message).split('\n')[0]);
   }
   try {
-    execFileSync('python3', ['-m', 'py_compile', 'api/water_report.py', 'scripts/dev_server.py', 'scripts/scrape_wdfw.py'], { cwd: ROOT, stdio: 'pipe' });
+    execFileSync('python3', ['-m', 'py_compile', 'api/water_report.py', 'scripts/dev_server.py', 'scripts/scrape_wdfw.py', 'scripts/refresh_wdfw_forecast.py'], { cwd: ROOT, stdio: 'pipe' });
     ok('python3 -m py_compile', 'api/water_report.py, scripts/*.py');
   } catch (e) {
     fail('python3 -m py_compile', String(e.message).split('\n')[0]);

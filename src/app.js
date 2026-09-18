@@ -207,6 +207,7 @@ async function startFishing() {
     applyAuthState(true, res.name || name);
     if (res.offline) logDebug('Local-only guest session (Supabase unreachable)', 'AUTH');
     syncPendingCatches();
+    if (typeof renderMyCatches === 'function') renderMyCatches();
     switchTab('tab-gear-sim');
 }
 
@@ -216,6 +217,7 @@ async function stopFishing() {
     currentStats = null;
     applyAuthState(false, '');
     loadDatabase();
+    if (typeof renderMyCatches === 'function') renderMyCatches();
     switchTab('tab-catch-log');
 }
 
@@ -482,6 +484,27 @@ function updateActiveDateUI() {
             pill.innerText = (reg && reg.isOpen ? '● RIVER OPEN' : '● RIVER CLOSED') + reasonText;
             pill.className = 'reg-status-pill ' + (reg && reg.isOpen ? 'status-pill-open' : 'status-pill-closed');
             pill.title = (reg && reg.ruleDetail) ? String(reg.ruleDetail) : 'WDFW regulation status for ' + riverName;
+        }
+        var regDetail = document.getElementById('reg-detail');
+        if (regDetail) {
+            var detailBits = [];
+            if (reg && reg.zone && reg.zone.zone_name) detailBits.push(String(reg.zone.zone_name));
+            if (reg && reg.openSeasons && reg.openSeasons.length) {
+                var spSet = [];
+                for (var oi = 0; oi < reg.openSeasons.length; oi++) {
+                    if (reg.openSeasons[oi] && reg.openSeasons[oi].species) spSet.push(String(reg.openSeasons[oi].species));
+                }
+                var spList = Array.from(new Set(spSet)).join(', ');
+                if (spList) detailBits.push('Open: ' + spList);
+            }
+            if (reg && reg.ruleDetail) detailBits.push(String(reg.ruleDetail));
+            regDetail.innerHTML = '';
+            for (var di = 0; di < detailBits.length; di++) {
+                var span = document.createElement('div');
+                if (di === 0) span.className = 'reg-zone';
+                span.textContent = detailBits[di];
+                regDetail.appendChild(span);
+            }
         }
     }
 
@@ -1220,6 +1243,155 @@ async function loadDatabase() {
     logDebug('Brag board: ' + rendered + ' row(s) ' + (fromCloud ? 'from Supabase' : 'from local buffer'), 'DB');
 }
 
+// --- MY CATCHES (private log: list, edit, delete) ---
+var _myCatches = [];
+
+async function renderMyCatches() {
+    var wrap = document.getElementById('my-catches-wrap');
+    var tbody = document.getElementById('my-catches-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    // Show an empty/disabled state until a session exists.
+    var signedIn = AuthState && AuthState.signedIn;
+    if (!signedIn || typeof Supa === 'undefined') {
+        wrap.style.display = 'none';
+        return;
+    }
+    wrap.style.display = 'block';
+
+    var rows = null;
+    try { rows = await Supa.fetchMyCatches(); } catch (e) { rows = []; }
+    _myCatches = rows || [];
+
+    if (!_myCatches.length) {
+        var empty = document.createElement('tr');
+        empty.innerHTML = '<td colspan="5" class="empty-state">' +
+            '<div class="empty-state-title">No logged catches yet</div>' +
+            '<div class="empty-state-hint">Run the Gear Sim, then FEED DATA from the Gear Sim tab.</div></td>';
+        tbody.appendChild(empty);
+        return;
+    }
+
+    for (var i = 0; i < _myCatches.length; i++) {
+        var c = _myCatches[i];
+        var tr = document.createElement('tr');
+
+        var tdSpc = document.createElement('td');
+        tdSpc.textContent = c.species || '--';
+        var tdTime = document.createElement('td');
+        tdTime.textContent = formatCatchTime(c.catch_time);
+        var tdFlow = document.createElement('td');
+        tdFlow.textContent = (c.flow != null) ? c.flow : '--';
+        var tdScore = document.createElement('td');
+        tdScore.textContent = (c.sim_score != null) ? Number(c.sim_score).toFixed(1) : '--';
+        tr.appendChild(tdSpc);
+        tr.appendChild(tdTime);
+        tr.appendChild(tdFlow);
+        tr.appendChild(tdScore);
+
+        var tdAct = document.createElement('td');
+        var editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'mini-btn';
+        editBtn.textContent = 'Edit';
+        editBtn.onclick = (function (row) { return function () { editMyCatch(row); }; })(c);
+        var delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'mini-btn mini-btn-danger';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = (function (id) { return function () { deleteMyCatch(id); }; })(c.id);
+        tdAct.appendChild(editBtn);
+        tdAct.appendChild(delBtn);
+        tr.appendChild(tdAct);
+
+        tbody.appendChild(tr);
+    }
+}
+
+// Inline edit: prompt for the most useful private fields and update the row.
+async function editMyCatch(row) {
+    var species = prompt('Species', row.species || '');
+    if (species == null) return;
+    var flow = prompt('River flow (CFS)', row.flow != null ? String(row.flow) : '');
+    if (flow == null) return;
+    var patch = { species: species.trim() || row.species, flow: parseInt(flow, 10) || row.flow };
+    var res = null;
+    try { res = await Supa.updateMyCatch(row.id, patch); } catch (e) { res = null; }
+    if (res && res.ok) {
+        showToast('Catch updated', 'success', 2500);
+        renderMyCatches();
+    } else {
+        showToast('Could not update: ' + ((res && res.error) || 'unknown error'), 'error', 5000);
+    }
+}
+
+async function deleteMyCatch(id) {
+    if (!window.confirm('Delete this catch? This cannot be undone.')) return;
+    var res = null;
+    try { res = await Supa.deleteMyCatch(id); } catch (e) { res = null; }
+    if (res && res.ok) {
+        showToast('Catch deleted', 'success', 2500);
+        renderMyCatches();
+        loadDatabase();   // the public board may have shrunk
+    } else {
+        showToast('Could not delete: ' + ((res && res.error) || 'unknown error'), 'error', 5000);
+    }
+}
+
+// --- RIG PRESET PERSISTENCE ---
+var RIG_STORE_KEY = 'puyallup_last_rig';
+
+function saveRig() {
+    try {
+        var rig = {
+            flow: getNum('flow'),
+            distance: getNum('distance'),
+            rodFt: getNum('rod-ft'),
+            rodIn: getNum('rod-in'),
+            mlMat: getStr('ml-mat'),
+            mlLb: getStr('ml-lb'),
+            ldLen: getStr('ld-len'),
+            ldMat: getStr('ld-mat'),
+            ldLb: getStr('ld-lb'),
+            weight: getStr('weight'),
+            hook: getStr('hook'),
+            yarn: getStr('yarn'),
+            foam: getStr('foam'),
+            bdMat: getStr('bd-mat'),
+            bdSz: getStr('bd-sz')
+        };
+        localStorage.setItem(RIG_STORE_KEY, JSON.stringify(rig));
+    } catch (e) {}
+}
+
+function restoreRig() {
+    var raw = null;
+    try { raw = localStorage.getItem(RIG_STORE_KEY); } catch (e) { return; }
+    if (!raw) return;
+    var rig = null;
+    try { rig = JSON.parse(raw); } catch (e) { return; }
+    if (!rig) return;
+
+    function set(id, val) {
+        var el = document.getElementById(id);
+        if (el && val !== undefined && val !== null && val !== '') el.value = String(val);
+    }
+    set('flow', rig.flow); set('distance', rig.distance);
+    set('rod-ft', rig.rodFt); set('rod-in', rig.rodIn);
+    set('ml-mat', rig.mlMat); set('ml-lb', rig.mlLb);
+    set('ld-len', rig.ldLen); set('ld-mat', rig.ldMat); set('ld-lb', rig.ldLb);
+    set('weight', rig.weight); set('hook', rig.hook); set('yarn', rig.yarn);
+    set('foam', rig.foam); set('bd-mat', rig.bdMat); set('bd-sz', rig.bdSz);
+    // Mirror to the Catch Log duplicated controls.
+    set('flow-log', rig.flow); set('distance-log', rig.distance);
+    set('rod-ft-log', rig.rodFt); set('rod-in-log', rig.rodIn);
+    set('ml-mat-log', rig.mlMat); set('ml-lb-log', rig.mlLb);
+    set('ld-len-log', rig.ldLen); set('ld-mat-log', rig.ldMat); set('ld-lb-log', rig.ldLb);
+    set('weight-log', rig.weight); set('hook-log', rig.hook); set('yarn-log', rig.yarn);
+    set('foam-log', rig.foam); set('bd-mat-log', rig.bdMat); set('bd-sz-log', rig.bdSz);
+}
+
 async function runSim() {
     var simBtn = document.getElementById('btn-sim');
     if (simBtn) { simBtn.innerText = 'CALCULATING...'; simBtn.disabled = true; }
@@ -1333,6 +1505,7 @@ async function runSim() {
         dragCoeff: 1.0,
         blownOut: blownOut
     };
+    saveRig();
 
     var color = 'var(--accent-green)';
     if (score < 4.0) color = 'var(--accent-yellow)';
@@ -1396,7 +1569,7 @@ async function logData() {
     if (!currentStats) return;
 
     var foamRaw = getStr('foam');
-    var foamParsed = parseFoam(foamRaw);
+    var activeRep = getActiveReport();
     var payload = {
         name: AuthState.name || 'Anonymous',
         time: getStr('log-datetime'),
@@ -1415,9 +1588,16 @@ async function logData() {
         hook: currentStats.hook,
         yarn: getNum('yarn'),
         foam: foamRaw,
-        corky: foamParsed.size,          // legacy numeric column kept for old readers
         bdMat: getStr('bd-mat'),
         bdSz: getNum('bd-sz'),
+        // Environmental context captured at log time (private row enrichment).
+        // Falls back to null when the report/telemetry is unavailable.
+        gauge: (activeRep && activeRep.gage != null) ? activeRep.gage : null,
+        barometer: (activeRep && activeRep.pressure != null) ? activeRep.pressure : null,
+        waterTemp: getWaterTempF(),
+        windSpeed: (typeof window.currentWindMph !== 'undefined' && window.currentWindMph != null) ? window.currentWindMph : null,
+        windDir: (typeof window.currentWindDir !== 'undefined' && window.currentWindDir != null) ? window.currentWindDir : null,
+        moon: (activeRep && activeRep.lunar_icon != null) ? activeRep.lunar_icon : null,
         hgt: Number(currentStats.hgt.toFixed(2)),
         zoneMin: Number(currentStats.zoneMin.toFixed(2)),
         zoneMax: Number(currentStats.zoneMax.toFixed(2)),
@@ -1453,6 +1633,7 @@ async function logData() {
     document.getElementById('btn-log').className = 'btn-main';
     currentStats = null;
     await loadDatabase();
+    if (typeof renderMyCatches === 'function') renderMyCatches();
     switchTab('tab-catch-log');
 }
 
@@ -1769,11 +1950,13 @@ function applyTabDeepLink() {
 window.onload = function() {
     var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('log-datetime').value = d.toISOString().slice(0,16);
+    restoreRig();
     initGearSimInputDebounce();
     applyTabDeepLink();
     registerServiceWorker();
     getGPS();
     initAuth();
     loadDatabase();
+    if (typeof renderMyCatches === 'function') renderMyCatches();
     loadWaterReport();
 };

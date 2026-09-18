@@ -85,6 +85,7 @@
             <div id="river-status-pill" class="reg-status-pill status-pill-closed">
                 ● RIVER CLOSED
             </div>
+            <div id="reg-detail" class="reg-detail"></div>
         </div>
 
         <!-- 3. Legal Hours Text -->
@@ -246,6 +247,17 @@
         </div>
         
         <button class="btn-main" id="btn-log" onclick="logData()">FEED DATA (RUN SIM FIRST)</button>
+
+        <h2>My Catches</h2>
+        <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Your private catch log — only you can see it. Edit or delete from here.</p>
+        <div class="table-wrapper" id="my-catches-wrap">
+            <table id="my-catches-table">
+                <thead>
+                    <tr><th>Species</th><th>Time</th><th>Flow</th><th>Score</th><th></th></tr>
+                </thead>
+                <tbody id="my-catches-body"></tbody>
+            </table>
+        </div>
 
         <h2>Brag Board</h2>
         <p style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.</p>

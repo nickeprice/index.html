@@ -81,6 +81,10 @@ button.btn-main { width: 100%; padding: 15px; border: none; border-radius: 8px; 
 table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; white-space: nowrap; }
 th { padding: 8px; border-bottom: 1px solid #444; color: var(--text-muted); }
 td { padding: 8px; border-bottom: 1px solid #222; }
+.mini-btn { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid #555; border-radius: 6px; padding: 4px 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer; margin: 0 2px; }
+.mini-btn:hover { background-color: #444; }
+.mini-btn-danger { color: var(--accent-red); border-color: #7f1d1d; }
+.mini-btn-danger:hover { background-color: #3a1010; }
 .foul-hook { color: var(--accent-red); }
 
 /* WATER REPORT EXACT STYLING */
@@ -167,10 +171,13 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 }
 .status-pill-row {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     margin: 0;
 }
+.reg-detail { font-size: 0.68rem; color: var(--text-muted); line-height: 1.45; margin-top: 4px; text-align: center; }
+.reg-detail .reg-zone { color: var(--text-main); font-weight: 600; }
 .reg-status-pill {
     display: inline-flex;
     align-items: center;

@@ -166,6 +166,11 @@ async function fetchWeatherConditions(lat, lon) {
         // 2. Wind speed + direction -> Wind card value field
         var wSpeed = (cur && cur.wind_speed_10m != null) ? cur.wind_speed_10m : hourlyVal('wind_speed_10m');
         var wDir = (cur && cur.wind_direction_10m != null) ? cur.wind_direction_10m : hourlyVal('wind_direction_10m');
+        // Stash for the catch-log payload (private row enrichment).
+        if (wSpeed != null) {
+            window.currentWindMph = Number(wSpeed);
+            window.currentWindDir = (wDir != null) ? compassDir(wDir) : null;
+        }
         if (wSpeed != null) {
             var windTxt = ((wDir != null) ? compassDir(wDir) + ' ' + compassArrow(wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
             document.querySelectorAll('.wind-val').forEach(function(el) {

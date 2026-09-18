@@ -160,16 +160,21 @@ function toCatchRow(payload) {
         leader_length: payload.ldLen,
         leader_material: payload.ldMat || null,
         leader_lb: payload.ldLb,
-        hook_size: (payload.hook !== undefined && payload.hook !== null) ? String(payload.hook) : null,
+        hook_size: (payload.hook !== undefined && payload.hook !== null) ? Number(payload.hook) : null,
         yarn: payload.yarn,
         foam: payload.foam || null,
-        corky_size: payload.foam || null,
         bead_material: payload.bdMat || null,
         bead_size: payload.bdSz,
         rod_ft: (payload.rodFt !== undefined && payload.rodFt !== null) ? payload.rodFt : null,
         cast_distance_ft: (payload.dist !== undefined && payload.dist !== null) ? payload.dist : null,
         mainline_mat: payload.mlMat || null,
         mainline_lb: (payload.mlLb !== undefined && payload.mlLb !== null) ? payload.mlLb : null,
+        gauge_height: (payload.gauge !== undefined && payload.gauge !== null) ? payload.gauge : null,
+        barometer: (payload.barometer !== undefined && payload.barometer !== null) ? payload.barometer : null,
+        water_temp_f: (payload.waterTemp !== undefined && payload.waterTemp !== null) ? payload.waterTemp : null,
+        wind_speed_mph: (payload.windSpeed !== undefined && payload.windSpeed !== null) ? payload.windSpeed : null,
+        wind_dir_compass: payload.windDir || null,
+        moon_phase: payload.moon || null,
         line_height_in: (payload.hgt !== undefined && payload.hgt !== null) ? payload.hgt : null,
         zone_min_in: (payload.zoneMin !== undefined && payload.zoneMin !== null) ? payload.zoneMin : null,
         zone_max_in: (payload.zoneMax !== undefined && payload.zoneMax !== null) ? payload.zoneMax : null,
@@ -186,6 +191,48 @@ async function insertCatch(payload) {
         if (res.error) return { ok: false, error: res.error.message };
         var row = (res.data && res.data.length) ? res.data[0] : null;
         return { ok: true, id: row ? row.id : null };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+}
+
+/** Private read: the signed-in user's own catch rows (RLS guarantees ownership). */
+async function fetchMyCatches() {
+    var client = getClient();
+    if (!client) return [];
+    try {
+        var res = await client.from('catches')
+            .select('id,species,catch_time,flow,sim_score,angler_name,leader_length,leader_material,leader_lb,weight,foam,bead_material,bead_size,hook_size,yarn')
+            .order('catch_time', { ascending: false })
+            .limit(100);
+        if (res.error) return [];
+        return res.data || [];
+    } catch (e) {
+        return [];
+    }
+}
+
+/** Private update: edit allowed columns on one of the user's own rows. */
+async function updateMyCatch(id, patch) {
+    var client = getClient();
+    if (!client) return { ok: false, error: 'Supabase not configured or offline' };
+    try {
+        var res = await client.from('catches').update(patch).eq('id', id);
+        if (res.error) return { ok: false, error: res.error.message };
+        return { ok: true };
+    } catch (e) {
+        return { ok: false, error: e.message };
+    }
+}
+
+/** Private delete: remove one of the user's own rows. */
+async function deleteMyCatch(id) {
+    var client = getClient();
+    if (!client) return { ok: false, error: 'Supabase not configured or offline' };
+    try {
+        var res = await client.from('catches').delete().eq('id', id);
+        if (res.error) return { ok: false, error: res.error.message };
+        return { ok: true };
     } catch (e) {
         return { ok: false, error: e.message };
     }
@@ -272,6 +319,9 @@ if (typeof window !== 'undefined') {
         insertCatch: insertCatch,
         fetchPublicFeed: fetchPublicFeed,
         fetchGlobalCalibration: fetchGlobalCalibration,
+        fetchMyCatches: fetchMyCatches,
+        updateMyCatch: updateMyCatch,
+        deleteMyCatch: deleteMyCatch,
         // support
         isConfigured: isConfigured,
         ensureSdk: ensureSdk,

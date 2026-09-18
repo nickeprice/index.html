@@ -72,97 +72,33 @@ function applyOwnGaugeWaterQuality(waterTempF, turbidityFnu) {
     });
 }
 
-// 16-point compass label for a wind bearing in degrees (e.g. 225 -> "SW")
-function compassDir(deg) {
-    var dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-    var idx = Math.round((((Number(deg) % 360) + 360) % 360) / 22.5) % 16;
-    return dirs[idx];
-}
+// Surface "now" conditions painted FROM the water-report payload (since
+// Commit 2.1f the backend's Open-Meteo request includes `current` readings, so
+// the client no longer calls Open-Meteo directly). Also stashes the wind for
+// the catch-log env enrichment (window.currentWindMph / currentWindDir) and
+// paints the 6 stat-grid placeholders that are not server-rendered.
+function applyReportWeather(rep) {
+    if (!rep) return;
+    var airT = (rep.air_temp_f !== undefined && rep.air_temp_f !== null && !isNaN(rep.air_temp_f)) ? Math.round(Number(rep.air_temp_f)) : null;
+    var wSpeed = (rep.wind_speed_mph !== undefined && rep.wind_speed_mph !== null && !isNaN(rep.wind_speed_mph)) ? Number(rep.wind_speed_mph) : null;
+    var wDir = (rep.wind_dir_compass !== undefined && rep.wind_dir_compass !== null) ? rep.wind_dir_compass : null;
+    var pop = (rep.pop_pct !== undefined && rep.pop_pct !== null) ? rep.pop_pct : null;
 
-// 8-point compass glyph for a wind bearing in degrees (e.g. 315 -> NW).
-// Retained as the tactical wind-direction indicator in the Wind card.
-function compassArrow(deg) {
-    var arrows = ['\u2191','\u2197','\u2192','\u2198','\u2193','\u2199','\u2190','\u2196']; // N, NE, E, SE, S, SW, W, NW
-    var idx = Math.round((((Number(deg) % 360) + 360) % 360) / 45) % 8;
-    return arrows[idx];
-}
-
-// Live surface conditions via Open-Meteo.
-// NOTE: /api/water_report only exposes pressure/rain/cloud_pct, and its Open-Meteo
-// request never asks for wind or precipitation probability. So we request them here:
-// temperature_2m + wind_speed_10m + wind_direction_10m are pulled from `current`,
-// while `precipitation_probability` is hourly-only (per Open-Meteo docs) and is
-// sampled from the hour nearest to `current.time`.
-async function fetchWeatherConditions(lat, lon) {
-    if (lat == null || lon == null) return;
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-        '&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation' +
-        '&hourly=precipitation_probability,temperature_2m,wind_speed_10m,wind_direction_10m' +
-        '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch' +
-        '&timezone=America%2FLos_Angeles&forecast_days=1';
-    try {
-        const response = await fetch(url, { cache: 'no-store' });
-        const data = await response.json();
-        const cur = (data && data.current) ? data.current : null;
-
-        // Align the hourly precipitation-probability sample with the current observation.
-        var hIdx = -1;
-        if (data && data.hourly && data.hourly.time && data.hourly.time.length > 0) {
-            var stamp = (cur && cur.time) ? cur.time : data.hourly.time[0];
-            var refMs = new Date(stamp).getTime();
-            var bestDiff = Infinity;
-            for (var i = 0; i < data.hourly.time.length; i++) {
-                var diff = Math.abs(new Date(data.hourly.time[i]).getTime() - refMs);
-                if (diff < bestDiff) { bestDiff = diff; hIdx = i; }
-            }
-        }
-        function hourlyVal(key) {
-            if (hIdx < 0 || !data || !data.hourly || !data.hourly[key]) return null;
-            var v = data.hourly[key][hIdx];
-            return (v == null) ? null : v;
-        }
-
-        // 1. Air Temp -> ".air-temp" span (renders as "{temp}° Air · {waterTemp}° H₂O")
-        var airTemp = (cur && cur.temperature_2m != null) ? cur.temperature_2m : hourlyVal('temperature_2m');
-        if (airTemp != null) {
-            airTemp = Math.round(airTemp);
-            document.querySelectorAll('.air-temp').forEach(function(el) {
-                el.innerText = airTemp;
-            });
-        }
-
-        // 2. Wind speed + direction -> Wind card value field
-        var wSpeed = (cur && cur.wind_speed_10m != null) ? cur.wind_speed_10m : hourlyVal('wind_speed_10m');
-        var wDir = (cur && cur.wind_direction_10m != null) ? cur.wind_direction_10m : hourlyVal('wind_direction_10m');
-        // Stash for the catch-log payload (private row enrichment).
-        if (wSpeed != null) {
-            window.currentWindMph = Number(wSpeed);
-            window.currentWindDir = (wDir != null) ? compassDir(wDir) : null;
-        }
-        if (wSpeed != null) {
-            var windTxt = ((wDir != null) ? compassDir(wDir) + ' ' + compassArrow(wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
-            document.querySelectorAll('.wind-val').forEach(function(el) {
-                el.innerText = windTxt;
-            });
-        }
-
-        // 3. Precip probability + volume -> Precipitation card ("{pop}% · {volume}\"")
-        var pop = hourlyVal('precipitation_probability');
-        if (pop == null && cur && cur.precipitation_probability != null) pop = cur.precipitation_probability;
-        var vol = (cur && cur.precipitation != null) ? cur.precipitation : hourlyVal('precipitation');
-        document.querySelectorAll('.precip-pop').forEach(function(el) {
-            el.innerText = (pop != null) ? Math.round(pop) : '--';
-        });
-        if (vol != null) {
-            document.querySelectorAll('.precip-vol').forEach(function(el) {
-                el.innerText = Number(vol).toFixed(2);
-            });
-        }
-
-        logDebug("Weather synced: Air " + airTemp + "F, Wind " + wSpeed + " mph, PoP " + pop + "%", "NET");
-    } catch(e) {
-        logDebug("Weather conditions error: " + e.message, "ERR");
+    if (wSpeed != null) {
+        window.currentWindMph = wSpeed;
+        window.currentWindDir = wDir;
     }
+
+    if (airT != null) {
+        document.querySelectorAll('.air-temp').forEach(function (el) { el.innerText = airT; });
+    }
+    if (wSpeed != null) {
+        var windTxt = (wDir ? wDir + ' ' : '') + Math.round(wSpeed) + ' mph';
+        document.querySelectorAll('.wind-val').forEach(function (el) { el.innerText = windTxt; });
+    }
+    document.querySelectorAll('.precip-pop').forEach(function (el) { el.innerText = (pop != null) ? pop : '--'; });
+
+    logDebug('Weather painted from report: Air ' + (airT == null ? '--' : airT) + 'F, Wind ' + (wSpeed == null ? '--' : windTxt) + ', PoP ' + (pop == null ? '--' : pop) + '%', 'NET');
 }
 
 // --- PHASE 2: HATCHERY ESCAPEMENT TRACKING ---

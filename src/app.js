@@ -913,27 +913,40 @@ async function loadWaterReport() {
                 formatTideRow(rep.tide_chart, rep.tide_curve, rep.tide_points) +
                 '<div class="env-weather-solunar">' +
                   '<div class="env-stat-grid">' +
-                    // Row 1 (Atmospheric): BAROMETER, PRECIPITATION, CLOUD COVER
+                    // Row 1 (Atmospheric): BAROMETER, PoP%, PRECIP VOLUME
                     '<div class="env-badge">' +
                       '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span> ' + pArr + '</div>' +
                       '<div class="env-badge-lbl">Barometer</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="precip-pop">--</span>% &middot; <span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
-                      '<div class="env-badge-lbl">Precipitation</div>' +
+                      '<div class="env-badge-val"><span class="precip-pop">' + (rep.pop_pct != null ? rep.pop_pct : '--') + '</span>%</div>' +
+                      '<div class="env-badge-lbl">PoP</div>' +
                     '</div>' +
+                    '<div class="env-badge">' +
+                      '<div class="env-badge-val"><span class="precip-vol">' + (rep.rain != null ? rep.rain.toFixed(2) : '--') + '</span>"</div>' +
+                      '<div class="env-badge-lbl">Precip Vol</div>' +
+                    '</div>' +
+                    // Row 2: CLOUD%, AIR TEMP, WIND
                     '<div class="env-badge">' +
                       '<div class="env-badge-val">' + rep.cloud_pct + '%</div>' +
                       '<div class="env-badge-lbl">Cloud Cover</div>' +
                     '</div>' +
-                    // Row 2 (Tactical): AIR TEMP, WIND, SOLUNAR (water temp now lives in the telemetry area)
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="air-temp">--</span>° Air</div>' +
+                      '<div class="env-badge-val"><span class="air-temp">' + (rep.air_temp_f != null ? Math.round(rep.air_temp_f) : '--') + '</span>°</div>' +
                       '<div class="env-badge-lbl">Air Temp</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
-                      '<div class="env-badge-val"><span class="wind-val">' + (rep.wind || '-- mph') + '</span></div>' +
+                      '<div class="env-badge-val"><span class="wind-val">' + ((rep.wind_speed_mph != null) ? ((rep.wind_dir_compass ? rep.wind_dir_compass + ' ' : '') + Math.round(rep.wind_speed_mph)) : '--') + '</span>' + (rep.wind_speed_mph != null ? ' mph' : '') + '</div>' +
                       '<div class="env-badge-lbl">Wind</div>' +
+                    '</div>' +
+                    // Row 3: WATER TEMP (own-gauge only), MOON PHASE, SOLUNAR
+                    '<div class="env-badge' + (hasWaterTemp ? '' : ' env-badge-hidden') + '">' +
+                      '<div class="env-badge-val"><span class="water-temp-pill">' + (hasWaterTemp ? Math.round(Number(rep.water_temp_f)) : '--') + '</span>°</div>' +
+                      '<div class="env-badge-lbl">Water Temp</div>' +
+                    '</div>' +
+                    '<div class="env-badge">' +
+                      '<div class="env-badge-val moon-pill">' + (rep.lunar_icon || '🌑') + '</div>' +
+                      '<div class="env-badge-lbl">Moon Phase</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val solunar-split">' +
@@ -999,11 +1012,15 @@ async function loadWaterReport() {
         // call — they ride in the water-report payload from the active station's
         // OWN gauge (00010 / 63680) and are painted straight from the card HTML.
         Promise.all([
-            fetchCFSMomentum(actId || station.id),
-            fetchWeatherConditions(station.lat, station.lon)
+            fetchCFSMomentum(actId || station.id)
         ]).then(function () {
-            logDebug('Telemetry batch settled (CFS momentum, weather)', 'NET');
+            logDebug('Telemetry batch settled (CFS momentum)', 'NET');
         });
+        // "Now" surface conditions (air/wind/precip) are painted FROM the first
+        // report day (backend Open-Meteo `current`) — no client-side Open-Meteo call.
+        if (reports && reports[0] && typeof applyReportWeather === 'function') {
+            applyReportWeather(reports[0]);
+        }
     } catch(e) {
         logDebug("API Error: " + e.message, "ERR");
         await rulesPromise;
@@ -1020,9 +1037,10 @@ async function loadWaterReport() {
                 navigator.onLine === false
             );
         }
-        Promise.all([
-            fetchWeatherConditions(station.lat, station.lon)
-        ]);
+        // Catch path: still paint weather from whatever report may be cached.
+        if (typeof applyReportWeather === 'function' && reportsData && reportsData[0]) {
+            applyReportWeather(reportsData[0]);
+        }
     }
 }
 

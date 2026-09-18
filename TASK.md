@@ -1,4 +1,4 @@
-## ACTIVE ➤ Commit 2.1f — Conditions grid: 9 pills (files: `api/water_report.py`, `src/services/water.js`, `src/app.js`, `src/styles.css`). Last commit of Phase 2.1.
+## PHASE 2.1 COMPLETE ✅ — Surface real fishing intel (all of a–f shipped). Next phase TBD by user.
 
 # Phase 2.1 — Surface real fishing intel (REPLACES the stale plan; approved 2026-09-18)
 
@@ -161,25 +161,29 @@
 
 ## Commit 2.1f — Conditions grid: 9 pills (carried over B + C)
 
-- [ ] `api/water_report.py` — add `current=temperature_2m,wind_speed_10m,
+- [x] `api/water_report.py` — add `current=temperature_2m,wind_speed_10m,
       wind_direction_10m` to the Open-Meteo `meteo_url`; ship `air_temp_f`,
       `wind_speed_mph`, `wind_dir_compass` per day (null → `--`, never fake).
       - Potential bugs: meteo is fetched once for all 4 days — readings are "now";
         absent current → null → `--`.
-      - Verification: dev-server API shows those keys.
-- [ ] `src/services/water.js` — delete client-side `fetchWeatherConditions`; keep
+      - VERIFIED: live API on 12101500 → `air_temp_f: 66.6`, `wind_speed_mph: 2.2`,
+        `wind_dir_compass: SW`, `pop_pct: 0` (converted from °C/kmh/mm; hourly PoP
+        sampled at the hour nearest `current.time`).
+- [x] `src/services/water.js` — delete client-side `fetchWeatherConditions`; keep
       `window.currentWindMph`/`currentWindDir` populated FROM THE REPORT so catch-log
       env rows still get wind. Delete `compassDir`/`compassArrow` ONLY if unused
       elsewhere (grep first).
-      - Potential bugs: any other caller of `fetchWeatherConditions` must be removed
-        too; catch-log wind enrichment must still read `window.currentWindMph`.
-      - Verification: `grep -rn fetchWeatherConditions` → no call sites; `node --check`.
-- [ ] `src/app.js` — 3×3 grid: Barometer / PoP% / Precip-vol / Cloud% / Air / Wind /
+      - VERIFIED: `grep -rn fetchWeatherConditions|compassDir|compassArrow` → no refs.
+        New `applyReportWeather(rep)` paints `.air-temp`/`.wind-val`/`.precip-pop`
+        from the report + stashes wind for the catch-row (same `window.*` names).
+- [x] `src/app.js` — 3×3 grid: Barometer / PoP% / Precip-vol / Cloud% / Air / Wind /
       Water-temp / Moon-phase (`rep.lunar_icon`) / Solunar. Split Precip into % + volume.
-      - Potential bugs: water-temp only when own gauge reports it (hidden otherwise);
-        moon phase wraps at 320px.
-- [ ] `src/styles.css` — delete the 6-col `@840px` `.env-stat-grid` rule (stay 3-col);
+      - VERIFIED: headless test — all 9 labels present, 8 literal + 1 gated pill,
+        report-driven values, water-temp `env-badge-hidden` when no own-gauge.
+- [x] `src/styles.css` — delete the 6-col `@840px` `.env-stat-grid` rule (stay 3-col);
       add tabular-nums to numeric readouts; fix trigger/moon wrap on 320px.
+      - VERIFIED: no 6-col rule; `tabular-nums` on `.env-badge-val`; `.moon-pill` wraps.
+- [x] `sw.js` — cache bumped `v2.00.8`.
 
 ## Verification (whole phase)
 - `find src -name '*.js' -print0 | xargs -0 -n1 node --check` (+ `sw.js`, `sanity_pass.js`)

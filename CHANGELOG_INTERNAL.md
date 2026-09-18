@@ -3,6 +3,16 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.1 COMPLETE ✅ (a–f all shipped)
+2.1a real transit data + netting scoped; 2.1b RUN & TIMING panel + movement
+index; 2.1c clarity badge (Mud Mountain dam, Puyallup-only); 2.1d WDFW forecast
+scraper (honest degrade — PDFs are vector graphics); 2.1e bottom tab bar +
+pinch zoom + date-tap; 2.1f 9-pill conditions grid (backend `current` readings,
+client `fetchWeatherConditions` deleted). Real fishing intel, no fabricated
+counts. Sanity 28/28 green throughout.
+- Key files: `api/water_report.py`, `src/app.js`, `src/services/water.js`,
+  `src/styles.css`, `index.html`, `sw.js`, `scripts/refresh_wdfw_forecast.py`.
+
 ## 2026-09-18 — Phase 2.1e done: app feel (bottom tab bar, pinch zoom, date-tap)
 Persistent fixed bottom tab bar (Water Report / Gear Sim / Catch Log) with
 `role="tablist"` + `aria-selected`; `switchTab` now syncs the bar so deep links /

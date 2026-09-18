@@ -26,6 +26,13 @@ FORECAST_DAYS = 4
 def mm_to_in(mm): return mm / 25.4
 def hpa_to_inhg(hpa): return hpa * 0.02953
 
+def compass_from_deg(deg):
+    """16-point compass label for a bearing in degrees (e.g. 225 -> 'SW')."""
+    if deg is None: return None
+    dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']
+    idx = int(round((((float(deg) % 360) + 360) % 360) / 22.5)) % 16
+    return dirs[idx]
+
 def fetch_usgs_telemetry(site_id=USGS_SITE):
     # Puyallup River defaults strictly to USGS 12101500 (Puyallup River at Puyallup)
     if not site_id or site_id == "12096500":
@@ -371,8 +378,9 @@ def fetch_noaa_tides_bulletproof(start_date, days):
 
 def fetch_meteorological_data(lat=LAT, lon=LON):
     meteo_url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+                 f"&current=temperature_2m,wind_speed_10m,wind_direction_10m,precipitation"
                  f"&daily=sunrise,sunset,moonrise,moonset,cloudcover_mean,precipitation_sum"
-                 f"&hourly=surface_pressure&timezone=America%2FLos_Angeles")
+                 f"&hourly=surface_pressure,precipitation_probability&timezone=America%2FLos_Angeles")
     req = urllib.request.Request(meteo_url, headers={'User-Agent': 'Mozilla/5.0'})
     try:
         with urllib.request.urlopen(req, timeout=5, context=SSL_CONTEXT) as res:
@@ -635,6 +643,10 @@ class handler(BaseHTTPRequestHandler):
             sunrise_dt, sunset_dt = dt.replace(hour=6, minute=35), dt.replace(hour=19, minute=30)
             moonrise_str, moonset_str = None, None
             cloud_pct, rain_mm, press_curr_hpa, press_prev_hpa = 50, 0.0, 1013.25, 1013.25
+            # "Now" air/wind/precip from Open-Meteo `current` + hourly PoP. These are
+            # fetched once for all 4 days, so they represent NOW, not each day's
+            # own forecast. Absent -> null (frontend renders "--", never guesses).
+            air_temp_f, wind_speed_mph, wind_dir_deg, pop_pct = None, None, None, None
             
             if met_data and 'daily' in met_data and 'hourly' in met_data:
                 try:
@@ -652,6 +664,32 @@ class handler(BaseHTTPRequestHandler):
                     
                     if target_now in time_arr: press_curr_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_now)]
                     if target_minus6 in time_arr: press_prev_hpa = met_data['hourly']['surface_pressure'][time_arr.index(target_minus6)]
+
+                    # Current-conditions object (wind_speed_10m is km/h, temperature
+                    # is Celsius, precipitation is mm by default -> convert).
+                    cur = met_data.get('current') or {}
+                    if cur.get('temperature_2m') is not None:
+                        air_temp_f = round(cur['temperature_2m'] * 9.0 / 5.0 + 32.0, 1)
+                    if cur.get('wind_speed_10m') is not None:
+                        wind_speed_mph = round(cur['wind_speed_10m'] * 0.621371, 1)
+                    if cur.get('wind_direction_10m') is not None:
+                        wind_dir_deg = cur['wind_direction_10m']
+                    # Precipitation probability is hourly-only; sample the hour
+                    # nearest to the current observation time.
+                    if 'precipitation_probability' in met_data['hourly'] and time_arr:
+                        try:
+                            stamp = cur.get('time') or time_arr[0]
+                            ref_ms = datetime.fromisoformat(stamp).timestamp()
+                            best_i, best_diff = 0, None
+                            for hi, h in enumerate(time_arr):
+                                diff = abs(datetime.fromisoformat(h).timestamp() - ref_ms)
+                                if best_diff is None or diff < best_diff:
+                                    best_diff, best_i = diff, hi
+                            pp = met_data['hourly']['precipitation_probability'][best_i]
+                            if pp is not None:
+                                pop_pct = round(float(pp))
+                        except Exception:
+                            pop_pct = None
                 except: pass
 
             rain_in = mm_to_in(rain_mm)
@@ -709,6 +747,7 @@ class handler(BaseHTTPRequestHandler):
                 "water_temp_f": usgs_data.get("water_temp_f"), "turbidity_fnu": usgs_data.get("turbidity_fnu"),
                 "flow_idx": flow_index,
                 "pressure": round(press_curr_inHg, 2), "press_delta": round(press_curr_inHg - press_prev_inHg, 2), "rain": round(rain_in, 2),
+                "air_temp_f": air_temp_f, "wind_speed_mph": wind_speed_mph, "wind_dir_compass": compass_from_deg(wind_dir_deg), "pop_pct": pop_pct,
                 "lunar_icon": lunar_icon, "cloud_pct": cloud_pct,
                 "sunrise": sunrise_dt.strftime('%-I:%M %p'), "sunset": sunset_dt.strftime('%-I:%M %p'),
                 "civil_in": civil_in.strftime('%-I:%M %p'), "civil_out": civil_out.strftime('%-I:%M %p'),

@@ -309,8 +309,12 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
 .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 7px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
-.env-badge-val { font-size: 13px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; }
+.env-badge-val { font-size: 13px; font-weight: 700; color: #ffffff; min-height: 24px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; margin-bottom: 2px; width: 100%; word-break: break-word; font-variant-numeric: tabular-nums; }
 .env-badge-lbl { font-size: 9.5px; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.4px; line-height: 1.2; }
+/* Water-temp pill hidden when the own gauge doesn't report 00010 (keeps the 3x3 grid stable). */
+.env-badge-hidden { visibility: hidden; }
+/* Moon phase pill: allow wrap so the emoji+name fits on 320px screens. */
+.moon-pill { font-size: 12px; font-weight: 700; line-height: 1.3; word-break: break-word; }
 
 /* Solunar Split Card */
 .solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 24px; }
@@ -356,9 +360,6 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 @media (min-width: 600px) {
     .env-stat-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .env-badge { padding: 8px 6px; }
-}
-@media (min-width: 840px) {
-    .env-stat-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
 }
 
 /* DEBUG MATRIX */

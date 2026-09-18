@@ -3,6 +3,21 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — 2.1d CONFIRMED write shipped (real numbers in the UI)
+Human opened the real 2026 WDFW PDFs and confirmed: Puyallup Chinook 18,890 /
+Puyallup Coho 53,588. `refresh_wdfw_forecast.py --confirm --chinook=18890
+--coho=53588 --yes` wrote them into `src/data/wdfw_forecasts.json` (forecast
+`null → 18890 / 53588`, year 2026, real source URLs). Fixed the frontend so the
+confirmed numbers actually SURFACE: `refreshWdfwForecast()` added to
+`src/services/water.js` (mirrors the escapement honest-data fill-only-matching-
+cell pattern; fetches the static JSON, maps species, keeps "--" on failure);
+called from `src/app.js` after `refreshEscapement`. Previously `wdfwForecast`
+was hardcoded `null` in the renderer so the JSON could never display. SW cache
+bumped to v2.00.9 so existing installs precache the confirmed numbers. Sanity
+28/28 green.
+- Key files: `src/data/wdfw_forecasts.json`, `src/services/water.js`,
+  `src/app.js`, `sw.js`.
+
 ## 2026-09-18 — Phase 2.1 COMPLETE ✅ (a–f all shipped)
 2.1a real transit data + netting scoped; 2.1b RUN & TIMING panel + movement
 index; 2.1c clarity badge (Mud Mountain dam, Puyallup-only); 2.1d WDFW forecast

@@ -5,14 +5,14 @@
       "stock": "Puyallup Chinook",
       "run": "spring/summer Chinook",
       "year": 2026,
-      "forecast": null,
+      "forecast": 18890,
       "source_url": "https://wdfw.wa.gov/sites/default/files/2026-03/2026-2025-chinook-forecasts-03102026-revision.pdf"
     },
     {
       "stock": "Puyallup Coho",
       "run": "coho",
       "year": 2026,
-      "forecast": null,
+      "forecast": 53588,
       "source_url": "https://wdfw.wa.gov/sites/default/files/2026-03/2026-coho-forecast-summary-draft-handout-02272026.pdf"
     }
   ]

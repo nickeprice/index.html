@@ -26,7 +26,7 @@
  *                       (no CORS) so they cannot be inspected or trusted in cache.
  */
 
-const VERSION = 'v2.00.8';
+const VERSION = 'v2.00.9';
 const SHELL_CACHE = 'prc-shell-' + VERSION;
 const API_CACHE = 'prc-api-' + VERSION;
 const ASSET_CACHE = 'prc-assets-' + VERSION;

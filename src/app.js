@@ -1006,6 +1006,9 @@ async function loadWaterReport() {
         updateActiveDateUI();
         // Phase 2: refresh escapement figures from the live Socrata feed (graceful -- on failure)
         refreshEscapement(actId || station.id);
+        // Phase 2.1: apply the human-confirmed WDFW annual forecast (static JSON,
+        // graceful -- if absent). Same "fill only matching count cell" contract.
+        refreshWdfwForecast();
 
         // Live telemetry: two independent reads (USGS CFS momentum, Open-Meteo
         // surface conditions). Water temp + turbidity no longer need their own

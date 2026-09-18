@@ -318,6 +318,42 @@ async function loadEscapementData(siteId) {
     return rec;
 }
 
+// WDFW annual run forecasts (src/data/wdfw_forecasts.json). Loaded statically
+// and merged onto the per-species count cards exactly like the escapement feed:
+// values are ONLY the human-confirmed numbers written by
+// refresh_wdfw_forecast.py --confirm --chinook=/--coho= (never fabricated).
+// To fetch the latest forecast JSON, use wdfw_forecasts.json directly.
+// Until a real number exists the UI keeps its "--" placeholder.
+async function refreshWdfwForecast() {
+    var cell = document.querySelector('[data-count="wdfw"]');
+    if (!cell) return;
+    try {
+        var res = await fetch('/src/data/wdfw_forecasts.json', { cache: 'no-store' });
+        var data = await res.json();
+        if (!data || !data.stocks) return;
+        // Map card species (Chinook / Coho) to the registry's stock names
+        // ("Puyallup Chinook" / "Puyallup Coho") by trailing species token.
+        var bySp = {};
+        data.stocks.forEach(function (st) {
+            var name = String(st.stock || '');
+            var m = name.match(/\s+(Chinook|Coho|Sockeye|Pink|Jacks)$/i);
+            if (m) bySp[m[1].toLowerCase()] = st.forecast;
+        });
+        if (!Object.keys(bySp).length) return;
+        document.querySelectorAll('.run-card[data-species]').forEach(function (card) {
+            var sp = card.getAttribute('data-species');
+            if (!sp) return;
+            var val = bySp[sp];
+            var out = (val === null || val === undefined || isNaN(val)) ? '--' : Number(val).toLocaleString('en-US');
+            var target = card.querySelector('[data-count="wdfw"]');
+            if (target) target.textContent = out;
+        });
+        logDebug('WDFW forecast applied from wdfw_forecasts.json', 'NET');
+    } catch (e) {
+        logDebug('WDFW forecast unavailable, keeping "--": ' + e.message, 'ERR');
+    }
+}
+
 // Re-paint the escapement counts inside the merged [ RUN & TIMING ] per-species
 // cards once the live numbers land. Each count row carries data-count (wdfw /
 // return / trap / avg) inside a card carrying data-species, so we fill only the

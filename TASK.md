@@ -81,3 +81,16 @@ Verification:
 - [ ] Wind/moon columns consumed by `get_global_calibration` RPC for richer sonar
 - [ ] End-to-end live Supabase insert test (needs a write to the real DB)
 
+# Phase C — Live DB migration complete
+
+- [x] `supabase/migrations/20260917000300_set_user_id_default.sql` — set `user_id`
+      `default auth.uid()` on the live column. The Phase A migration's `create table
+      if not exists` was a no-op on the pre-existing table, so the default never
+      landed; this one is idempotent and fixes guest catch inserts.
+      - Verification: live query `information_schema.columns` -> `column_default
+        = 'auth.uid()'`, and `supabase_migrations.schema_migrations` lists all four
+        migrations as applied.
+- [x] Live push: `npx supabase db push --yes` applied `20260917000300` (plus the
+      earlier `20260917000200` env-columns migration was already live).
+
+

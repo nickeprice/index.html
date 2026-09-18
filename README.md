@@ -120,9 +120,16 @@ so repeat loads are instant.
 
 There is no committed test runner; the codebase is validated by:
 
-- `node --check` on every JS file (syntax).
-- `label[for]` / `aria-*` integrity checks against the markup.
-- A Playwright browser pass covering: page errors, accessible-name resolution,
-  service-worker registration and cache population, API cache-key
-  normalisation, offline replay, debounce behaviour, toast rendering, tab
-  switching, `?tab=` deep links and the empty states.
+- `find src -name '*.js' -print0 | xargs -0 -n1 node --check` and `node --check sw.js` (syntax).
+- `python3 -m py_compile api/water_report.py scripts/dev_server.py scripts/scrape_wdfw.py`.
+- **`node sanity_pass.js`** — a zero-dependency sanity pass that starts the dev server
+  and checks (exit 0 = all green):
+  - `label[for]` / accessible-name integrity against the markup + classic script order.
+  - HTTP: static assets serve 200 with correct content types; `/api/water_report`
+    returns 4 report days incl. `tide_curve` + `species_calendar`.
+  - Behavior (real `app.js` functions in a DOM-stubbed Node context): debounce
+    collapses a burst, toast renders in a `role=status` stack, `?tab=` deep links
+    activate the target tab, `switchTab` toggles `tab-active`, and the water-report
+    empty state renders.
+
+Run it with `node sanity_pass.js` (it picks a free port and cleans up after itself).

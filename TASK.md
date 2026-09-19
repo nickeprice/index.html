@@ -1,4 +1,78 @@
-## ACTIVE  Phase 2.4 — Compact one-screen forms, HUD cleanup, foam 1+2 (approved 2026-09-18, Act mode)
+## ACTIVE  Phase 2.4.1 — Polish + 3 bug fixes (planned 2026-09-18; NOT STARTED)
+
+# Phase 2.4.1 — Timezone fix, scroll/bar fixes, hero & pill polish, gear rows
+
+STATUS: fully specified below, ZERO code written yet. Start at item 1.
+Prior phase 2.4 shipped as commit `b7b8f1d`. Working tree was clean at handoff.
+
+## 1. TIMEZONE BUG — "nets in the river" showed on the wrong day
+- [ ] `api/water_report.py` (~line 641): `now = datetime.now()` is SERVER-LOCAL
+      (UTC on Vercel) but drives the 4 forecast days, the TODAY/TOMORROW tag,
+      `dt.weekday()` netting check, sunrise/sunset and tide-day filtering. The
+      browser renders dates in Pacific, so late in the day they drift a day apart
+      (a card tagged Saturday was checking Sunday/Tuesday netting).
+- [ ] Fix: `now = datetime.now(ZoneInfo('America/Los_Angeles')).replace(tzinfo=None)`
+      (`from zoneinfo import ZoneInfo`; stdlib). Keep everything naive downstream.
+      `NETTING_DAYS = [6,0,1]` is correct — do NOT change it.
+- [ ] Verify: dev-server API — `net_status` for each of the 4 days matches the
+      weekday of that day's `title` in Pacific time.
+
+## 2. SCROLL cannot reach the bottom / needs several drags
+- [ ] `src/styles.css:14-15`: `html, body { height: 100% }` + `body { overflow-y: auto }`
+      makes body an inner scroll container (mobile jank). Drop `height: 100%`.
+- [ ] `body` padding-bottom must match the REAL bar height (was `64px`), so the last
+      line is not hidden under the bar: `calc(56px + env(safe-area-inset-bottom))`.
+
+## 3. BOTTOM TAB BAR sits too high with a transparent gap
+- [ ] `src/styles.css`: put `padding-bottom: env(safe-area-inset-bottom)` back on
+      `.bottom-tab-bar` (dark bg reaches the home indicator) and REMOVE the
+      safe-area term from `.tab-btn` (fixed ~56px height, vertically centered).
+
+## 4. FISHING OUTLOOK — real section header + ONE centred line
+- [ ] `src/app.js` `buildFishingHero`: drop the in-pill `hero-lbl`; emit only the
+      centred line. `src/styles.css`: `justify-content: center`, small gap, reasons
+      capped at 2 so it stays one line.
+- [ ] Card render (`src/app.js` ~line 916): put "FISHING OUTLOOK" ABOVE the hero as
+      a `.sec-hdr` (same style as `[ RIVER & ENVIRONMENTAL CONDITIONS ]`).
+
+## 5. 9-PILL GRID still looks off (dead space between value and label)
+- [ ] `src/styles.css`: remove `justify-content: space-between` + `min-height:76px`;
+      use `justify-content:center`, small fixed gap, a uniform reserved sub-line
+      slot on EVERY cell, `grid-auto-rows: 1fr` (all 9 equal + centred).
+
+## 6. COUNTS fold label + hatchery "last updated"
+- [ ] Render the fold as `▸ Forecast & Hatchery Report` (was `Counts`).
+- [ ] `src/services/water.js` `fetchEscapementLive`: request the Socrata system
+      column `:updated_at` and return its MAX with the counts
+      (verified live: `max(:updated_at)` = `2026-09-18T07:09:37.303Z`).
+- [ ] `loadEscapementData` stashes `rec.lastUpdated`; render under the counts fold:
+      `Last updated <Mon D, YYYY · H:MM AM>` in LOCAL time. If absent, show the
+      honest fallback "Hatchery data may lag WDFW reporting." (never a fake date).
+
+## 7. RUN & TIMING run cards — remove the peak day-counter
+- [ ] `src/app.js` ~line 584: DELETE the `peakLine` ("Peak in N d" / "Peak was N d ago")
+      and its `.run-footer` div (~line 621). KEEP the `Peak <date>` track label.
+      `src/styles.css`: `.run-footer` rule becomes dead — remove it.
+
+## 8. GEAR SIM + CATCH LOG — resting rows (undo the over-squash)
+- [ ] `index.html` (both tabs) + `src/styles.css`: replace the 2-col auto-flow
+      `.gear-grid` with explicit rows, ONE group per line, order preserved:
+      Rod Length + Weight | Mainline Material + Mainline Lb Test |
+      Leader Length + Leader Material + Leader Lb Test (3-up) | Hook Size + Yarn |
+      Foam 1 + Foam 2 | Bead Material + Bead Size. Wider gaps + fuller labels.
+      Keep the `-log` duplicates in the Catch Log.
+
+## Verify (whole phase)
+- `python3 -m py_compile api/water_report.py`; `node --check` on src/*.js + sw.js + sanity_pass.js
+- `bash scripts/check.sh`; `node sanity_pass.js` (update the `.gear-grid` CSS
+  assertion -> `.gear-row`; consider a Pacific-time/nets assertion)
+- Dev-server browse: TODAY/netting align with the Pacific calendar; scroll reaches
+  the bottom; bottom bar flush; hero/pills/gear rows look right.
+- NO DB migration in this phase -> no `db push`.
+- Commit + push when green.
+
+---
+# ARCHIVED — Phase 2.4 — Compact one-screen forms, HUD cleanup, foam 1+2 (shipped `b7b8f1d`)
 
 # Phase 2.4 — Fit both forms on one screen; HUD simplification; Foam 1 + Foam 2
 

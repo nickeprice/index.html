@@ -3,6 +3,23 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — HANDOFF: Phase 2.4.1 planned, NOT started (new chat starts here)
+Phase 2.4 shipped as `b7b8f1d` (tree clean). The next batch is fully specified in
+`TASK.md` -> ACTIVE Phase 2.4.1 with `- [ ]` boxes; read that file first.
+Scope: (1) TIMEZONE BUG — `api/water_report.py` uses `datetime.now()` (server UTC)
+so forecast days / TODAY tag / `dt.weekday()` netting drift from the Pacific
+calendar ("nets in the river" showed on a Saturday); fix with
+`ZoneInfo('America/Los_Angeles')`. (2) Scroll can't reach the bottom — drop
+`html,body{height:100%}` and match body padding-bottom to the bar height.
+(3) Bottom bar gap — safe-area inset belongs on `.bottom-tab-bar`, not the buttons.
+(4) "FISHING OUTLOOK" becomes a real `.sec-hdr`; hero body is ONE centred line.
+(5) Pills — centre value+label (drop `space-between`/`min-height:76px`).
+(6) Counts fold -> "Forecast & Hatchery Report" + `:updated_at` MAX from Socrata
+as a real "Last updated" line (verified live `max(:updated_at)`).
+(7) Remove the "Peak in/was N d" footer from run cards. (8) Gear Sim/Catch Log gear
+fields -> resting rows, one group per line, order preserved.
+No DB migration needed this phase.
+
 ## 2026-09-18 — Phase 2.4 complete ✅ (one-screen forms, HUD cleanup, Foam 1+2)
 Hero is now a labelled two-line "FISHING OUTLOOK" card. Conditions pills go
 uniform (grid-auto-rows 1fr). Wind shows "mph" again. Counts fold is a small

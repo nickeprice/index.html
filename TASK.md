@@ -1,75 +1,113 @@
-## ACTIVE  Phase 2.4.1 — Polish + 3 bug fixes (planned 2026-09-18; NOT STARTED)
+## ACTIVE (COMPLETE)  Phase 2.4.1 — Polish + 3 bug fixes (2026-09-18; done + verified)
 
 # Phase 2.4.1 — Timezone fix, scroll/bar fixes, hero & pill polish, gear rows
 
-STATUS: fully specified below, ZERO code written yet. Start at item 1.
-Prior phase 2.4 shipped as commit `b7b8f1d`. Working tree was clean at handoff.
+STATUS: COMPLETE ✅ (2026-09-18) — all 8 items done + verified; NO DB migration;
+`sanity_pass.js` 45/45 green (13 new/updated assertions); sw.js → `v2.00.12`.
+Prior phase 2.4 shipped as commit `b7b8f1d`. Not committed yet (awaiting approval).
 
 ## 1. TIMEZONE BUG — "nets in the river" showed on the wrong day
-- [ ] `api/water_report.py` (~line 641): `now = datetime.now()` is SERVER-LOCAL
+- [x] `api/water_report.py` (~line 641): `now = datetime.now()` is SERVER-LOCAL
       (UTC on Vercel) but drives the 4 forecast days, the TODAY/TOMORROW tag,
       `dt.weekday()` netting check, sunrise/sunset and tide-day filtering. The
       browser renders dates in Pacific, so late in the day they drift a day apart
       (a card tagged Saturday was checking Sunday/Tuesday netting).
-- [ ] Fix: `now = datetime.now(ZoneInfo('America/Los_Angeles')).replace(tzinfo=None)`
+- [x] Fix: `now = datetime.now(ZoneInfo('America/Los_Angeles')).replace(tzinfo=None)`
       (`from zoneinfo import ZoneInfo`; stdlib). Keep everything naive downstream.
       `NETTING_DAYS = [6,0,1]` is correct — do NOT change it.
-- [ ] Verify: dev-server API — `net_status` for each of the 4 days matches the
+      - VERIFIED: `from zoneinfo import ZoneInfo` added; dev-server API on 12101500
+        → TODAY = `Friday, Sep 18` == Pacific today, and per-day
+        `Friday=open Saturday=open Sunday=NETS Monday=NETS` (NETTING_DAYS = Sun/
+        Mon/Tue). Sanity now asserts both (day 0 == Pacific today + per-day match).
+- [x] Verify: dev-server API — `net_status` for each of the 4 days matches the
       weekday of that day's `title` in Pacific time.
 
 ## 2. SCROLL cannot reach the bottom / needs several drags
-- [ ] `src/styles.css:14-15`: `html, body { height: 100% }` + `body { overflow-y: auto }`
+- [x] `src/styles.css:14-15`: `html, body { height: 100% }` + `body { overflow-y: auto }`
       makes body an inner scroll container (mobile jank). Drop `height: 100%`.
-- [ ] `body` padding-bottom must match the REAL bar height (was `64px`), so the last
+      - VERIFIED: `height: 100%` + `overflow-y: auto` gone → document-level scroll;
+        sanity asserts no `height: 100%` on `html, body`.
+- [x] `body` padding-bottom must match the REAL bar height (was `64px`), so the last
       line is not hidden under the bar: `calc(56px + env(safe-area-inset-bottom))`.
+      - VERIFIED: padding is `calc(56px + env(safe-area-inset-bottom))`, matching the
+        56px `.tab-btn` height; sanity asserts the exact declaration.
 
 ## 3. BOTTOM TAB BAR sits too high with a transparent gap
-- [ ] `src/styles.css`: put `padding-bottom: env(safe-area-inset-bottom)` back on
+- [x] `src/styles.css`: put `padding-bottom: env(safe-area-inset-bottom)` back on
       `.bottom-tab-bar` (dark bg reaches the home indicator) and REMOVE the
       safe-area term from `.tab-btn` (fixed ~56px height, vertically centered).
+      - VERIFIED: `.bottom-tab-bar` owns the inset; `.tab-btn` is `height: 56px` +
+        `display:flex; align-items:center` and no longer references safe-area.
 
 ## 4. FISHING OUTLOOK — real section header + ONE centred line
-- [ ] `src/app.js` `buildFishingHero`: drop the in-pill `hero-lbl`; emit only the
+- [x] `src/app.js` `buildFishingHero`: drop the in-pill `hero-lbl`; emit only the
       centred line. `src/styles.css`: `justify-content: center`, small gap, reasons
       capped at 2 so it stays one line.
-- [ ] Card render (`src/app.js` ~line 916): put "FISHING OUTLOOK" ABOVE the hero as
+      - VERIFIED: `hero-lbl` gone from app.js + styles.css; `.hero-line` is
+        `justify-content: center` with `gap: 3px 7px`; reasons `slice(0, 2)`.
+- [x] Card render (`src/app.js` ~line 916): put "FISHING OUTLOOK" ABOVE the hero as
       a `.sec-hdr` (same style as `[ RIVER & ENVIRONMENTAL CONDITIONS ]`).
+      - VERIFIED: `'<div class="sec-hdr">[ FISHING OUTLOOK ]</div>'` renders directly
+        above `buildFishingHero(rep)`; sanity asserts the marker exists.
 
 ## 5. 9-PILL GRID still looks off (dead space between value and label)
-- [ ] `src/styles.css`: remove `justify-content: space-between` + `min-height:76px`;
+- [x] `src/styles.css`: remove `justify-content: space-between` + `min-height:76px`;
       use `justify-content:center`, small fixed gap, a uniform reserved sub-line
       slot on EVERY cell, `grid-auto-rows: 1fr` (all 9 equal + centred).
+      - VERIFIED: `.env-badge` is `justify-content:center` + `gap:4px`, no
+        min-height; app.js renders 9 `env-badge` cells with 9 `env-badge-sub` slots
+        (grep counts = 9/9).
 
 ## 6. COUNTS fold label + hatchery "last updated"
-- [ ] Render the fold as `▸ Forecast & Hatchery Report` (was `Counts`).
-- [ ] `src/services/water.js` `fetchEscapementLive`: request the Socrata system
+- [x] Render the fold as `▸ Forecast & Hatchery Report` (was `Counts`).
+      - VERIFIED: summary text is `Forecast &amp; Hatchery Report`; the chevron moved
+        to `::before` so it prints BEFORE the label (`▸ Forecast & Hatchery Report`).
+- [x] `src/services/water.js` `fetchEscapementLive`: request the Socrata system
       column `:updated_at` and return its MAX with the counts
       (verified live: `max(:updated_at)` = `2026-09-18T07:09:37.303Z`).
-- [ ] `loadEscapementData` stashes `rec.lastUpdated`; render under the counts fold:
+      - VERIFIED: `$select=…,max(:updated_at) AS lastUpdated`; Node harness running
+        the REAL function against live Socrata returned
+        `lastUpdated = 2026-09-18T07:09:37.303Z` and `{ stocks, lastUpdated }`.
+- [x] `loadEscapementData` stashes `rec.lastUpdated`; render under the counts fold:
       `Last updated <Mon D, YYYY · H:MM AM>` in LOCAL time. If absent, show the
       honest fallback "Hatchery data may lag WDFW reporting." (never a fake date).
+      - VERIFIED: `formatEscapementUpdated()` → `Last updated Sep 18, 2026 ·
+        12:09 AM` (local) / fallback wording for `null` + unparseable input;
+        `refreshEscapement` repaints every `[data-esc-updated]`.
 
 ## 7. RUN & TIMING run cards — remove the peak day-counter
-- [ ] `src/app.js` ~line 584: DELETE the `peakLine` ("Peak in N d" / "Peak was N d ago")
+- [x] `src/app.js` ~line 584: DELETE the `peakLine` ("Peak in N d" / "Peak was N d ago")
       and its `.run-footer` div (~line 621). KEEP the `Peak <date>` track label.
       `src/styles.css`: `.run-footer` rule becomes dead — remove it.
+      - VERIFIED: `peakLine` + `.run-footer` gone from app.js and styles.css; the
+        `run-lbl-peak` "Peak <date>" label is untouched; sanity asserts no remnants.
 
 ## 8. GEAR SIM + CATCH LOG — resting rows (undo the over-squash)
-- [ ] `index.html` (both tabs) + `src/styles.css`: replace the 2-col auto-flow
+- [x] `index.html` (both tabs) + `src/styles.css`: replace the 2-col auto-flow
       `.gear-grid` with explicit rows, ONE group per line, order preserved:
       Rod Length + Weight | Mainline Material + Mainline Lb Test |
       Leader Length + Leader Material + Leader Lb Test (3-up) | Hook Size + Yarn |
       Foam 1 + Foam 2 | Bead Material + Bead Size. Wider gaps + fuller labels.
       Keep the `-log` duplicates in the Catch Log.
+      - VERIFIED: `.gear-rows`/`.gear-row`/`.gear-row-3` (gap 11px / 10px) with 6 rows
+        per tab = 12 `class="gear-row"` occurrences; every id/for/onchange/onclick/
+        aria-labelledby/placeholder/type attribute in index.html is byte-identical to
+        HEAD (scripted diff = "ATTRS IDENTICAL"); div open/close = 85/85.
 
 ## Verify (whole phase)
-- `python3 -m py_compile api/water_report.py`; `node --check` on src/*.js + sw.js + sanity_pass.js
-- `bash scripts/check.sh`; `node sanity_pass.js` (update the `.gear-grid` CSS
-  assertion -> `.gear-row`; consider a Pacific-time/nets assertion)
-- Dev-server browse: TODAY/netting align with the Pacific calendar; scroll reaches
-  the bottom; bottom bar flush; hero/pills/gear rows look right.
-- NO DB migration in this phase -> no `db push`.
-- Commit + push when green.
+- [x] `python3 -m py_compile api/water_report.py`; `node --check` on src/*.js + sw.js + sanity_pass.js
+      - `bash scripts/check.sh --quick` → syntax OK.
+- [x] `bash scripts/check.sh`; `node sanity_pass.js` (update the `.gear-grid` CSS
+      assertion -> `.gear-row`; consider a Pacific-time/nets assertion)
+      - VERIFIED: 45 PASSED / 0 FAILED; the `.gear-grid` assertion is now
+        `.gear-row` + `.gear-row-3`, plus new checks for dead CSS, document-level
+        scroll, body padding, `:updated_at`, hero/`sec-hdr`, peak-counter,
+        6-rows-per-form, Pacific TODAY + per-day netting.
+- [ ] Dev-server browse: TODAY/netting align with the Pacific calendar; scroll reaches
+      the bottom; bottom bar flush; hero/pills/gear rows look right.
+      - API-side proven by the checks above; on-device visual pass still outstanding.
+- [x] NO DB migration in this phase -> no `db push`.
+- [ ] Commit + push when green (awaiting user approval — no auto-commit).
 
 ---
 # ARCHIVED — Phase 2.4 — Compact one-screen forms, HUD cleanup, foam 1+2 (shipped `b7b8f1d`)

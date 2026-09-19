@@ -137,9 +137,22 @@ function staticIntegrity() {
     : fail('Gear Sim stars + score bar removed', 'stale stars/score-bar markup');
 
   const cssSrc = fs.readFileSync(path.join(ROOT, 'src', 'styles.css'), 'utf8');
-  /grid-template-columns: 1fr 1fr/.test(cssSrc)
-    ? ok('compact 2-column gear grid present', 'one-screen form layout')
-    : fail('compact 2-column gear grid present', 'missing .gear-grid columns');
+  // Phase 2.4.1: gear fields rest in explicit per-line rows (.gear-row) with a
+  // 3-up leader row, replacing the auto-flow 2-column grid.
+  (cssSrc.includes('.gear-row {') && cssSrc.includes('.gear-row-3 {'))
+    ? ok('resting gear rows present (.gear-row + .gear-row-3)', 'one gear group per line')
+    : fail('resting gear rows present (.gear-row + .gear-row-3)', 'missing .gear-row rules');
+  (!cssSrc.includes('gear-grid') && !cssSrc.includes('.run-footer'))
+    ? ok('dead .gear-grid / .run-footer rules removed', 'no stale layout rules')
+    : fail('dead .gear-grid / .run-footer rules removed', 'stale CSS found');
+  // Scroll/bar geometry: no body-as-scroll-container, and the body padding must
+  // clear the REAL 56px bar + safe-area inset.
+  (/html, body \{[^}]*height: 100%/.test(cssSrc) === false)
+    ? ok('document-level scrolling (no body height:100%)', 'body is not a nested scroller')
+    : fail('document-level scrolling (no body height:100%)', 'height:100% still set');
+  (cssSrc.includes('padding-bottom: calc(56px + env(safe-area-inset-bottom))'))
+    ? ok('body bottom padding clears the 56px tab bar + inset', 'last line not hidden')
+    : fail('body bottom padding clears the 56px tab bar + inset', 'expected calc(56px + env(safe-area-inset-bottom))');
 
   // Header: station opens the modal only from a centered <button> (no full-width flex:1 div)
   /<button id="station-header"/.test(html)
@@ -151,6 +164,29 @@ function staticIntegrity() {
   (!waterSrc.includes('waterTempProxies') && !waterSrc.includes('fetchProxyWaterTemp'))
     ? ok('no cross-gauge water-temp proxy in water.js', 'own-gauge payload only')
     : fail('no cross-gauge water-temp proxy in water.js', 'proxy remnants found');
+
+  // Phase 2.4.1: the hatchery freshness stamp rides on WDFW's own :updated_at
+  // system column (never a fabricated date), and both forms rest in 6 rows.
+  (waterSrc.includes('max(:updated_at) AS lastUpdated') && waterSrc.includes('formatEscapementUpdated'))
+    ? ok('escapement feed requests + formats max(:updated_at)', 'real WDFW publish time')
+    : fail('escapement feed requests + formats max(:updated_at)', 'missing :updated_at wiring');
+  (waterSrc.includes('Hatchery data may lag WDFW reporting.'))
+    ? ok('honest fallback when no :updated_at stamp exists', 'never a fake date')
+    : fail('honest fallback when no :updated_at stamp exists', 'fallback wording missing');
+
+  const appSrc = fs.readFileSync(path.join(ROOT, 'src', 'app.js'), 'utf8');
+  (!appSrc.includes('hero-lbl') && appSrc.includes('[ FISHING OUTLOOK ]') &&
+   appSrc.includes('Forecast &amp; Hatchery Report') && appSrc.includes('data-esc-updated'))
+    ? ok('hero uses a real section header + renamed counts fold', 'no in-pill label')
+    : fail('hero uses a real section header + renamed counts fold', 'stale hero-lbl / fold label');
+  (!appSrc.includes('peakLine') && !appSrc.includes('run-footer'))
+    ? ok('run cards carry no peak day-counter', 'peak date label only')
+    : fail('run cards carry no peak day-counter', 'peakLine / .run-footer remnants');
+
+  const gearRows = (html.match(/class="gear-row(?:[" ])/g) || []).length;
+  (gearRows === 12 && !html.includes('gear-grid'))
+    ? ok('both gear forms use 6 resting rows each', `${gearRows} rows total`)
+    : fail('both gear forms use 6 resting rows each', `${gearRows} rows found`);
 }
 
 // HTTP and API checks
@@ -194,6 +230,27 @@ async function httpChecks() {
     (firstSpc.progress !== undefined && firstSpc.peak_frac !== undefined)
       ? ok('species calendar carries run progress + peak geometry', `progress=${firstSpc.progress} peak_frac=${firstSpc.peak_frac}`)
       : fail('species calendar carries run progress + peak geometry', 'progress/peak_frac missing');
+
+    // Phase 2.4.1 — TIMEZONE: `now` is Pacific wall-clock (ZoneInfo), so day 0 must
+    // BE Pacific today and each card's netting flag must match the weekday of its
+    // OWN title. The old server-local (UTC on Vercel) `now` drifted a day apart.
+    const pacToday = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Los_Angeles', weekday: 'long', month: 'short', day: 'numeric'
+    }).format(new Date());
+    (day0.tag === 'TODAY' && String(day0.title) === pacToday)
+      ? ok('day 0 card is TODAY in Pacific time', `${day0.title} == ${pacToday}`)
+      : fail('day 0 card is TODAY in Pacific time', `title=${day0.title} pacificToday=${pacToday}`);
+    const NET_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday']; // NETTING_DAYS = [6, 0, 1]
+    const netBad = reports.filter((d) => {
+      const wd = String(d.title || '').split(',')[0];
+      const nets = /NETS IN/.test(String(d.net_status || ''));
+      return nets !== (NET_WEEKDAYS.indexOf(wd) !== -1) || nets !== !!d.is_netting;
+    });
+    netBad.length === 0
+      ? ok('netting matches each day\'s own Pacific weekday',
+          reports.map((d) => String(d.title).split(',')[0] + (d.is_netting ? '=NETS' : '=open')).join(' '))
+      : fail('netting matches each day\'s own Pacific weekday',
+          netBad.map((d) => `${d.title} / ${d.net_status}`).join(' '));
   }
 
   // /api/nearby_stations — the server-side USGS lookup for the GPS flow.

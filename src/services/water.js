@@ -143,6 +143,10 @@ const ESCAPEMENT_SOCRATA = 'https://data.wa.gov/resource/9q4e-xhag.json';
 // events (Adult Plant / Mortality / Surplus / Parent Spawn / EggTake) re-count those very
 // same fish, so summing every event would inflate the total several times over.
 const ESCAPEMENT_EVENT = 'Trap Estimate';
+// Shown under the counts fold whenever WDFW exposes no usable :updated_at stamp.
+// Shared by app.js (first paint) and refreshEscapement (after the live fetch) so
+// the UI never invents a date.
+const ESCAPEMENT_UPDATED_FALLBACK = 'Hatchery data may lag WDFW reporting.';
 // Active USGS river gauge ID -> WDFW `facility` string(s) exactly as spelled in the
 // dataset. The whole Puyallup / White River basin is pooled into one query per gauge:
 // today only VOIGHTS CR HATCHERY actively reports Trap Estimates (PUYALLUP HATCHERY's
@@ -191,6 +195,18 @@ function escWowBadge(wow) {
     return { text: '\u2014 Stable', color: '#94a3b8' };
 }
 
+// Freshness line for the hatchery counts fold: "Last updated Sep 18, 2026 · 12:09 AM"
+// in the DEVICE's local time from WDFW's own :updated_at stamp. An absent /
+// unparseable stamp returns the honest fallback wording — never a fabricated date.
+function formatEscapementUpdated(iso) {
+    if (!iso) return ESCAPEMENT_UPDATED_FALLBACK;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return ESCAPEMENT_UPDATED_FALLBACK;
+    var datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    var timePart = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return 'Last updated ' + datePart + ' \u00B7 ' + timePart;
+}
+
 // Escapement counts now render inside the merged [ RUN & TIMING ] per-species
 // cards (buildSpeciesCalendarHtml in app.js); refreshEscapement fills their
 // count rows async after the card HTML renders.
@@ -203,6 +219,9 @@ function escWowBadge(wow) {
 //   WoW          = last 7 days vs the prior 7 days (delta + percent change)
 // Adults come from adult_count; jacks are pooled from the dataset's jack_count column.
 // Returns null (never throws) when the river is unmapped or the feed has no rows.
+// Returns { stocks: { bucket -> counts }, lastUpdated } where lastUpdated is the
+// MAX Socrata system column :updated_at across the rows (WDFW's own publish time,
+// never a client guess) — null when the feed does not expose it.
 async function fetchEscapementLive(siteId) {
     var facilities = escapementFacilities[siteId ? String(siteId) : ''];
     if (!facilities || !facilities.length) return null;
@@ -212,7 +231,7 @@ async function fetchEscapementLive(siteId) {
     var where = "event='" + ESCAPEMENT_EVENT + "' AND facility in(" + quoted + ")" +
         " AND date >= '" + (year - 5) + "-01-01T00:00:00.000'";
     var url = ESCAPEMENT_SOCRATA +
-        '?$select=date,species,run,sum(adult_count) AS adults,sum(jack_count) AS jacks' +
+        '?$select=date,species,run,sum(adult_count) AS adults,sum(jack_count) AS jacks,max(:updated_at) AS lastUpdated' +
         '&$group=date,species,run' +
         '&$where=' + encodeURIComponent(where) +
         '&$order=date DESC&$limit=5000';
@@ -225,8 +244,11 @@ async function fetchEscapementLive(siteId) {
     var DAY = 86400000;
     var acc = {};   // display bucket -> { days: { 'YYYY-MM-DD': adultSum } }
     var jacc = {};  // pooled jacks across every species and run
+    var lastUpdated = null; // MAX :updated_at across every returned row
     for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
+        var stamp = r.lastUpdated;
+        if (stamp && (!lastUpdated || String(stamp) > lastUpdated)) lastUpdated = String(stamp);
         var key = String(r.date || '').slice(0, 10);
         if (!key) continue;
         var bucket = escBucketName(r.species, r.run);
@@ -284,27 +306,27 @@ async function fetchEscapementLive(siteId) {
             wow: { delta: delta, pct: pct, cur: cur, prior: prev }
         };
     });
-    return out;
+    return { stocks: out, lastUpdated: lastUpdated };
 }
 
 // Merge live numbers onto the static registry. Species matching is exact first, then by
 // base species, so a 'Chinook' card also picks up legacy 'Fall Chinook' buckets. Never
 // throws - any failure leaves the existing "--" placeholders in place so the UI stays
-// stable.
+// stable. Also stashes rec.lastUpdated (WDFW's max :updated_at) for the counts fold.
 async function loadEscapementData(siteId) {
     var key = siteId ? String(siteId) : '';
     var rec = hatcheryEscapement[key];
     if (!rec) return null;
     try {
         var live = await fetchEscapementLive(key);
-        if (live) {
+        if (live && live.stocks) {
             rec.stocks.forEach(function(st) {
                 var want = String(st.name).toLowerCase();
                 var base = want.replace(/^(fall|spring|summer|winter)\s+/, '');
                 var hit = null;
-                Object.keys(live).forEach(function(sp) {
+                Object.keys(live.stocks).forEach(function(sp) {
                     var l = sp.toLowerCase().replace(/^(fall|spring|summer|winter)\s+/, '');
-                    if (!hit && (sp.toLowerCase() === want || l === base)) hit = live[sp];
+                    if (!hit && (sp.toLowerCase() === want || l === base)) hit = live.stocks[sp];
                 });
                 if (hit) {
                     st.totalReturn = hit.totalReturn;
@@ -313,6 +335,7 @@ async function loadEscapementData(siteId) {
                     st.wow = hit.wow;
                 }
             });
+            rec.lastUpdated = live.lastUpdated || null;
             logDebug("Escapement synced for " + key, "NET");
         }
     } catch(e) {
@@ -382,5 +405,10 @@ async function refreshEscapement(siteId) {
         set('return', hit.totalReturn);
         set('trap', hit.trapCount);
         set('avg', hit.fiveYrAvg);
+    });
+    // Freshness stamp under each counts fold: WDFW's max :updated_at in LOCAL time,
+    // or the honest fallback wording when the feed exposed no stamp.
+    document.querySelectorAll('.run-card [data-esc-updated]').forEach(function(el) {
+        el.textContent = formatEscapementUpdated(rec.lastUpdated);
     });
 }

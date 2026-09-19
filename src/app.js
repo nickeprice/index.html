@@ -558,11 +558,11 @@ function buildFishingHero(rep) {
         peakTxt = '<span class="hero-peak-time" style="color:' + pCol + ';">Best ' + best.start_str + ' \u2013 ' + best.end_str + '</span>';
     }
 
-    // Join reasons into the strip (cap at 3 so it stays one compact line).
-    var whyTxt = reasons.slice(0, 3).map(function (r) { return '<span class="hero-why-bit">' + r + '</span>'; }).join('<span class="hero-sep">\u00B7</span>');
+    // Join reasons into the strip (cap at 2 so the centred line never wraps on a
+    // phone; the reasons are ordered by importance above).
+    var whyTxt = reasons.slice(0, 2).map(function (r) { return '<span class="hero-why-bit">' + r + '</span>'; }).join('<span class="hero-sep">\u00B7</span>');
 
     return '<div class="fishing-hero">' +
-        '<div class="hero-lbl">Fishing Outlook</div>' +
         '<div class="hero-line">' +
           '<span class="hero-verdict" style="color:' + vColor + ';">' + verdict + '</span>' +
           (peakTxt ? '<span class="hero-sep">\u00B7</span>' + peakTxt : '') +
@@ -581,9 +581,6 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
     for (var i = 0; i < calendar.length; i++) {
         var s = calendar[i];
         var statusClass = 'spc-' + (s.position || 'off');
-        var peakLine = (s.days_until_peak !== null && s.days_until_peak !== undefined)
-            ? ((s.days_until_peak >= 0 ? 'Peak in ' + s.days_until_peak + 'd' : 'Peak was ' + Math.abs(s.days_until_peak) + 'd ago'))
-            : '';
         var prog = (typeof s.progress === 'number') ? Math.max(0, Math.min(1, s.progress)) : 0;
         var peakFrac = (typeof s.peak_frac === 'number') ? Math.max(0, Math.min(1, s.peak_frac)) : 0.5;
         var fillPct = (prog * 100).toFixed(1);
@@ -618,15 +615,17 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
                 '<span class="run-lbl-peak">Peak ' + (s.peak_date || '') + '</span>' +
                 '<span class="run-lbl-end">' + (s.window_end || '') + '</span>' +
             '</div>' +
-            (peakLine ? '<div class="run-footer">' + peakLine + '</div>' : '') +
             '<details class="run-counts">' +
-                '<summary>Counts</summary>' +
+                '<summary>Forecast &amp; Hatchery Report</summary>' +
                 '<div class="run-counts-grid">' +
                     '<div class="esc-row esc-row-forecast"><span class="esc-row-lbl">Forecast</span><span class="esc-row-val" data-count="wdfw">' + countVal(wdfwForecast) + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">Returned</span><span class="esc-row-val" data-count="return">' + (esc ? countVal(esc.totalReturn) : '--') + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">Trapped</span><span class="esc-row-val" data-count="trap">' + (esc ? countVal(esc.trapCount) : '--') + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">5-Yr Avg</span><span class="esc-row-val" data-count="avg">' + (esc ? countVal(esc.fiveYrAvg) : '--') + '</span></div>' +
                 '</div>' +
+                // Honest freshness stamp: refreshEscapement rewrites this with the
+                // Socrata max(:updated_at) in LOCAL time, or leaves the fallback.
+                '<div class="run-counts-updated" data-esc-updated>' + ESCAPEMENT_UPDATED_FALLBACK + '</div>' +
             '</details>' +
         '</div>';
     }
@@ -916,8 +915,10 @@ async function loadWaterReport(silent) {
 
             cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                 '<div class="card">' +
-                // PLAIN-ENGLISH HERO — the first thing on the card: verdict ·
-                // best window · why (one compact line, half the old height).
+                // PLAIN-ENGLISH HERO — the first thing on the card, under its own
+                // [ FISHING OUTLOOK ] section header: verdict · best window · why
+                // on ONE centred line.
+                '<div class="sec-hdr">[ FISHING OUTLOOK ]</div>' +
                 buildFishingHero(rep) +
                 // RIVER & ENVIRONMENTAL CONDITIONS (Consolidated)
                 '<div class="sec-hdr">[ RIVER &amp; ENVIRONMENTAL CONDITIONS ]</div>' +
@@ -936,6 +937,9 @@ async function loadWaterReport(silent) {
                     // with a live timing hint when the forecast supports it)
                     '<div class="env-badge">' +
                       '<div class="env-badge-val" style="color:' + pCol + ';">' + rep.pressure.toFixed(2) + ' <span style="font-size:10px; font-weight:600;">inHg</span> ' + pArr + '</div>' +
+                      // Reserved sub-line slot on EVERY cell so all 9 pills centre
+                      // their value/label pair identically (empty = no hint).
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Barometer</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
@@ -951,14 +955,17 @@ async function loadWaterReport(silent) {
                     // Row 2: CLOUD%, TEMP (trend arrow), WIND (direction arrow)
                     '<div class="env-badge">' +
                       '<div class="env-badge-val">' + rep.cloud_pct + '%</div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Cloud Cover</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val" style="color:' + tCol + ';"><span class="air-temp">' + (rep.air_temp_f != null ? Math.round(rep.air_temp_f) : '--') + '</span>° ' + tArr + '</div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Temp</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val"><span class="wind-val">' + windDisplay + '</span></div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Wind</div>' +
                     '</div>' +
                     // Row 3: SUNRISE/SUNSET (split), MOON PHASE, SOLUNAR
@@ -973,10 +980,12 @@ async function loadWaterReport(silent) {
                           '<span class="solunar-sublbl">Sunset</span>' +
                         '</div>' +
                       '</div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Sun / Set</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
                       '<div class="env-badge-val moon-pill">' + (rep.lunar_icon || '🌑') + '</div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Moon Phase</div>' +
                     '</div>' +
                     '<div class="env-badge">' +
@@ -990,6 +999,7 @@ async function loadWaterReport(silent) {
                           '<span class="solunar-sublbl">Underfoot</span>' +
                         '</div>' +
                       '</div>' +
+                      '<div class="env-badge-sub"></div>' +
                       '<div class="env-badge-lbl">Solunar</div>' +
                     '</div>' +
                   '</div>' +

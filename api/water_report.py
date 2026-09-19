@@ -4,6 +4,7 @@ import urllib.request
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+from zoneinfo import ZoneInfo
 import ssl
 
 SSL_CONTEXT = ssl._create_unverified_context()
@@ -638,7 +639,12 @@ def build_dynamic_timeline(lines_in, lines_out, sunrise_dt, sunset_dt, cloud_pct
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        now = datetime.now()
+        # Pacific wall-clock time, NOT the server's local zone (Vercel runs UTC):
+        # this `now` drives the 4 forecast days, the TODAY/TOMORROW tag, the
+        # dt.weekday() netting check, sunrise/sunset and the tide-day filter, so a
+        # UTC `now` made the cards (rendered in Pacific) drift a day apart late in
+        # the day. Everything downstream stays naive.
+        now = datetime.now(ZoneInfo('America/Los_Angeles')).replace(tzinfo=None)
         qs = parse_qs(urlparse(self.path).query)
 
         # /api/nearby_stations?lat=&lon= — reliable server-side USGS lookup for

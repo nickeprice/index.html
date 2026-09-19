@@ -11,8 +11,12 @@
     --accent-purple: #c084fc;
 }
 
-html, body { background-color: var(--bg-main); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; height: 100%; overflow-x: hidden; }
-body { overflow-y: auto; padding-bottom: calc(64px + env(safe-area-inset-bottom)); font-size: 14px; line-height: 1.35; }
+/* Scrolling is DOCUMENT-level: no `height: 100%` on html/body (that made body a
+   nested scroll container, which is what made the bottom of the page need several
+   drags on mobile). body padding-bottom matches the REAL bottom bar height
+   (56px) + the home-indicator inset so the last line is never hidden. */
+html, body { background-color: var(--bg-main); color: var(--text-main); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+body { padding-bottom: calc(56px + env(safe-area-inset-bottom)); font-size: 14px; line-height: 1.35; }
 
 /* NAV BAR (station selector + refresh; tabs live in the bottom bar) */
 #top-nav { position: sticky; top: 0; background-color: #1a1a1a; z-index: 2000; padding: 12px 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
@@ -44,10 +48,13 @@ h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin: 22px 0 10px 0; pa
 .row { display: flex; gap: 8px; margin-bottom: 8px; }
 .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 label { font-size: 0.65rem; color: #aaa; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.03em; }
-/* Compact 2-column gear grid shared by the Gear Sim and the Catch Log so every
-   field is reachable without scrolling. */
-.gear-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.gear-grid .field { display: flex; flex-direction: column; min-width: 0; }
+/* Resting gear rows shared by the Gear Sim and the Catch Log. Each .gear-row is
+   ONE visible line of the form (so the order reads top-to-bottom) with breathing
+   room between the fields instead of the old auto-flow 2-col squash. */
+.gear-rows { display: flex; flex-direction: column; gap: 11px; }
+.gear-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.gear-row-3 { grid-template-columns: repeat(3, 1fr); }
+.gear-row .field { display: flex; flex-direction: column; min-width: 0; }
 /* Paired feet / inches entry (rod length) */
 .dual-input { display: flex; align-items: center; gap: 4px; }
 .dual-input input { flex: 1 1 0; min-width: 0; width: 100%; text-align: center; padding: 7px 4px; }
@@ -111,7 +118,6 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .run-peak { position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px; background-color: #facc15; transform: translateX(-1.5px); box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2; }
 .run-track-lbl { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 5px; font-size: 0.75rem; color: var(--text-muted); }
 .run-lbl-peak { color: #facc15; font-weight: 700; }
-.run-footer { margin-top: 6px; font-size: 0.8rem; color: var(--text-main); border-top: 1px solid #2a2a2c; padding-top: 6px; }
 /* Status colors drive the pill, the left accent, and the run-fill color. */
 .spc-peak { border-left: 3px solid var(--accent-green); }
 .spc-peak .run-status-pill { color: var(--accent-green); border-color: var(--accent-green); }
@@ -127,11 +133,10 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .spc-off .run-fill { background-color: #555; }
 .foul-hook { color: var(--accent-red); }
 
-/* Fishing hero — labelled, two-line card at the top of the water card:
-   line 1 = "FISHING OUTLOOK"; line 2 = verdict · best window · why. */
+/* Fishing hero — one centred line (verdict · best window · why) under its own
+   [ FISHING OUTLOOK ] section header; the label is NOT repeated inside the box. */
 .fishing-hero { background-color: #121212; border: 1px solid #2a2a2c; border-radius: 10px; padding: 8px 10px; margin: 0 0 8px 0; box-sizing: border-box; }
-.hero-lbl { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: #8e8e93; margin-bottom: 3px; }
-.hero-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 0.82rem; line-height: 1.35; }
+.hero-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 3px 7px; font-size: 0.82rem; line-height: 1.35; text-align: center; }
 .hero-verdict { font-weight: 800; font-size: 0.92rem; }
 .hero-peak-time { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .hero-why-bit { color: #cbd5e1; font-weight: 600; }
@@ -310,12 +315,13 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .tide-curve-wrap { width: 100%; }
 .tide-curve-wrap .tide-svg { margin: 0; }
 
-/* 3. Weather & Moon Conditions — uniform 3x3 grid. Every cell is the same
-   height (grid-auto-rows 1fr) with the label pinned to the bottom, so the rows
-   line up cleanly whether or not a cell has a timing sub-line. */
+/* 3. Weather & Moon Conditions — uniform 3x3 grid. Every cell is identical
+   (grid-auto-rows 1fr) and its content is CENTRED, with a reserved sub-line slot
+   on every cell, so the value/label pairs line up across all 9 pills (no dead
+   space between the value and its label). */
 .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
 .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 6px; }
-.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 5px; text-align: center; min-width: 0; min-height: 76px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; }
+.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 5px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; box-sizing: border-box; }
 .env-badge-val { font-size: 14px; font-weight: 700; color: #ffffff; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.25; width: 100%; word-break: break-word; font-variant-numeric: tabular-nums; }
 .env-badge-sub { font-size: 10px; font-weight: 700; color: #fde68a; line-height: 1.2; min-height: 12px; }
 .env-badge-lbl { font-size: 10px; color: #b6bcc9; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px; line-height: 1.2; }
@@ -339,10 +345,14 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .run-counts { margin-top: 8px; border-top: 1px solid #2a2a2c; padding-top: 6px; }
 .run-counts > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; color: #b6bcc9; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; }
 .run-counts > summary::-webkit-details-marker { display: none; }
-.run-counts > summary::after { content: '\25B8'; font-size: 10px; color: #8e8e93; }
-.run-counts[open] > summary::after { content: '\25BE'; }
+/* Chevron sits BEFORE the fold label so it reads "▸ Forecast & Hatchery Report". */
+.run-counts > summary::before { content: '\25B8'; font-size: 10px; color: #8e8e93; }
+.run-counts[open] > summary::before { content: '\25BE'; }
 .run-counts > summary:hover { color: #ffffff; }
 .run-counts-grid { margin: 6px 0 0 0; }
+/* Honest freshness stamp for the hatchery counts (local time, or the fallback
+   wording when WDFW exposes no :updated_at). */
+.run-counts-updated { margin: 7px 0 0 0; font-size: 10px; line-height: 1.35; color: var(--text-muted); font-weight: 600; letter-spacing: 0.2px; }
 .esc-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; line-height: 1.6; }
 .esc-row-lbl { color: #b6bcc9; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.3px; }
 .esc-row-val { color: #ffffff; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -417,9 +427,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .empty-state-panel { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; margin: 12px 4px; }
 td.empty-state { padding: 30px 10px; }
 
-/* PERSISTENT BOTTOM TAB BAR — fixed, one-tap tab switching. Safe-area inset is
-   applied ONCE (on the buttons), not on both the bar and the buttons, which is
-   what left the odd empty gap above the home indicator. */
+/* PERSISTENT BOTTOM TAB BAR — fixed. The safe-area inset lives on the BAR (so the
+   dark background reaches the home indicator) while the buttons keep a fixed
+   56px height and centre their label. */
 .bottom-tab-bar {
     position: fixed;
     left: 0;
@@ -429,10 +439,15 @@ td.empty-state { padding: 30px 10px; }
     display: flex;
     background-color: #141416;
     border-top: 1px solid #2c2c2e;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 .tab-btn {
     flex: 1 1 0;
-    min-height: 58px;
+    height: 56px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     border-top: 2px solid transparent;
@@ -442,7 +457,7 @@ td.empty-state { padding: 30px 10px; }
     letter-spacing: 0.3px;
     text-transform: uppercase;
     cursor: pointer;
-    padding: 10px 4px calc(10px + env(safe-area-inset-bottom));
+    padding: 0 4px;
     -webkit-tap-highlight-color: rgba(255,255,255,0.1);
     transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }

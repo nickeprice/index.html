@@ -3,6 +3,26 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.4.1 complete ✅ (timezone + scroll/bar + hero/pills/gear rows)
+TIMEZONE: `api/water_report.py` now derives `now` from
+`ZoneInfo('America/Los_Angeles')` (Vercel runs UTC), so the 4 cards, the TODAY tag
+and the Sun/Mon/Tue netting check all agree with Pacific — verified live: day 0 =
+`Friday, Sep 18`, `Sunday=NETS Monday=NETS`. SCROLL: dropped `height:100%` on
+`html,body` (body was a nested scroller) and set body padding-bottom to
+`calc(56px + env(safe-area-inset-bottom))`. BAR: safe-area inset moved back onto
+`.bottom-tab-bar`; `.tab-btn` is a fixed 56px centred button. HERO: real
+`[ FISHING OUTLOOK ]` `.sec-hdr` above a single centred line (reasons capped at 2),
+in-pill `hero-lbl` gone. PILLS: `.env-badge` centres value+label with a reserved
+sub-line slot on all 9 cells. COUNTS: fold renamed `▸ Forecast & Hatchery Report`,
+`fetchEscapementLive` now also returns `max(:updated_at) AS lastUpdated`
+(live `2026-09-18T07:09:37.303Z`) rendered as `Last updated Sep 18, 2026 · 12:09 AM`
+local, else `Hatchery data may lag WDFW reporting.` RUN CARDS: peak day-counter +
+`.run-footer` removed (peak date label kept). GEAR: both forms use 6 explicit
+`.gear-row`s (leader row is 3-up), replacing the 2-col auto-flow grid.
+- Key files: `api/water_report.py`, `index.html`, `src/app.js`,
+  `src/services/water.js`, `src/styles.css`, `sw.js` (v2.00.12), `sanity_pass.js`
+  (45 checks), `TASK.md`. NO DB migration. Not committed yet (awaiting approval).
+
 ## 2026-09-18 — HANDOFF: Phase 2.4.1 planned, NOT started (new chat starts here)
 Phase 2.4 shipped as `b7b8f1d` (tree clean). The next batch is fully specified in
 `TASK.md` -> ACTIVE Phase 2.4.1 with `- [ ]` boxes; read that file first.

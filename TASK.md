@@ -1,4 +1,55 @@
-## ACTIVE ➤ Phase 2.3 — Board-first catch log, compact hero, mobile polish (approved 2026-09-18, Act mode)
+## ACTIVE  Phase 2.4 — Compact one-screen forms, HUD cleanup, foam 1+2 (approved 2026-09-18, Act mode)
+
+# Phase 2.4 — Fit both forms on one screen; HUD simplification; Foam 1 + Foam 2
+
+## Locked decisions (user-confirmed)
+1. Flow is DERIVED from the live report (fallback: last-known -> 1040); still recorded.
+   Distance is dropped from view (writes null).
+2. Per-device defaults from the user's most recent input; never-logged = blank + REQUIRED.
+3. Foam 2 FEEDS THE PHYSICS (Foam 1 lift + Foam 2 lift). Both recorded.
+4. Gear field ORDER IS PRESERVED (Rod/Weight -> Mainline -> Leader -> Hook/Yarn -> Foam1/Foam2 -> Beads).
+5. Hero gets a label; pills even; counts fold small; bottom bar gap fixed; wind "mph" restored.
+6. HUD: REMOVE stars + score-bar. Keep LINE HEIGHT + rename BED VELOCITY -> BOTTOM CURRENT.
+
+## A. Hero (`src/app.js`, `src/styles.css`)
+- [x] Add "FISHING OUTLOOK" label; 2-line clean layout.
+
+## B. Pills (`src/styles.css`)
+- [x] Even spacing: grid-auto-rows 1fr, no min-height/margin-top:auto weirdness.
+
+## C. Wind (`src/services/water.js`)
+- [x] Restore "mph" in applyReportWeather.
+
+## D. Counts fold (`src/styles.css`)
+- [x] Small chevron fold, in-family.
+
+## E. Bottom bar (`src/styles.css`)
+- [x] Fix safe-area double count.
+
+## F. Gear fields (`index.html`, `src/app.js`, `src/services/supabase.js`)
+- [x] Remove #flow/#distance/#flow-log/#distance-log from DOM.
+- [x] Remove the 3 big h2 headers; keep order; full labels.
+- [x] Leader Length -> number input. Foam -> Foam 1 + Foam 2.
+- [x] No selected defaults; per-device prefill; blank+required (validator + toast).
+
+## G. HUD (`index.html`, `src/app.js`)
+- [x] Remove #stars + #score-bar; rename Bed Velocity -> BOTTOM CURRENT ("how hard the water pulls").
+
+## H. Catch Log (`index.html`)
+- [x] Join the Board back to TOP; remove "Angler & Location" header; Date & Time -> Catch Result.
+
+## I. One-screen fit (`src/styles.css`)
+- [x] Compact inputs/rows/labels + 2-col gear grid so each tab fits without scrolling.
+
+## J. DB (`supabase/migrations/`, `src/services/supabase.js`)
+- [x] foam_2 column migration + toCatchRow mapping (agent ran db push + verified live).
+
+## Verify
+- node --check all JS + sanity; py_compile; check.sh; sanity_pass.js (update harness);
+  `npx supabase db push --yes < /dev/null`; live read-only verify; dev-server browse.
+
+---
+# ARCHIVED — Phase 2.3 (shipped)
 
 # Phase 2.3 — Hero to top, uniform pills, compact Gear Sim, board-first Catch Log
 

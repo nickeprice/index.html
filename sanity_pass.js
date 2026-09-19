@@ -120,6 +120,27 @@ function staticIntegrity() {
     ? ok('GPS field + hook-location removed from catch form', 'silent GPS, no hook-loc')
     : fail('GPS field + hook-location removed from catch form', 'stale controls found');
 
+  // Phase 2.4: flow + distance inputs removed (flow is derived), Foam 1 + Foam 2
+  // exist on both tabs, and the Gear Sim HUD stars/score-bar are gone.
+  (!html.includes('id="flow"') && !html.includes('id="distance"') &&
+   !html.includes('id="flow-log"') && !html.includes('id="distance-log"'))
+    ? ok('flow + distance inputs removed from both forms', 'flow derived from the live report')
+    : fail('flow + distance inputs removed from both forms', 'stale flow/distance inputs');
+
+  (html.includes('id="foam"') && html.includes('id="foam2"') &&
+   html.includes('id="foam-log"') && html.includes('id="foam2-log"'))
+    ? ok('Foam 1 + Foam 2 present on both tabs', 'two-corky rig supported')
+    : fail('Foam 1 + Foam 2 present on both tabs', 'missing Foam 2 control');
+
+  (!html.includes('id="stars"') && !html.includes('id="score-bar"'))
+    ? ok('Gear Sim stars + score bar removed', 'line height + bottom current only')
+    : fail('Gear Sim stars + score bar removed', 'stale stars/score-bar markup');
+
+  const cssSrc = fs.readFileSync(path.join(ROOT, 'src', 'styles.css'), 'utf8');
+  /grid-template-columns: 1fr 1fr/.test(cssSrc)
+    ? ok('compact 2-column gear grid present', 'one-screen form layout')
+    : fail('compact 2-column gear grid present', 'missing .gear-grid columns');
+
   // Header: station opens the modal only from a centered <button> (no full-width flex:1 div)
   /<button id="station-header"/.test(html)
     ? ok('station header is a centered button', 'no full-width click target')

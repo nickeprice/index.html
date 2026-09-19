@@ -3,6 +3,27 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.4 complete ✅ (one-screen forms, HUD cleanup, Foam 1+2)
+Hero is now a labelled two-line "FISHING OUTLOOK" card. Conditions pills go
+uniform (grid-auto-rows 1fr). Wind shows "mph" again. Counts fold is a small
+in-family chevron (not a blue pill). Bottom tab bar safe-area inset applied ONCE
+(fixes the gap above the home indicator). Gear Sim: stars + score-bar REMOVED —
+HUD is LINE HEIGHT + BOTTOM CURRENT ("how hard the water pulls"); bed-velocity
+renamed/explained. FLOW + DISTANCE inputs removed from BOTH tabs — flow is now
+DERIVED from the live report (fallback last-known -> 1040) and still recorded;
+cast_distance_ft writes null. All gear dropdowns lost their defaults: values
+pre-fill per-device from the user's own last input (localStorage) and otherwise
+stay blank + required (validator toasts "Fill in: …"). Leader Length is a number
+input. Foam split into Foam 1 + Foam 2, both FEEDING the buoyancy model (verified
+6.56" -> 11.37" for a second corky). Gear fields re-laid into a compact 2-column
+grid (same order preserved) so both tabs fit one screen. Catch Log: Join the
+Board back at the TOP, "Angler & Location" header removed, Date & Time moved to
+Catch Result. Migration 20260918000400 adds foam_2 (agent applied + verified).
+SW cache v2.00.11. Sanity 35/35 green.
+- Key files: `index.html`, `src/app.js`, `src/services/water.js`,
+  `src/services/supabase.js`, `src/styles.css`, `sw.js`, `sanity_pass.js`,
+  `supabase/migrations/20260918000400_foam2.sql`.
+
 ## 2026-09-18 — Phase 2.3 complete ✅ (board-first catch log, compact hero, mobile polish)
 Hero moved to the TOP of the water card, now a single compact line (verdict ·
 best window · why) — half the old height. Conditions 3×3 pills given equal

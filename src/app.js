@@ -310,21 +310,17 @@ function formatRodLength(totalFt) {
     return whole + "'" + inch + '"';
 }
 
-// Rod change re-derives the leader default (rounded up, clamped to the 6-12 selector).
+// Rod change mirrors the ft/in boxes between the two tabs. There is no leader
+// auto-fill any more — leader length is a free input the angler controls.
 function onRodChange(fromLog) {
     if (fromLog) {
-        setFieldValue('rod-ft', getNum('rod-ft-log'));
-        setFieldValue('rod-in', getNum('rod-in-log'));
+        setFieldValue('rod-ft', getStr('rod-ft-log'));
+        setFieldValue('rod-in', getStr('rod-in-log'));
     } else {
-        setFieldValue('rod-ft-log', getNum('rod-ft'));
-        setFieldValue('rod-in-log', getNum('rod-in'));
+        setFieldValue('rod-ft-log', getStr('rod-ft'));
+        setFieldValue('rod-in-log', getStr('rod-in'));
     }
-    var suggested = Math.ceil(getRodLengthFt());
-    if (suggested < 6) suggested = 6;
-    if (suggested > 12) suggested = 12;
-    setFieldValue('ld-len', String(suggested));
-    setFieldValue('ld-len-log', String(suggested));
-    logDebug("Rod set to " + formatRodLength(getRodLengthFt()) + " -> leader default " + suggested + " ft", "STATE");
+    logDebug('Rod length: ' + formatRodLength(getRodLengthFt()), 'STATE');
 }
 
 function setFieldValue(id, value) {
@@ -341,22 +337,28 @@ var LB_OPTIONS = {
 
 function updateLbOptions(matId, lbId, isLeader) {
     var table = isLeader ? LB_OPTIONS.leader : LB_OPTIONS.mainline;
-    var list = table[getStr(matId)] || table[isLeader ? 'copoly' : 'braid'];
+    var mat = getStr(matId);
+    var list = table[mat] || [];          // no defaults: blank material -> blank lb
     var sel = document.getElementById(lbId);
     if (!sel) return;
     var previous = sel.value;
     sel.innerHTML = '';
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '\u2014';
+    sel.appendChild(blank);
     for (var i = 0; i < list.length; i++) {
         var opt = document.createElement('option');
         opt.value = String(list[i]);
         opt.textContent = list[i] + 'lb';
         sel.appendChild(opt);
     }
+    // Keep the previous choice only if it is still valid for this material.
     var keepPrevious = false;
     for (var j = 0; j < list.length; j++) {
         if (String(list[j]) === previous) keepPrevious = true;
     }
-    sel.value = keepPrevious ? previous : String(list[Math.min(1, list.length - 1)]);
+    sel.value = keepPrevious ? previous : '';
 }
 
 function onLineMatChange(baseId, fromLog) {
@@ -560,9 +562,12 @@ function buildFishingHero(rep) {
     var whyTxt = reasons.slice(0, 3).map(function (r) { return '<span class="hero-why-bit">' + r + '</span>'; }).join('<span class="hero-sep">\u00B7</span>');
 
     return '<div class="fishing-hero">' +
-        '<span class="hero-verdict" style="color:' + vColor + ';">' + verdict + '</span>' +
-        (peakTxt ? '<span class="hero-sep">\u00B7</span>' + peakTxt : '') +
-        (whyTxt ? '<span class="hero-sep">\u00B7</span>' + whyTxt : '') +
+        '<div class="hero-lbl">Fishing Outlook</div>' +
+        '<div class="hero-line">' +
+          '<span class="hero-verdict" style="color:' + vColor + ';">' + verdict + '</span>' +
+          (peakTxt ? '<span class="hero-sep">\u00B7</span>' + peakTxt : '') +
+          (whyTxt ? '<span class="hero-sep">\u00B7</span>' + whyTxt : '') +
+        '</div>' +
         '</div>';
 }
 
@@ -615,7 +620,7 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
             '</div>' +
             (peakLine ? '<div class="run-footer">' + peakLine + '</div>' : '') +
             '<details class="run-counts">' +
-                '<summary><span class="run-counts-toggle">\uD83D\uDCCA Counts</span></summary>' +
+                '<summary>Counts</summary>' +
                 '<div class="run-counts-grid">' +
                     '<div class="esc-row esc-row-forecast"><span class="esc-row-lbl">Forecast</span><span class="esc-row-val" data-count="wdfw">' + countVal(wdfwForecast) + '</span></div>' +
                     '<div class="esc-row"><span class="esc-row-lbl">Returned</span><span class="esc-row-val" data-count="return">' + (esc ? countVal(esc.totalReturn) : '--') + '</span></div>' +
@@ -855,11 +860,11 @@ async function loadWaterReport(silent) {
         // manual CFS the angler typed is preserved instead of being blanked,
         // and skip on silent auto-refresh so a background refresh never clobbers
         // a CFS the angler typed by hand).
-        if(!silent && reports.length > 0 && reports[0].cfs !== null && reports[0].cfs !== undefined && !reports[0].api_offline) {
-            var cfsInput = document.getElementById('flow');
-            cfsInput.value = reports[0].cfs;
-            syncSelect('flow');
-            logDebug("Auto-synced CFS to Gear Sim: " + reports[0].cfs, "STATE");
+        // Live discharge now feeds the Gear Sim + catch log directly (there is no
+        // user-facing flow input any more) — the derived value is still recorded.
+        if(reports.length > 0 && reports[0].cfs !== null && reports[0].cfs !== undefined && !reports[0].api_offline) {
+            lastKnownFlow = reports[0].cfs;
+            logDebug("Live flow recorded for the sim: " + reports[0].cfs + " CFS", "STATE");
         }
 
         for(var i=0; i<reports.length; i++) {
@@ -1335,13 +1340,15 @@ function communitySonar(dbArray, flow, species) {
         // material sink, hook gap/mass, yarn skirt. Missing fields fall back to the
         // reference defaults so legacy rows still solve.
         var foam = parseFoam(row.foam !== undefined ? row.foam : row.corky);
+        // Second corky: honour foam_2 from the row when present (two-corky rigs).
+        var foam2 = parseFoam(row.foam_2 !== undefined ? row.foam_2 : row.foam2);
         var bdMat = (row.bdMat !== undefined) ? row.bdMat : row.bead_material;
         var bdSzRaw = (row.bdSz !== undefined && row.bdSz !== null) ? row.bdSz : row.bead_size;
         // RPC returns hook_size as text ("2","0","-1"); hookSink uses strict
         // equality, so coerce to a number or cloud rows misread the hook.
         var hookNum = (row.hook !== undefined && row.hook !== null && row.hook !== '') ? Number(row.hook) : 2;
         if (isNaN(hookNum)) hookNum = 2;
-        var lift = rigLift(foam.lift, row.yarn || 0, hookNum, bdMat, bdSzRaw);
+        var lift = rigLift(foam.lift + foam2.lift, row.yarn || 0, hookNum, bdMat, bdSzRaw);
         var bedVel = hydraulicVelocity(row.flow).bottom;
         var lb = row.ldLb || row.leader_lb || REF_LB_TEST;
         var ldMat = row.ldMat || row.leader_material || 'copoly';
@@ -1379,6 +1386,50 @@ function getActiveReport() {
         return reportsData[activeDateOffset];
     }
     return null;
+}
+
+// Live discharge for the Gear Sim + Catch Log. There is NO user-facing flow
+// input any more: the value comes from the current water report, falls back to
+// the last reading we saw this session, and finally to the 1040 CFS reference so
+// the solver always has a number to work with. It is still RECORDED on a catch.
+var lastKnownFlow = null;
+
+function getCurrentFlow() {
+    var rep = getActiveReport();
+    if (rep && rep.cfs !== null && rep.cfs !== undefined && !rep.api_offline) {
+        lastKnownFlow = rep.cfs;
+        return rep.cfs;
+    }
+    if (lastKnownFlow !== null) return lastKnownFlow;
+    return 1040;
+}
+
+// Required gear fields — no defaults, so anything the angler has never entered
+// stays blank and blocks the sim/log with a precise "fill in X" message.
+// Foam 2 is required too (pick "None" for a single-corky rig).
+var RIG_REQUIRED = [
+    { id: 'weight', label: 'Weight' },
+    { id: 'ml-mat', label: 'Mainline Material' },
+    { id: 'ml-lb',  label: 'Mainline Lb Test' },
+    { id: 'ld-len', label: 'Leader Length (ft)' },
+    { id: 'ld-mat', label: 'Leader Material' },
+    { id: 'ld-lb',  label: 'Leader Lb Test' },
+    { id: 'hook',   label: 'Hook Size' },
+    { id: 'yarn',   label: 'Yarn' },
+    { id: 'foam',   label: 'Foam 1' },
+    { id: 'foam2',  label: 'Foam 2' },
+    { id: 'bd-mat', label: 'Bead Material' },
+    { id: 'bd-sz',  label: 'Bead Size' }
+];
+
+function missingRigFields() {
+    var missing = [];
+    for (var i = 0; i < RIG_REQUIRED.length; i++) {
+        if (getStr(RIG_REQUIRED[i].id) === '') missing.push(RIG_REQUIRED[i].label);
+    }
+    // Rod length is a paired ft + in entry — blank in BOTH boxes means unset.
+    if (getStr('rod-ft') === '' && getStr('rod-in') === '') missing.push('Rod Length');
+    return missing;
 }
 
 function getWaterTempF() {
@@ -1499,14 +1550,15 @@ var WEIGHT_OPTIONS = [0.25, 0.375, 0.5, 0.625, 0.75, 1];
 var LEADER_LENGTH_OPTIONS = [6, 7, 8, 9, 10, 11, 12];
 var FOAM_KEYS = ['0', '14', '12', 'c12', '10'];
 
-function bestZoneRig(zone, bottomVelocity, lbTest, ldMat, mlLb, mlMat, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz) {
+function bestZoneRig(zone, bottomVelocity, lbTest, ldMat, mlLb, mlMat, foamKey, weightOz, leaderFt, yarnInches, hook, bdMat, bdSz, extraLift) {
     // Physics is locked: drag coefficient is always 1.0. Full component model,
     // same as runSim: bead/hook/yarn/line materials all count.
     var target = (zone.min + zone.max) / 2;
     var best = null;
     for (var f = 0; f < FOAM_KEYS.length; f++) {
         var foam = parseFoam(FOAM_KEYS[f]);
-        var lift = rigLift(foam.lift, yarnInches, hook, bdMat, bdSz);
+        // extraLift carries Foam 2's buoyancy so the sweep honours a two-corky rig.
+        var lift = rigLift(foam.lift + (extraLift || 0), yarnInches, hook, bdMat, bdSz);
         for (var w = 0; w < WEIGHT_OPTIONS.length; w++) {
             var wt = WEIGHT_OPTIONS[w];
             var drag = totalDragPerFt(bottomVelocity, lbTest, ldMat, mlLb, mlMat, wt, hook, yarnInches, bdMat, bdSz);
@@ -1727,10 +1779,8 @@ var RIG_STORE_KEY = 'puyallup_last_rig';
 function saveRig() {
     try {
         var rig = {
-            flow: getNum('flow'),
-            distance: getNum('distance'),
-            rodFt: getNum('rod-ft'),
-            rodIn: getNum('rod-in'),
+            rodFt: getStr('rod-ft'),
+            rodIn: getStr('rod-in'),
             mlMat: getStr('ml-mat'),
             mlLb: getStr('ml-lb'),
             ldLen: getStr('ld-len'),
@@ -1740,6 +1790,7 @@ function saveRig() {
             hook: getStr('hook'),
             yarn: getStr('yarn'),
             foam: getStr('foam'),
+            foam2: getStr('foam2'),
             bdMat: getStr('bd-mat'),
             bdSz: getStr('bd-sz')
         };
@@ -1755,32 +1806,41 @@ function restoreRig() {
     try { rig = JSON.parse(raw); } catch (e) { return; }
     if (!rig) return;
 
+    // Pre-fill from the angler's OWN last-used values. Anything they have never
+    // entered stays blank (the set() guard skips empty strings) and is required.
     function set(id, val) {
         var el = document.getElementById(id);
         if (el && val !== undefined && val !== null && val !== '') el.value = String(val);
     }
-    set('flow', rig.flow); set('distance', rig.distance);
     set('rod-ft', rig.rodFt); set('rod-in', rig.rodIn);
     set('ml-mat', rig.mlMat); set('ml-lb', rig.mlLb);
     set('ld-len', rig.ldLen); set('ld-mat', rig.ldMat); set('ld-lb', rig.ldLb);
     set('weight', rig.weight); set('hook', rig.hook); set('yarn', rig.yarn);
-    set('foam', rig.foam); set('bd-mat', rig.bdMat); set('bd-sz', rig.bdSz);
+    set('foam', rig.foam); set('foam2', rig.foam2);
+    set('bd-mat', rig.bdMat); set('bd-sz', rig.bdSz);
     // Mirror to the Catch Log duplicated controls.
-    set('flow-log', rig.flow); set('distance-log', rig.distance);
     set('rod-ft-log', rig.rodFt); set('rod-in-log', rig.rodIn);
     set('ml-mat-log', rig.mlMat); set('ml-lb-log', rig.mlLb);
     set('ld-len-log', rig.ldLen); set('ld-mat-log', rig.ldMat); set('ld-lb-log', rig.ldLb);
     set('weight-log', rig.weight); set('hook-log', rig.hook); set('yarn-log', rig.yarn);
-    set('foam-log', rig.foam); set('bd-mat-log', rig.bdMat); set('bd-sz-log', rig.bdSz);
+    set('foam-log', rig.foam); set('foam2-log', rig.foam2);
+    set('bd-mat-log', rig.bdMat); set('bd-sz-log', rig.bdSz);
 }
 
 async function runSim() {
     var simBtn = document.getElementById('btn-sim');
+
+    // No defaults: every gear field must be chosen before the solver can run.
+    var missing = missingRigFields();
+    if (missing.length) {
+        showToast('Fill in: ' + missing.join(', '), 'warn', 6000);
+        return;
+    }
+
     if (simBtn) { simBtn.innerText = 'CALCULATING...'; simBtn.disabled = true; }
 
     // 1. Read the rig off the form -------------------------------------------------
-    var flow = getNum('flow');
-    var dist = getNum('distance');
+    var flow = getCurrentFlow();          // derived from the live water report
     var weightOz = getNum('weight');
     var rodFt = getRodLengthFt();
     var ldLen = getNum('ld-len');
@@ -1791,7 +1851,8 @@ async function runSim() {
     var hookRaw = parseFloat(getStr('hook'));
     var hook = isNaN(hookRaw) ? 2 : hookRaw;        // 0 = 1/0, -1 = 2/0
     var yarn = getNum('yarn');
-    var foam = parseFoam(getStr('foam'));
+    var foam = parseFoam(getStr('foam'));           // Foam 1
+    var foam2 = parseFoam(getStr('foam2'));         // Foam 2 (second corky)
     var bdMat = getStr('bd-mat');
     var bdSz = getNum('bd-sz');
     var species = getStr('species');
@@ -1816,7 +1877,8 @@ async function runSim() {
     // mainline, bead sphere + material sink, hook mass/gap, yarn skirt.
     var velocity = hydraulicVelocity(flow);
     var dragPerFt = totalDragPerFt(velocity.bottom, ldLb, ldMat, mlLb, mlMat, weightOz, hook, yarn, bdMat, bdSz);
-    var lift = rigLift(foam.lift, yarn, hook, bdMat, bdSz);
+    // Foam 1 + Foam 2 both contribute buoyancy (two corkies lift more).
+    var lift = rigLift(foam.lift + foam2.lift, yarn, hook, bdMat, bdSz);
     var hgt = presentationHeightInches(lift, ldLen, dragPerFt);
     var blownOut = (velocity.bottom > 3.5 && weightOz < 0.5);
 
@@ -1832,13 +1894,12 @@ async function runSim() {
     }
     if (score < 0) score = 0;
     if (score > 5) score = 5;
-    var roundedScore = Math.round(score);
 
     // 4. Build the suggestions: what to change to get into the zone -------------------
     // Rig Adjustments only: your current state + the exact gear to tie on. No
     // calibration meta-talk - the community data already moved the zone above.
     var suggestions = [];
-    var best = bestZoneRig(zone, velocity.bottom, ldLb, ldMat, mlLb, mlMat, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz);
+    var best = bestZoneRig(zone, velocity.bottom, ldLb, ldMat, mlLb, mlMat, foam.key, weightOz, ldLen, yarn, hook, bdMat, bdSz, foam2.lift);
 
     if (blownOut) {
         suggestions.push('BLOWN OUT: the bed is running ' + velocity.bottom.toFixed(1) + ' ft/s with only ' + weightOz + ' oz of lead. Step up to 3/4 oz or 1 oz, or fish a slower seam.');
@@ -1865,7 +1926,6 @@ async function runSim() {
 // 5. Paint the HUD ---------------------------------------------------------------
     currentStats = {
         flow: flow,
-        distance: dist,
         rodFt: rodFt,
         weight: weightOz,
         ldLen: ldLen,
@@ -1876,6 +1936,7 @@ async function runSim() {
         hook: hook,
         yarn: yarn,
         foam: foam.key,
+        foam2: foam2.key,
         bdMat: bdMat,
         bdSz: bdSz,
         hgt: hgt,
@@ -1904,17 +1965,9 @@ async function runSim() {
     document.getElementById('target-hgt').innerText = 'Zone: ' + zone.min.toFixed(1) + '" - ' + zone.max.toFixed(1) + '"';
     document.getElementById('vel-target').innerText = blownOut ? 'BLOWN OUT' : 'Target: < 3.5 ft/s';
 
-    var stars = '';
-    for (var s = 0; s < 5; s++) stars += (s < roundedScore) ? '★' : '☆';
-    document.getElementById('stars').innerText = stars;
-
     var msg = blownOut ? 'BLOWN OUT - no presentation control'
         : ((hgt >= zone.min && hgt <= zone.max) ? 'Inside the strike zone' : 'Outside the strike zone');
-    document.getElementById('hud-msg').innerText = msg + '  •  Score ' + score.toFixed(1) + ' / 5.0';
-
-    var sBar = document.getElementById('score-bar');
-    sBar.style.backgroundColor = color;
-    sBar.style.width = Math.max(6, (score / 5) * 90) + '%';
+    document.getElementById('hud-msg').innerText = msg + '  \u2022  Score ' + score.toFixed(1) + ' / 5.0';
 
     // Logging is decoupled from the Gear Sim — the catch-log button keeps its
     // own label/state (set by applyAuthState) and is never gated on the sim.
@@ -1960,14 +2013,22 @@ async function logData() {
         showToast('Join the board first: enter your name and tap JOIN THE BOARD.', 'warn', 5000);
         return;
     }
+    // No defaults anywhere: gear, species and time must all be filled in.
+    var missing = missingRigFields();
+    if (getStr('species') === '') missing.push('Species Caught');
+    if (getStr('log-datetime') === '') missing.push('Date & Time');
+    if (missing.length) {
+        showToast('Fill in: ' + missing.join(', '), 'warn', 6000);
+        return;
+    }
     var foamRaw = getStr('foam');
     var activeRep = getActiveReport();
     // Decoupled from the Gear Sim: logging works straight from the form. When a
     // sim HAS been run we still carry its solved geometry (hook/height/zone) so
     // logs keep the rich private columns, but nothing here requires runSim().
     var simFlow = (currentStats && currentStats.flow != null) ? currentStats.flow : null;
-    var liveFlow = getNum('flow') || (activeRep && activeRep.cfs != null ? activeRep.cfs : 0);
-    var flowValue = (simFlow != null) ? simFlow : (liveFlow || 1040);
+    // Flow is derived from the live report now — never read off a form field.
+    var flowValue = (simFlow != null) ? simFlow : getCurrentFlow();
     var hookValue = (currentStats && currentStats.hook != null) ? currentStats.hook : (parseFloat(getStr('hook')) || 2);
     var payload = {
         name: AuthState.name || 'Anonymous',
@@ -1985,10 +2046,10 @@ async function logData() {
         mlLb: getNum('ml-lb'),
         weight: getNum('weight'),
         rodFt: getRodLengthFt(),
-        dist: getNum('distance'),
         hook: hookValue,
         yarn: getNum('yarn'),
         foam: foamRaw,
+        foam2: getStr('foam2'),
         bdMat: getStr('bd-mat'),
         bdSz: getNum('bd-sz'),
         // Environmental context captured at log time (private row enrichment).

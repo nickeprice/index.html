@@ -96,7 +96,7 @@ function applyReportWeather(rep) {
     if (wSpeed != null) {
         // The pill markup now renders a single "mph" unit; this just paints the
         // arrow + value (fixes the old double "mphmph" from pill + this line).
-        var windTxt = (wDir ? (WIND_ARROWS[wDir] || wDir) + ' ' : '') + Math.round(wSpeed);
+        var windTxt = (wDir ? (WIND_ARROWS[wDir] || wDir) + ' ' : '') + Math.round(wSpeed) + ' mph';
         document.querySelectorAll('.wind-val').forEach(function (el) { el.innerText = windTxt; });
     }
     document.querySelectorAll('.precip-pop').forEach(function (el) { el.innerText = (pop != null) ? pop : '--'; });

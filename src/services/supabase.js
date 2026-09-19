@@ -164,10 +164,11 @@ function toCatchRow(payload) {
         hook_size: (payload.hook !== undefined && payload.hook !== null) ? Number(payload.hook) : null,
         yarn: payload.yarn,
         foam: payload.foam || null,
+        foam_2: payload.foam2 || null,
         bead_material: payload.bdMat || null,
         bead_size: payload.bdSz,
         rod_ft: (payload.rodFt !== undefined && payload.rodFt !== null) ? payload.rodFt : null,
-        cast_distance_ft: (payload.dist !== undefined && payload.dist !== null) ? payload.dist : null,
+        cast_distance_ft: null,   // placement distance is no longer collected
         mainline_mat: payload.mlMat || null,
         mainline_lb: (payload.mlLb !== undefined && payload.mlLb !== null) ? payload.mlLb : null,
         gauge_height: (payload.gauge !== undefined && payload.gauge !== null) ? payload.gauge : null,

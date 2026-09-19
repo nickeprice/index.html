@@ -96,61 +96,82 @@
 <!-- TOOL 2: GEAR SIM -->
 <div id="tab-gear-sim" class="tab-content">
     <div id="hud">
-        <div id="stars">★★★★★</div>
         <div id="hud-msg">Awaiting inputs...</div>
         <div class="hud-metrics">
             <div class="metric"><div id="hud-hgt" class="metric-val">--</div><div class="metric-label">LINE HEIGHT</div><div id="target-hgt" class="metric-target">Zone: 4.0" - 12.0"</div></div>
-            <div class="metric"><div id="hud-vel" class="metric-val">--</div><div class="metric-label">BED VELOCITY</div><div id="vel-target" class="metric-target">ft/s at the bottom</div></div>
+            <div class="metric"><div id="hud-vel" class="metric-val">--</div><div class="metric-label">BOTTOM CURRENT</div><div id="vel-target" class="metric-target">how hard the water pulls</div></div>
         </div>
-        <div id="score-bar"></div>
     </div>
 
     <div class="bucket">
-        <h2>River Flow &amp; Placement</h2>
-        <div class="row">
-            <div class="col"><label for="flow">River Flow (CFS)</label><input type="number" id="flow" value="1040" min="100" max="10000" step="10" onchange="syncSelect('flow')"></div>
-            <div class="col"><label for="distance">Distance (ft)</label><input type="number" id="distance" value="150" min="1" max="1000" step="1" onchange="syncSelect('distance')"></div>
-        </div>
-
-        <h2>Rod &amp; Line Setup</h2>
-        <div class="row">
-            <div class="col"><label id="rod-len-label">Rod Length</label>
+        <!-- One tight 2-column gear grid. Field ORDER preserved:
+             Rod/Weight → Mainline → Leader → Hook/Yarn → Foam 1/Foam 2 → Beads.
+             NO pre-selected defaults: values come from your last saved rig, and
+             anything you have never entered stays blank and is required. -->
+        <div class="gear-grid">
+            <div class="field">
+                <label id="rod-len-label">Rod Length</label>
                 <div class="dual-input" role="group" aria-labelledby="rod-len-label">
-                    <input type="number" id="rod-ft" value="9" min="5" max="15" step="1" onchange="onRodChange()" aria-label="Rod length in feet">
+                    <input type="number" id="rod-ft" min="5" max="15" step="1" onchange="onRodChange()" aria-label="Rod length in feet" placeholder="9">
                     <span>ft</span>
-                    <input type="number" id="rod-in" value="8" min="0" max="11" step="1" onchange="onRodChange()" aria-label="Rod length in inches">
+                    <input type="number" id="rod-in" min="0" max="11" step="1" onchange="onRodChange()" aria-label="Rod length in inches" placeholder="8">
                     <span>in</span>
                 </div>
             </div>
-            <div class="col"><label for="weight">Weight</label>
-                <select id="weight" onchange="syncSelect('weight')"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
+            <div class="field">
+                <label for="weight">Weight</label>
+                <select id="weight" onchange="syncSelect('weight')"><option value="">—</option><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5">1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
             </div>
-        </div>
-        
-        <h3>Mainline</h3>
-        <div class="row">
-            <div class="col"><label for="ml-mat">Material</label><select id="ml-mat" onchange="onLineMatChange('ml-mat')"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select></div>
-            <div class="col"><label for="ml-lb">Lb Test</label><select id="ml-lb" onchange="syncSelect('ml-lb')"><option value="20">20lb</option><option value="30" selected>30lb</option><option value="40">40lb</option></select></div>
-        </div>
 
-        <h3>Leader</h3>
-        <div class="row">
-            <div class="col"><label for="ld-len">Length (ft)</label><select id="ld-len" onchange="syncSelect('ld-len')"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10" selected>10</option><option value="11">11</option><option value="12">12</option></select></div>
-            <div class="col"><label for="ld-mat">Material</label><select id="ld-mat" onchange="onLineMatChange('ld-mat')"><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label for="ld-lb">Lb Test</label><select id="ld-lb" onchange="syncSelect('ld-lb')"><option value="10">10lb</option><option value="12" selected>12lb</option></select></div>
-        </div>
+            <div class="field">
+                <label for="ml-mat">Mainline Material</label>
+                <select id="ml-mat" onchange="onLineMatChange('ml-mat')"><option value="">—</option><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select>
+            </div>
+            <div class="field">
+                <label for="ml-lb">Mainline Lb Test</label>
+                <select id="ml-lb" onchange="syncSelect('ml-lb')"><option value="">—</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select>
+            </div>
 
-        <h2>Rig Configuration</h2>
-        <div class="row">
-            <div class="col"><label for="hook">Hook Size</label><select id="hook" onchange="syncSelect('hook')"><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select></div>
-            <div class="col"><label for="yarn">Yarn</label><select id="yarn" onchange="syncSelect('yarn')"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="foam">Foam</label><select id="foam" onchange="syncSelect('foam')"><option value="0">None</option><option value="10" selected>Corky - Size 10 (10mm)</option><option value="12">Corky - Size 12 (8mm)</option><option value="14">Corky - Size 14 (6mm)</option><option value="c12">Cheater - Size 12</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="bd-mat">Bead Material</label><select id="bd-mat" onchange="syncSelect('bd-mat')"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
-            <div class="col"><label for="bd-sz">Bead Size</label><select id="bd-sz" onchange="syncSelect('bd-sz')"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
+            <div class="field">
+                <label for="ld-len">Leader Length (ft)</label>
+                <input type="number" id="ld-len" min="1" max="20" step="1" onchange="syncSelect('ld-len')" placeholder="10">
+            </div>
+            <div class="field">
+                <label for="ld-mat">Leader Material</label>
+                <select id="ld-mat" onchange="onLineMatChange('ld-mat')"><option value="">—</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select>
+            </div>
+
+            <div class="field">
+                <label for="ld-lb">Leader Lb Test</label>
+                <select id="ld-lb" onchange="syncSelect('ld-lb')"><option value="">—</option><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option></select>
+            </div>
+            <div class="field">
+                <label for="hook">Hook Size</label>
+                <select id="hook" onchange="syncSelect('hook')"><option value="">—</option><option value="2">Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select>
+            </div>
+
+            <div class="field">
+                <label for="yarn">Yarn</label>
+                <select id="yarn" onchange="syncSelect('yarn')"><option value="">—</option><option value="0">None</option><option value="0.5">1/2"</option><option value="1">1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select>
+            </div>
+            <div class="field">
+                <label for="foam">Foam 1</label>
+                <select id="foam" onchange="syncSelect('foam')"><option value="">—</option><option value="0">None</option><option value="14">Corky 14 (6mm)</option><option value="12">Corky 12 (8mm)</option><option value="10">Corky 10 (10mm)</option><option value="c12">Cheater 12</option></select>
+            </div>
+
+            <div class="field">
+                <label for="foam2">Foam 2</label>
+                <select id="foam2" onchange="syncSelect('foam2')"><option value="">—</option><option value="0">None</option><option value="14">Corky 14 (6mm)</option><option value="12">Corky 12 (8mm)</option><option value="10">Corky 10 (10mm)</option><option value="c12">Cheater 12</option></select>
+            </div>
+            <div class="field">
+                <label for="bd-mat">Bead Material</label>
+                <select id="bd-mat" onchange="syncSelect('bd-mat')"><option value="">—</option><option value="none">None</option><option value="hard">Plastic</option><option value="soft">Soft</option></select>
+            </div>
+
+            <div class="field">
+                <label for="bd-sz">Bead Size</label>
+                <select id="bd-sz" onchange="syncSelect('bd-sz')"><option value="">—</option><option value="0">None</option><option value="2">2mm</option><option value="4">4mm</option><option value="6">6mm</option><option value="8">8mm</option></select>
+            </div>
         </div>
 
         <button class="btn-main" id="btn-sim" onclick="runSim()">RUN SIMULATION</button>
@@ -161,60 +182,8 @@
 <!-- TOOL 3: CATCH LOG -->
 <div id="tab-catch-log" class="tab-content">
     <div class="bucket">
-        <h2 class="purple-heading">Angler &amp; Location Details</h2>
-        <div class="row">
-            <div class="col"><label for="log-datetime">Date & Time</label><input type="datetime-local" id="log-datetime"></div>
-        </div>
-
-        <h2 class="purple-heading">Current Gear Details</h2>
-        <p style="font-size:0.75rem; color:#aaa; margin-bottom:10px;">These match your Gear Sim automatically.</p>
-        
-        <!-- DUPLICATED CONTROLS (kept in sync with the Gear Sim) -->
-        <div class="row">
-            <div class="col"><label for="flow-log">River Flow</label><input type="number" id="flow-log" value="1040" step="10" onchange="syncSelect('flow', true)"></div>
-            <div class="col"><label for="distance-log">Distance</label><input type="number" id="distance-log" value="150" min="1" max="1000" step="1" onchange="syncSelect('distance', true)"></div>
-        </div>
-        <div class="row">
-            <div class="col"><label id="rod-len-log-label">Rod Length</label>
-                <div class="dual-input" role="group" aria-labelledby="rod-len-log-label">
-                    <input type="number" id="rod-ft-log" value="9" min="5" max="15" step="1" onchange="onRodChange(true)" aria-label="Rod length in feet">
-                    <span>ft</span>
-                    <input type="number" id="rod-in-log" value="8" min="0" max="11" step="1" onchange="onRodChange(true)" aria-label="Rod length in inches">
-                    <span>in</span>
-                </div>
-            </div>
-            <div class="col"><label for="weight-log">Weight</label><select id="weight-log" onchange="syncSelect('weight', true)"><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5" selected>1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="ml-mat-log">Mainline Mat</label><select id="ml-mat-log" onchange="onLineMatChange('ml-mat', true)"><option value="braid" selected>Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select></div>
-            <div class="col"><label for="ml-lb-log">Main Lb</label><select id="ml-lb-log" onchange="syncSelect('ml-lb', true)"><option value="20">20lb</option><option value="30" selected>30lb</option><option value="40">40lb</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="ld-len-log">Ldr Len</label><select id="ld-len-log" onchange="syncSelect('ld-len', true)"><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10" selected>10</option><option value="11">11</option><option value="12">12</option></select></div>
-            <div class="col"><label for="ld-mat-log">Ldr Mat</label><select id="ld-mat-log" onchange="onLineMatChange('ld-mat', true)"><option value="mono">Mono</option><option value="copoly" selected>Copoly</option><option value="fluoro">Fluoro</option></select></div>
-            <div class="col"><label for="ld-lb-log">Ldr Lb</label><select id="ld-lb-log" onchange="syncSelect('ld-lb', true)"><option value="10">10lb</option><option value="12" selected>12lb</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="hook-log">Hook Size</label><select id="hook-log" onchange="syncSelect('hook', true)"><option value="2" selected>Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select></div>
-            <div class="col"><label for="yarn-log">Yarn</label><select id="yarn-log" onchange="syncSelect('yarn', true)"><option value="0">None</option><option value="0.5">1/2"</option><option value="1" selected>1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="foam-log">Foam</label><select id="foam-log" onchange="syncSelect('foam', true)"><option value="0">None</option><option value="10" selected>Corky - Size 10 (10mm)</option><option value="12">Corky - Size 12 (8mm)</option><option value="14">Corky - Size 14 (6mm)</option><option value="c12">Cheater - Size 12</option></select></div>
-        </div>
-        <div class="row">
-            <div class="col"><label for="bd-mat-log">Bead Material</label><select id="bd-mat-log" onchange="syncSelect('bd-mat', true)"><option value="none">None</option><option value="hard" selected>Plastic</option><option value="soft">Soft</option></select></div>
-            <div class="col"><label for="bd-sz-log">Bead Size</label><select id="bd-sz-log" onchange="syncSelect('bd-sz', true)"><option value="0">None</option><option value="2">2mm</option><option value="4" selected>4mm</option><option value="6">6mm</option><option value="8">8mm</option></select></div>
-        </div>
-
-        <h2 class="purple-heading">Catch Result</h2>
-        <div class="row">
-            <div class="col"><label for="species">Species Caught</label><select id="species"><option value="Chinook">Chinook</option><option value="Coho" selected>Coho (Silver)</option><option value="Pink">Pink</option><option value="Chum">Chum</option><option value="Steelhead">Steelhead</option></select></div>
-        </div>
-        
-        <button class="btn-main" id="btn-log" onclick="logData()">LOG CATCH DATA</button>
-
-        <!-- JOIN THE BOARD: sign-in sits directly above the public board. -->
-        <div class="bucket" id="auth-section">
+        <!-- JOIN THE BOARD: back at the top of the tab. -->
+        <div id="auth-section">
             <div id="auth-logged-out">
                 <h2 class="purple-heading">Join the Board</h2>
                 <div class="row">
@@ -231,6 +200,83 @@
                 </div>
             </div>
         </div>
+
+        <h2 class="purple-heading">Current Gear Details</h2>
+        <p style="font-size:0.75rem; color:#aaa; margin:0 0 8px 0;">These match your Gear Sim automatically.</p>
+
+        <!-- DUPLICATED CONTROLS (kept in sync with the Gear Sim) — same order. -->
+        <div class="gear-grid">
+            <div class="field">
+                <label id="rod-len-log-label">Rod Length</label>
+                <div class="dual-input" role="group" aria-labelledby="rod-len-log-label">
+                    <input type="number" id="rod-ft-log" min="5" max="15" step="1" onchange="onRodChange(true)" aria-label="Rod length in feet" placeholder="9">
+                    <span>ft</span>
+                    <input type="number" id="rod-in-log" min="0" max="11" step="1" onchange="onRodChange(true)" aria-label="Rod length in inches" placeholder="8">
+                    <span>in</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="weight-log">Weight</label>
+                <select id="weight-log" onchange="syncSelect('weight', true)"><option value="">—</option><option value="0.25">1/4 oz</option><option value="0.375">3/8 oz</option><option value="0.5">1/2 oz</option><option value="0.625">5/8 oz</option><option value="0.75">3/4 oz</option><option value="1">1 oz</option></select>
+            </div>
+        <div class="field">
+                <label for="ml-mat-log">Mainline Material</label>
+                <select id="ml-mat-log" onchange="onLineMatChange('ml-mat', true)"><option value="">—</option><option value="braid">Braid</option><option value="mono">Mono</option><option value="copoly">Copoly</option></select>
+            </div>
+            <div class="field">
+                <label for="ml-lb-log">Mainline Lb Test</label>
+                <select id="ml-lb-log" onchange="syncSelect('ml-lb', true)"><option value="">—</option><option value="20">20lb</option><option value="30">30lb</option><option value="40">40lb</option></select>
+            </div>
+
+            <div class="field">
+                <label for="ld-len-log">Leader Length (ft)</label>
+                <input type="number" id="ld-len-log" min="1" max="20" step="1" onchange="syncSelect('ld-len', true)" placeholder="10">
+            </div>
+            <div class="field">
+                <label for="ld-mat-log">Leader Material</label>
+                <select id="ld-mat-log" onchange="onLineMatChange('ld-mat', true)"><option value="">—</option><option value="mono">Mono</option><option value="copoly">Copoly</option><option value="fluoro">Fluoro</option></select>
+            </div>
+
+            <div class="field">
+                <label for="ld-lb-log">Leader Lb Test</label>
+                <select id="ld-lb-log" onchange="syncSelect('ld-lb', true)"><option value="">—</option><option value="10">10lb</option><option value="12">12lb</option><option value="15">15lb</option><option value="17">17lb</option></select>
+            </div>
+            <div class="field">
+                <label for="hook-log">Hook Size</label>
+                <select id="hook-log" onchange="syncSelect('hook', true)"><option value="">—</option><option value="2">Size 2</option><option value="1">Size 1</option><option value="0">1/0</option><option value="-1">2/0</option></select>
+            </div>
+
+            <div class="field">
+                <label for="yarn-log">Yarn</label>
+                <select id="yarn-log" onchange="syncSelect('yarn', true)"><option value="">—</option><option value="0">None</option><option value="0.5">1/2"</option><option value="1">1"</option><option value="1.5">1.5"</option><option value="2">2"</option></select>
+            </div>
+            <div class="field">
+                <label for="foam-log">Foam 1</label>
+                <select id="foam-log" onchange="syncSelect('foam', true)"><option value="">—</option><option value="0">None</option><option value="14">Corky 14 (6mm)</option><option value="12">Corky 12 (8mm)</option><option value="10">Corky 10 (10mm)</option><option value="c12">Cheater 12</option></select>
+            </div>
+
+            <div class="field">
+                <label for="foam2-log">Foam 2</label>
+                <select id="foam2-log" onchange="syncSelect('foam2', true)"><option value="">—</option><option value="0">None</option><option value="14">Corky 14 (6mm)</option><option value="12">Corky 12 (8mm)</option><option value="10">Corky 10 (10mm)</option><option value="c12">Cheater 12</option></select>
+            </div>
+            <div class="field">
+                <label for="bd-mat-log">Bead Material</label>
+                <select id="bd-mat-log" onchange="syncSelect('bd-mat', true)"><option value="">—</option><option value="none">None</option><option value="hard">Plastic</option><option value="soft">Soft</option></select>
+            </div>
+
+            <div class="field">
+                <label for="bd-sz-log">Bead Size</label>
+                <select id="bd-sz-log" onchange="syncSelect('bd-sz', true)"><option value="">—</option><option value="0">None</option><option value="2">2mm</option><option value="4">4mm</option><option value="6">6mm</option><option value="8">8mm</option></select>
+            </div>
+        </div>
+
+        <h2 class="purple-heading">Catch Result</h2>
+        <div class="row">
+            <div class="col"><label for="species">Species Caught</label><select id="species"><option value="">—</option><option value="Chinook">Chinook</option><option value="Coho">Coho (Silver)</option><option value="Pink">Pink</option><option value="Chum">Chum</option><option value="Steelhead">Steelhead</option></select></div>
+            <div class="col"><label for="log-datetime">Date &amp; Time</label><input type="datetime-local" id="log-datetime"></div>
+        </div>
+        
+        <button class="btn-main" id="btn-log" onclick="logData()">LOG CATCH DATA</button>
 
         <h2 class="purple-heading">Catch Log</h2>
         <div class="catch-scope-toggle" role="group" aria-label="Catch log view">

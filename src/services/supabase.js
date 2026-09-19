@@ -153,7 +153,8 @@ function toCatchRow(payload) {
         catch_time: t.toISOString(),
         flow: payload.flow,
         species: payload.spc,
-        hook_location: payload.loc || null,
+        river_name: payload.river || null,
+        hook_location: null,
         latitude: lat,
         longitude: lon,
         weight: (payload.weight !== undefined && payload.weight !== null) ? payload.weight : null,
@@ -238,32 +239,32 @@ async function deleteMyCatch(id) {
     }
 }
 
-/** Public read: the rebuilt view exposes name / time / flow / fish.
- * Falls back gracefully when run against the OLD view (id/name/time/flow). */
+/** Public read: the rebuilt view exposes name / time / river / fish.
+ * Falls back gracefully when run against an older view (name,time[,river]). */
 async function fetchPublicFeed(limit) {
     var client = getClient();
     if (!client) return [];
     try {
         var res = await client
             .from('public_catch_feed')
-            .select('name,time,flow,fish')
+            .select('name,time,river,fish')
             .order('time', { ascending: false })
             .limit(limit || 100);
         if (res.error) {
-            // OLD view has no fish column — retry without it so the board still loads.
+            // Older view without river — retry so the board still loads.
             var retry = await client
                 .from('public_catch_feed')
-                .select('name,time,flow')
+                .select('name,time')
                 .order('time', { ascending: false })
                 .limit(limit || 100);
             if (retry.error || !retry.data) return [];
             return retry.data.map(function (r) {
-                return { name: r.name, time: r.time, flow: r.flow, spc: null };
+                return { name: r.name, time: r.time, river: '--', spc: null };
             });
         }
         if (!res.data) return [];
         return res.data.map(function (r) {
-            return { name: r.name, time: r.time, flow: r.flow, spc: (r.fish !== undefined) ? r.fish : null };
+            return { name: r.name, time: r.time, river: (r.river !== undefined && r.river !== null) ? r.river : '--', spc: (r.fish !== undefined) ? r.fish : null };
         });
     } catch (e) {
         return [];

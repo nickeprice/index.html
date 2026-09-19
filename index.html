@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1a1a1a">
 <meta name="description" content="Live water report, fishing window scoring and a deterministic Gear Sim for the Puyallup, White, Carbon, Green and Nisqually rivers.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -160,37 +160,10 @@
 
 <!-- TOOL 3: CATCH LOG -->
 <div id="tab-catch-log" class="tab-content">
-    <div class="bucket" id="auth-section">
-        <div id="auth-logged-out">
-            <h2 class="purple-heading">Angler Sign In</h2>
-            <div class="row">
-                <div class="col"><label for="auth-name">Enter your name</label><input type="text" id="auth-name" placeholder="Enter your name" maxlength="24" autocomplete="nickname"></div>
-            </div>
-            <button class="btn-main" id="btn-auth-start" onclick="startFishing()">START FISHING</button>
-            <p class="auth-note">Anonymous guest session — no email or password. Your exact leader, hook, foam and GPS stay private; only your name, time, flow and fish appear on the Brag Board.</p>
-        </div>
-        <div id="auth-logged-in" style="display:none;">
-            <h2 class="purple-heading">Session</h2>
-            <div class="auth-badge">
-                <span><span class="auth-dot">●</span> Logged in as: <strong id="auth-display-name">--</strong></span>
-                <span class="auth-link" onclick="stopFishing()">Sign Out</span>
-            </div>
-        </div>
-    </div>
-
     <div class="bucket">
         <h2 class="purple-heading">Angler &amp; Location Details</h2>
         <div class="row">
             <div class="col"><label for="log-datetime">Date & Time</label><input type="datetime-local" id="log-datetime"></div>
-        </div>
-        <div class="row">
-            <div class="col">
-                <label for="log-gps">GPS Coordinates</label>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="log-gps" placeholder="Fetching..." style="flex:1;" readonly>
-                    <button onclick="getGPS()" aria-label="Refresh GPS location" style="padding:10px; background:#333; color:#fff; border:none; border-radius:8px; font-size:20px; font-weight:bold;">📍</button>
-                </div>
-            </div>
         </div>
 
         <h2 class="purple-heading">Current Gear Details</h2>
@@ -237,23 +210,39 @@
         <div class="row">
             <div class="col"><label for="species">Species Caught</label><select id="species"><option value="Chinook">Chinook</option><option value="Coho" selected>Coho (Silver)</option><option value="Pink">Pink</option><option value="Chum">Chum</option><option value="Steelhead">Steelhead</option></select></div>
         </div>
-        <div class="row">
-            <div class="col"><label for="hook-loc">Hook Location</label><select id="hook-loc"><option value="Fair" selected>Mouth (Fair)</option><option value="Foul (Belly)">Belly (Foul)</option><option value="Foul (Back)">Back (Foul)</option><option value="Foul (Tail)">Tail (Foul)</option></select></div>
-        </div>
         
         <button class="btn-main" id="btn-log" onclick="logData()">LOG CATCH DATA</button>
 
+        <!-- JOIN THE BOARD: sign-in sits directly above the public board. -->
+        <div class="bucket" id="auth-section">
+            <div id="auth-logged-out">
+                <h2 class="purple-heading">Join the Board</h2>
+                <div class="row">
+                    <div class="col"><label for="auth-name">Enter your name</label><input type="text" id="auth-name" placeholder="Your Brag Board name" maxlength="24" autocomplete="nickname"></div>
+                </div>
+                <button class="btn-main" id="btn-auth-start" onclick="startFishing()">JOIN THE BOARD</button>
+                <p class="auth-note">Anonymous guest session — no email or password. Your exact leader, hook, foam and GPS stay private; only your name, time, river and fish appear on the board.</p>
+            </div>
+            <div id="auth-logged-in" style="display:none;">
+                <h2 class="purple-heading">Session</h2>
+                <div class="auth-badge">
+                    <span><span class="auth-dot">●</span> Logged in as: <strong id="auth-display-name">--</strong></span>
+                    <span class="auth-link" onclick="stopFishing()">Sign Out</span>
+                </div>
+            </div>
+        </div>
+
         <h2 class="purple-heading">Catch Log</h2>
         <div class="catch-scope-toggle" role="group" aria-label="Catch log view">
-            <button type="button" id="scope-yours" class="scope-btn scope-active" onclick="setCatchScope('yours')">Yours</button>
-            <button type="button" id="scope-everyone" class="scope-btn" onclick="setCatchScope('everyone')">Everyone</button>
+            <button type="button" id="scope-everyone" class="scope-btn scope-active" onclick="setCatchScope('everyone')">Everyone</button>
+            <button type="button" id="scope-yours" class="scope-btn" onclick="setCatchScope('yours')">Yours</button>
         </div>
-        <p id="catch-scope-note" style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Your private catch log — only you can see it. Edit or delete from here.</p>
+        <p id="catch-scope-note" style="font-size:0.7rem; color:var(--text-muted); margin:0 0 10px 0; line-height:1.5;">Public feed — name, time, river and fish. Gear profiles and GPS stay private.</p>
 
         <div class="table-wrapper" id="catch-log-wrap" style="display:block;">
             <table id="catch-log-table">
                 <thead id="catch-log-head">
-                    <tr><th>Species</th><th>Time</th><th>Flow</th><th>Score</th><th></th></tr>
+                    <tr><th>Name</th><th>Time</th><th>River</th><th>Fish</th></tr>
                 </thead>
                 <tbody id="catch-log-body"></tbody>
             </table>

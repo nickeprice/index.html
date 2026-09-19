@@ -263,14 +263,14 @@ async function syncPendingCatches() {
     return synced;
 }
 
-// Accepts either Supabase (angler_name/catch_time/cfs/species) or local buffer
-// (name/time/flow/spc) shapes so the offline fallback renders identically.
+// Accepts either Supabase (angler_name/catch_time/river/species) or local buffer
+// (name/time/river/spc) shapes so the offline fallback renders identically.
 function normalizeFeedRow(row) {
     if (!row) return null;
     return {
         name: (row.angler_name !== undefined) ? row.angler_name : row.name,
         time: (row.catch_time !== undefined) ? row.catch_time : row.time,
-        flow: (row.cfs !== undefined && row.cfs !== null) ? row.cfs : row.flow,
+        river: (row.river !== undefined && row.river !== null && row.river !== '') ? row.river : '--',
         spc: (row.species !== undefined) ? row.species : row.spc
     };
 }
@@ -490,11 +490,10 @@ function tideCurveSvg(points, extremes) {
         labels + '</svg>';
 }
 
-// Plain-English "hero" for the [ RUN & TIMING ] panel. Replaces the opaque
-// 0-100 Movement Index + the %-timeline: a human verdict line, the best fishing
-// window (from the server's timeline), and 1-3 short why bullets. Everything is
-// derived from the same real triggers (rain freshet, pressure trend, tide highs,
-// moon phase, transit state, netting) — never a fabricated count.
+// Plain-English "hero" for the water card. Replaces the opaque 0-100 Movement
+// Index + % timeline: a single-line compact strip — verdict · best window · why.
+// Everything is derived from the same real triggers (rain freshet, pressure
+// trend, tide highs, moon phase, transit state, netting) — never fabricated.
 function buildFishingHero(rep) {
     if (!rep) return '';
     var score = 0;
@@ -503,14 +502,14 @@ function buildFishingHero(rep) {
 
     if (rep.rain !== null && rep.rain !== undefined && rep.rain > 0.05) {
         any = true; score += 12;
-        reasons.push('Rain freshet (' + rep.rain.toFixed(2) + ' in) — fresh push');
+        reasons.push('Rain freshet (' + rep.rain.toFixed(2) + ' in)');
     }
     if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta < -0.04) {
         any = true; score += 10;
-        reasons.push('Pressure dropping — fish moving');
+        reasons.push('Pressure dropping');
     } else if (rep.press_delta !== null && rep.press_delta !== undefined && rep.press_delta > 0.04) {
         any = true; score -= 6;
-        reasons.push('High pressure settling in — bite can slow');
+        reasons.push('High pressure settling in');
     }
     if (rep.tide_curve && rep.tide_curve.length) {
         var highs = rep.tide_curve.filter(function (t) { return t.type === 'H'; });
@@ -526,7 +525,7 @@ function buildFishingHero(rep) {
     if (rep.transit_state && rep.transit_state !== '--') {
         any = true;
         if (rep.transit_state.indexOf('High Velocity') !== -1) { score += 8; reasons.push('Water moving fast'); }
-        else if (rep.transit_state.indexOf('Bay Staging') !== -1) { score += 4; reasons.push('Fish staging / slow push'); }
+        else if (rep.transit_state.indexOf('Bay Staging') !== -1) { score += 4; reasons.push('Fish staging'); }
         else if (rep.transit_state.indexOf('CORKED') !== -1) { score -= 25; reasons.push('River corked (nets in)'); }
     }
     if (rep.is_netting) { score -= 15; reasons.push('Netting day (Sun/Mon/Tue)'); }
@@ -551,20 +550,19 @@ function buildFishingHero(rep) {
             if (!best || rep.windows[w].score > best.score) best = rep.windows[w];
         }
     }
-    var peakHtml = '';
+    var peakTxt = '';
     if (best) {
         var pCol = getFMIColor(best.score);
-        peakHtml = '<div class="hero-peak">' +
-            '<span class="hero-peak-lbl">Best window</span>' +
-            '<span class="hero-peak-time" style="color:' + pCol + ';">' + best.start_str + ' \u2013 ' + best.end_str + '</span>' +
-            (best.triggers ? '<span class="hero-peak-why">' + best.triggers + '</span>' : '') +
-            '</div>';
+        peakTxt = '<span class="hero-peak-time" style="color:' + pCol + ';">Best ' + best.start_str + ' \u2013 ' + best.end_str + '</span>';
     }
+
+    // Join reasons into the strip (cap at 3 so it stays one compact line).
+    var whyTxt = reasons.slice(0, 3).map(function (r) { return '<span class="hero-why-bit">' + r + '</span>'; }).join('<span class="hero-sep">\u00B7</span>');
 
     return '<div class="fishing-hero">' +
         '<span class="hero-verdict" style="color:' + vColor + ';">' + verdict + '</span>' +
-        peakHtml +
-        '<ul class="hero-reasons">' + reasons.map(function (r) { return '<li>' + r + '</li>'; }).join('') + '</ul>' +
+        (peakTxt ? '<span class="hero-sep">\u00B7</span>' + peakTxt : '') +
+        (whyTxt ? '<span class="hero-sep">\u00B7</span>' + whyTxt : '') +
         '</div>';
 }
 
@@ -607,7 +605,6 @@ function buildSpeciesCalendarHtml(calendar, escStocks) {
                 '<span class="run-status-pill">' + (s.status_text || '') + '</span>' +
             '</div>' +
             '<div class="run-track" role="img" aria-label="Run window">' +
-                '<span class="run-gradient"></span>' +
                 '<span class="run-fill" style="width:' + fillPct + '%;"></span>' +
                 '<span class="run-peak" style="left:' + peakLeft + '%;"></span>' +
             '</div>' +
@@ -914,6 +911,9 @@ async function loadWaterReport(silent) {
 
             cardsHtml += '<div id="'+rep.id+'" class="day-card" style="display: '+dStyle+';">' +
                 '<div class="card">' +
+                // PLAIN-ENGLISH HERO — the first thing on the card: verdict ·
+                // best window · why (one compact line, half the old height).
+                buildFishingHero(rep) +
                 // RIVER & ENVIRONMENTAL CONDITIONS (Consolidated)
                 '<div class="sec-hdr">[ RIVER &amp; ENVIRONMENTAL CONDITIONS ]</div>' +
                 seasonalWarn +
@@ -989,12 +989,10 @@ async function loadWaterReport(silent) {
                     '</div>' +
                   '</div>' +
                 '</div>' +
-                // 5b. ONE [ RUN & TIMING ] panel: plain-English hero + per-species
-                // run cards. The raw % timeline is gone; the hero carries the
-                // peak time + why.
+                // 5b. ONE [ RUN & TIMING ] panel: per-species run cards
+                // (status/progress/peak visible, counts folded).
                 '<div class="run-timing">' +
                   '<div class="sec-hdr">[ RUN &amp; TIMING ]</div>' +
-                  buildFishingHero(rep) +
                   buildSpeciesCalendarHtml(rep.species_calendar, escStocks) +
                 '</div>' + '</div></div>';
         }
@@ -1099,13 +1097,12 @@ function getGPS() {
     if("geolocation" in navigator) {
         logDebug("Requesting GPS...", "SYS");
         navigator.geolocation.getCurrentPosition(function(pos){
-            var coords = pos.coords.latitude.toFixed(4) + ", " + pos.coords.longitude.toFixed(4);
-            document.getElementById('log-gps').value = coords;
+            // GPS is captured SILENTLY (no visible field on the form) but still
+            // stored so logData() can include it in the private catch row.
             window.userGPSCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            logDebug("GPS Lock acquired (coordinates written to the private catch form)", "SYS");
+            logDebug("GPS Lock acquired (coords held privately for the catch row)", "SYS");
             updateActiveDateUI();
         }, function(err){
-            document.getElementById('log-gps').value = "Denied";
             window.userGPSCoords = null;
             logDebug("GPS Error: " + err.message, "ERR");
             updateActiveDateUI();
@@ -1533,7 +1530,7 @@ function bestZoneRig(zone, bottomVelocity, lbTest, ldMat, mlLb, mlMat, foamKey, 
 // The ONE list shows either the signed-in angler's private rows (with Edit/Delete)
 // or the public board (Name / Time / Flow / Fish). The active scope is tracked in
 // CATCH_SCOPE so sign-in/sign-out and new logs re-render the right side.
-var CATCH_SCOPE = 'yours';   // 'yours' | 'everyone'
+var CATCH_SCOPE = 'everyone';   // 'yours' | 'everyone' (default = the public board)
 
 function setCatchScope(scope) {
     CATCH_SCOPE = (scope === 'everyone') ? 'everyone' : 'yours';
@@ -1545,14 +1542,14 @@ function setCatchScope(scope) {
     if (note) {
         note.textContent = (CATCH_SCOPE === 'yours')
             ? 'Your private catch log — only you can see it. Edit or delete from here.'
-            : 'Public feed — name, time, flow and fish only. Gear profiles and GPS stay private.';
+            : 'Public feed — name, time, river and fish only. Gear profiles and GPS stay private.';
     }
     // Swap the table headers to match the active scope, then render.
     var head = document.getElementById('catch-log-head');
     if (head) {
         head.innerHTML = (CATCH_SCOPE === 'yours')
             ? '<tr><th>Species</th><th>Time</th><th>Flow</th><th>Score</th><th></th></tr>'
-            : '<tr><th>Name</th><th>Time</th><th>Flow</th><th>Fish</th></tr>';
+            : '<tr><th>Name</th><th>Time</th><th>River</th><th>Fish</th></tr>';
     }
     if (CATCH_SCOPE === 'yours') {
         if (typeof renderMyCatches === 'function') renderMyCatches();
@@ -1597,13 +1594,13 @@ async function loadDatabase() {
         tdName.textContent = (r.name !== undefined && r.name !== null && r.name !== '') ? String(r.name) : '--';
         var tdTime = document.createElement('td');
         tdTime.textContent = formatCatchTime(r.time);
-        var tdFlow = document.createElement('td');
-        tdFlow.textContent = (r.flow !== undefined && r.flow !== null) ? String(r.flow) : '--';
+        var tdRiver = document.createElement('td');
+        tdRiver.textContent = (r.river !== undefined && r.river !== null && r.river !== '') ? String(r.river) : '--';
         var tdSpc = document.createElement('td');
         tdSpc.textContent = (r.spc !== undefined && r.spc !== null && r.spc !== '') ? String(r.spc) : '--';
         tr.appendChild(tdName);
         tr.appendChild(tdTime);
-        tr.appendChild(tdFlow);
+        tr.appendChild(tdRiver);
         tr.appendChild(tdSpc);
         tbody.appendChild(tr);
         rendered++;
@@ -1639,8 +1636,8 @@ async function renderMyCatches() {
     if (!signedIn || typeof Supa === 'undefined') {
         var signInEmpty = document.createElement('tr');
         signInEmpty.innerHTML = '<td colspan="5" class="empty-state">' +
-            '<div class="empty-state-title">Sign in to see your catches</div>' +
-            '<div class="empty-state-hint">Enter your name above and tap START FISHING, then log your first catch.</div></td>';
+            '<div class="empty-state-title">Join the board to see your catches</div>' +
+            '<div class="empty-state-hint">Enter your name below and tap JOIN THE BOARD, then log your first catch.</div></td>';
         tbody.appendChild(signInEmpty);
         return;
     }
@@ -1932,6 +1929,27 @@ async function runSim() {
         ' ft/s, zone ' + zone.min.toFixed(1) + '-' + zone.max.toFixed(1) + '", score ' + score.toFixed(2), 'SIM');
 }
 
+// Derive a coarse river name from the active station (e.g. "Puyallup River",
+// "Carbon River", "Green River", "Nisqually River", "White River"). Falls back
+// to '--'. Never exposes exact coordinates on the public board.
+function deriveRiverName() {
+    try {
+        var active = JSON.parse(localStorage.getItem('active_station') || 'null');
+        var nm = (active && active.name) ? String(active.name) : '';
+        var m = nm.match(/([A-Za-z]+(?:\s+[A-Za-z]+)?)\s+(?:River|Creek|Ck)/i);
+        if (m) return m[1].replace(/\s+/g, ' ').trim() + ' River';
+        // Fall back to a known station-id map.
+        if (active && active.id) {
+            if (active.id === '12101500') return 'Puyallup River';
+            if (active.id === '12093500') return 'White River';
+            if (active.id === '12094000') return 'Carbon River';
+            if (active.id === '12113000') return 'Green River';
+            if (active.id === '12089500') return 'Nisqually River';
+        }
+    } catch (e) {}
+    return '--';
+}
+
     // Offline-first write: buffer the catch locally, then push the full private profile
 // (complete tackle + GPS) to Supabase. The public view only ever exposes 4 columns.
 async function logData() {
@@ -1939,7 +1957,7 @@ async function logData() {
         switchTab('tab-catch-log');
         var nameField = document.getElementById('auth-name');
         if (nameField) nameField.focus();
-        showToast('Start a session first: enter your name and tap START FISHING.', 'warn', 5000);
+        showToast('Join the board first: enter your name and tap JOIN THE BOARD.', 'warn', 5000);
         return;
     }
     var foamRaw = getStr('foam');
@@ -1954,10 +1972,12 @@ async function logData() {
     var payload = {
         name: AuthState.name || 'Anonymous',
         time: getStr('log-datetime'),
-        gps: getStr('log-gps'),
+        gps: (window.userGPSCoords && window.userGPSCoords.lat != null && window.userGPSCoords.lon != null)
+            ? window.userGPSCoords.lat + ',' + window.userGPSCoords.lon
+            : null,
+        river: deriveRiverName(),
         flow: flowValue,
         spc: getStr('species'),
-        loc: getStr('hook-loc'),
         ldLen: getNum('ld-len'),
         ldMat: getStr('ld-mat'),
         ldLb: getNum('ld-lb'),

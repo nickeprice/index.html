@@ -27,20 +27,20 @@ body { overflow-y: auto; padding-bottom: calc(64px + env(safe-area-inset-bottom)
 h2, h3 { font-size: 1.1rem; color: var(--accent-blue); margin: 22px 0 10px 0; padding: 0; }
 .purple-heading { color: var(--accent-purple); }
 /* Gear Sim / Catch Log section headers: flush with the input fields, not indented past them */
-#tab-gear-sim h2, #tab-catch-log h2 { border-bottom: 1px solid #26262a; padding-bottom: 8px; }
-#tab-gear-sim h2:first-child, #tab-catch-log h2:first-child { margin-top: 6px; }
-#tab-gear-sim h3, #tab-catch-log h3 { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 18px 0 8px 0; padding: 0; }
+#tab-gear-sim h2, #tab-catch-log h2 { border-bottom: 1px solid #26262a; padding-bottom: 6px; }
+#tab-gear-sim h2:first-child, #tab-catch-log h2:first-child { margin-top: 4px; }
+#tab-gear-sim h3, #tab-catch-log h3 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 12px 0 6px 0; padding: 0; }
 
-#hud { position: -webkit-sticky; position: sticky; top: 48px; background-color: #1a1a1a; z-index: 1000; padding: 15px 10px; border-bottom: 1px solid #333; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.5); }
-#stars { font-size: 2rem; color: #444; margin-bottom: 5px; letter-spacing: 2px; transition: color 0.3s; }
-#hud-msg { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; }
+#hud { position: -webkit-sticky; position: sticky; top: 48px; background-color: #1a1a1a; z-index: 1000; padding: 8px 10px; border-bottom: 1px solid #333; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.4); }
+#stars { font-size: 1.15rem; color: #444; letter-spacing: 1px; line-height: 1.2; }
+#hud-msg { font-size: 0.72rem; color: var(--text-muted); margin: 4px 0 8px 0; }
 .hud-metrics { display: flex; justify-content: space-between; }
 .metric { flex: 1; text-align: center; border-right: 1px solid #333; }
 .metric:last-child { border-right: none; }
-.metric-val { font-size: 1.2rem; font-weight: bold; margin-bottom: 2px; }
-.metric-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; }
-.metric-target { font-size: 0.6rem; color: #555; }
-#score-bar { height: 6px; width: 90%; margin: 15px auto 0 auto; border-radius: 3px; background: #333; }
+.metric-val { font-size: 1rem; font-weight: bold; margin-bottom: 1px; }
+.metric-label { font-size: 0.58rem; color: var(--text-muted); text-transform: uppercase; }
+.metric-target { font-size: 0.58rem; color: #555; }
+#score-bar { height: 5px; width: 90%; margin: 8px auto 0 auto; border-radius: 3px; background: #333; }
 
 .bucket { padding: 0 15px 25px 15px; }
 .row { display: flex; gap: 12px; margin-bottom: 12px; }
@@ -55,8 +55,8 @@ select { max-width: 100%; min-width: 0; }
 /* FORCE 16px font-size to prevent iOS zoom */
 input, select { background-color: var(--bg-panel); color: var(--text-main); border: 1px solid #38383a; border-radius: 8px; padding: 10px; font-size: 16px; font-weight: 600; -webkit-appearance: none; outline: none; }
 
-button.btn-main { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold; margin-top: 15px; background-color: #333; color: #aaa; }
-#btn-sim { background-color: var(--accent-green); color: #000; margin-top: 25px; }
+button.btn-main { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: bold; margin-top: 10px; background-color: #333; color: #aaa; }
+#btn-sim { background-color: var(--accent-green); color: #000; margin-top: 14px; }
 #btn-log { background-color: #333; color: #666; pointer-events: none; }
 #btn-log.ready { background-color: var(--bg-panel); color: var(--text-main); pointer-events: auto; border: 1px solid #555; }
 #btn-log.force { background-color: var(--accent-red); color: #fff; pointer-events: auto; }
@@ -102,41 +102,36 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 .run-card-hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .run-card-hdr .spc-name { font-weight: 800; color: var(--text-main); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.4px; }
 .run-status-pill { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 8px; border-radius: 9999px; border: 1px solid #444; color: var(--text-muted); background-color: #1e1e1e; white-space: nowrap; }
-/* Run-window progress track: full-track cool→hot→cool gradient (peak is the
-   hot stop) so the angler sees WHERE they are on the run curve at a glance.
-   The translucent .run-fill shows how far into the window today is; the peak
-   tick marks the peak. */
-.run-track { position: relative; height: 10px; border-radius: 9999px; background-color: #1c1c1e; overflow: hidden; }
-.run-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 9999px;
-  background: linear-gradient(90deg, #3b82f6 0%, #facc15 35%, #4ade80 50%, #d97706 80%, #71717a 100%); }
-.run-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9999px; background-color: rgba(255,255,255,0.45); }
-.run-peak { position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px; background-color: #ffffff; transform: translateX(-1.5px); box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2; }
+/* Run-window progress track: filled to today with the status color, peak tick.
+   (The cool→hot→cool gradient was removed per user feedback.) */
+.run-track { position: relative; height: 10px; border-radius: 9999px; background-color: #252528; overflow: hidden; }
+.run-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 9999px; background-color: #4ade80; opacity: 0.9; }
+.run-peak { position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px; background-color: #facc15; transform: translateX(-1.5px); box-shadow: 0 0 4px rgba(0,0,0,0.6); z-index: 2; }
 .run-track-lbl { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 5px; font-size: 0.75rem; color: var(--text-muted); }
 .run-lbl-peak { color: #facc15; font-weight: 700; }
 .run-footer { margin-top: 6px; font-size: 0.8rem; color: var(--text-main); border-top: 1px solid #2a2a2c; padding-top: 6px; }
-/* Status colors still drive the pill + left accent; the meter itself is the
-   gradient (peak-position=hottest color), so the old flat per-status fill is
-   gone — the translucent progress conveys timing instead. */
+/* Status colors drive the pill, the left accent, and the run-fill color. */
 .spc-peak { border-left: 3px solid var(--accent-green); }
 .spc-peak .run-status-pill { color: var(--accent-green); border-color: var(--accent-green); }
+.spc-peak .run-fill { background-color: var(--accent-green); }
 .spc-pre { border-left: 3px solid var(--accent-yellow); }
 .spc-pre .run-status-pill { color: var(--accent-yellow); border-color: var(--accent-yellow); }
+.spc-pre .run-fill { background-color: var(--accent-yellow); }
 .spc-post { border-left: 3px solid #f59e0b; }
 .spc-post .run-status-pill { color: #f59e0b; border-color: #f59e0b; }
+.spc-post .run-fill { background-color: #f59e0b; }
 .spc-off { border-left: 3px solid #555; }
 .spc-off .run-status-pill { color: var(--text-muted); border-color: #555; }
+.spc-off .run-fill { background-color: #555; }
 .foul-hook { color: var(--accent-red); }
 
-/* Fishing hero (replaces the Movement Index + % timeline): a plain-English
-   verdict + best window + why bullets. */
-.fishing-hero { background-color: #121212; border: 1px solid #2a2a2c; border-radius: 10px; padding: 10px 12px; margin: 4px 0 8px 0; box-sizing: border-box; }
-.hero-verdict { display: block; font-size: 1.05rem; font-weight: 800; margin-bottom: 6px; }
-.hero-peak { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
-.hero-peak-lbl { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); }
-.hero-peak-time { font-size: 1.1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.hero-peak-why { font-size: 0.8rem; color: #cbd5e1; }
-.hero-reasons { margin: 4px 0 0 0; padding-left: 18px; color: #d4d4d8; font-size: 0.85rem; line-height: 1.55; }
-.hero-reasons li { margin-bottom: 2px; }
+/* Fishing hero — a SINGLE compact line at the top of the card: verdict ·
+   best window · why. Half the height of the old bullet-list block. */
+.fishing-hero { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; background-color: #121212; border: 1px solid #2a2a2c; border-radius: 10px; padding: 7px 10px; margin: 0 0 8px 0; box-sizing: border-box; font-size: 0.82rem; }
+.hero-verdict { font-weight: 800; font-size: 0.9rem; }
+.hero-peak-time { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hero-why-bit { color: #cbd5e1; font-weight: 600; }
+.hero-sep { color: #5a5a62; font-weight: 600; }
 
 /* WATER REPORT EXACT STYLING */
 .card { background-color: var(--bg-panel); border: 1px solid #2c2c2e; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
@@ -314,15 +309,15 @@ td { padding: 8px; border-bottom: 1px solid #222; }
 /* 3. Weather & Moon Conditions */
 .env-weather-solunar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
 .env-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 4px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+.env-badge { background-color: #151517; border: 1px solid #333336; border-radius: 8px; padding: 8px 4px; min-height: 84px; text-align: center; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; box-sizing: border-box; }
 .env-badge-val { font-size: 14px; font-weight: 700; color: #ffffff; min-height: 26px; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.3; margin-bottom: 2px; width: 100%; word-break: break-word; font-variant-numeric: tabular-nums; }
-.env-badge-sub { font-size: 10px; font-weight: 700; color: #fde68a; min-height: 12px; line-height: 1.1; margin-bottom: 1px; }
-.env-badge-lbl { font-size: 10px; color: #b6bcc9; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px; line-height: 1.2; }
+.env-badge-sub { font-size: 10px; font-weight: 700; color: #fde68a; min-height: 14px; line-height: 1.2; margin-bottom: 1px; }
+.env-badge-lbl { font-size: 10px; color: #b6bcc9; text-transform: uppercase; font-weight: 700; letter-spacing: 0.4px; line-height: 1.2; margin-top: auto; }
 /* Moon phase pill: allow wrap so the emoji+name fits on 320px screens. */
 .moon-pill { font-size: 12px; font-weight: 700; line-height: 1.3; word-break: break-word; }
 
 /* Solunar + Sun/Moon split pills */
-.solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 26px; }
+.solunar-split { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 40px; margin-bottom: 2px; }
 .solunar-half { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; padding: 0 1px; }
 .solunar-half:first-child { border-right: 1px solid #333336; }
 .solunar-val { font-size: 11px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
@@ -429,17 +424,17 @@ td.empty-state { padding: 30px 10px; }
 }
 .tab-btn {
     flex: 1 1 0;
-    min-height: 52px;
+    min-height: 60px;
     background: none;
     border: none;
     border-top: 2px solid transparent;
     color: #8e8e93;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.3px;
     text-transform: uppercase;
     cursor: pointer;
-    padding: 10px 4px calc(8px + env(safe-area-inset-bottom) / 2);
+    padding: 12px 4px calc(10px + env(safe-area-inset-bottom) / 2);
     -webkit-tap-highlight-color: rgba(255,255,255,0.1);
     transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }

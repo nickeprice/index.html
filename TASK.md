@@ -1,4 +1,50 @@
-## ACTIVE ➤ Phase 2.2 — UI honesty & readability pass (approved 2026-09-18, Act mode)
+## ACTIVE ➤ Phase 2.3 — Board-first catch log, compact hero, mobile polish (approved 2026-09-18, Act mode)
+
+# Phase 2.3 — Hero to top, uniform pills, compact Gear Sim, board-first Catch Log
+
+## Locked decisions
+1. DELETE only today's `Nick · Coho · flow 1050 · 2026-09-18T14:38Z` row.
+   Yesterday's Nick row stays.
+2. Commit a new migration: `river_name` column + `public_catch_feed` view update.
+3. Sign-in moves DOWN, directly above the board (public board is the entry point);
+   default scope = Everyone (Yours is secondary).
+
+## 1. Compact hero at the top (`src/app.js`, `src/styles.css`)
+- [x] Render `buildFishingHero(rep)` FIRST inside `.card`, above [ RIVER & ENVIRONMENTAL CONDITIONS ].
+- [x] Halve height: single-line strip (verdict · best window · reasons joined by ·). No `<ul>` bullets.
+
+## 2. Uniform pills (`src/styles.css`)
+- [x] `.env-badge` fixed min-height + equal padding; reserve sub-line space so all 3 rows are identical height.
+
+## 3. Remove run-meter gradient (`src/app.js`, `src/styles.css`)
+- [x] Drop `.run-gradient` span + CSS; restore flat status-colored `.run-fill`.
+
+## 4. Mobile-friendly bottom bar (`index.html`, `src/styles.css`)
+- [x] Add `viewport-fit=cover` to viewport meta.
+- [x] `.tab-btn` min-height 60px, font 12px, more padding.
+
+## 5. Shrink Gear Sim top (`src/styles.css`)
+- [x] Collapse `#hud` (stars ~1.2rem, tight margins), trim `#tab-gear-sim` h2/h3 spacing so the form fits one screen.
+
+## 6. Catch Log rework (`index.html`, `src/app.js`, `src/services/supabase.js`, `src/styles.css`)
+- [x] Remove GPS visual (field + 📍) from DOM; keep silent `payload.gps` capture.
+- [x] Remove Hook Location select; send `loc=null`.
+- [x] Move auth (sign-in/join) DOWN, directly above the board; fix clipped hint wording.
+- [x] Default scope = Everyone; Everyone button first + active; headers Name/Time/River/Fish (public). Downloads Flow from public.
+- [x] `normalizeFeedRow` + `loadDatabase` + `fetchPublicFeed` use `river`.
+- [x] `toCatchRow` writes `river_name` (derived from active station/GPS; never raw coords).
+
+## 7. Migration (`supabase/migrations/<ts>_add_river_name.sql`)
+- [x] `alter table public.catches add column river_name text;` + rebuild `public_catch_feed` (name,time,river,fish) + re-grant.
+      NOTE: DDL is repo-only (query tool is read-only) — apply via Supabase CLI/SQL editor.
+
+## Verify
+- `node --check` all JS + sanity; `python3 -m py_compile`; `bash scripts/check.sh`; `node sanity_pass.js` (update harness).
+- Dev-server browse: hero on top + compact, uniform pills, no gradient, compact Gear Sim, board-first w/ sign-in above board, River column, today's Nick row gone.
+
+---
+# ARCHIVED — Phase 2.2 (shipped)
+
 
 # Phase 2.2 — Conditions grid, plain-English hero, readable run cards, auto-refresh
 

@@ -96,7 +96,7 @@ function staticIntegrity() {
     ? ok('script load order ends with app.js', scripts.join(' → '))
     : fail('script load order ends with app.js', scripts.join(' → '));
 
-  // Catch Log merge: ONE list with a yours/everyone toggle (private rows keep edit/delete)
+  // Catch Log merge: ONE list with a yours/everyone toggle; default = Everyone
   const merged = html.includes('id="catch-log-table"') && html.includes('id="catch-log-body"') &&
     html.includes('id="scope-yours"') && html.includes('id="scope-everyone"') &&
     html.includes('onclick="setCatchScope');
@@ -105,6 +105,20 @@ function staticIntegrity() {
   (!html.includes('id="my-catches-table"') && !html.includes('id="db-table"'))
     ? ok('split My Catches / Brag Board tables removed', 'single merged table only')
     : fail('split My Catches / Brag Board tables removed', 'stale tables found');
+
+  // Phase 2.3: default scope is Everyone (board-first), board columns Name/Time/
+  // River/Fish, and the GPS field + hook-location select are gone from the DOM.
+  const scopeDefault = /id="scope-everyone" class="scope-btn scope-active"/.test(html);
+  scopeDefault ? ok('catch log default scope is Everyone', 'scope-everyone active in markup')
+    : fail('catch log default scope is Everyone', 'expected scope-everyone.scope-active');
+
+  const boardHead = html.includes('<tr><th>Name</th><th>Time</th><th>River</th><th>Fish</th></tr>');
+  boardHead ? ok('public board columns = Name/Time/River/Fish', 'no Flow column')
+    : fail('public board columns = Name/Time/River/Fish', 'expected River header');
+
+  (!html.includes('id="log-gps"') && !html.includes('id="hook-loc"'))
+    ? ok('GPS field + hook-location removed from catch form', 'silent GPS, no hook-loc')
+    : fail('GPS field + hook-location removed from catch form', 'stale controls found');
 
   // Header: station opens the modal only from a centered <button> (no full-width flex:1 div)
   /<button id="station-header"/.test(html)

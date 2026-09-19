@@ -3,6 +3,11 @@ __pycache__/
 *$py.class
 .DS_Store
 
+# Local secrets — never commit (tokens, DB URLs, service-role keys)
+.env
+.env.*
+!.env.example
+
 # Test artifacts / local screenshots (not app code)
 Screenshots/
 

@@ -3,6 +3,29 @@
 Keep this LEAN by design: a fresh chat reads only the LAST entries to restore
 context. Completed-phase detail lives in `docs/ARCHIVE.md` + `git log`.
 
+## 2026-09-18 — Phase 2.3 complete ✅ (board-first catch log, compact hero, mobile polish)
+Hero moved to the TOP of the water card, now a single compact line (verdict ·
+best window · why) — half the old height. Conditions 3×3 pills given equal
+min-heights so all rows are uniform. Run-meter gradient REMOVED (back to flat
+status-colored fill + peak tick). Bottom tab bar: `viewport-fit=cover` added to
+the meta (fixes rounded/notched phone safe-areas), tabs taller (60px, 12px).
+Gear Sim HUD + headings compacted so the whole form fits on one screen. Catch
+Log is now BOARD-FIRST: default scope = Everyone (columns Name/Time/River/Fish,
+Flow dropped from public), sign-in moved DOWN above the board as "Join the
+Board", GPS field + 📍 visual and Hook Location select removed (GPS still
+captured silently; `river_name` derived from active station). New migration
+`20260918000200_add_river_name_drop_today.sql` adds `river_name`, rebuilds
+`public_catch_feed` (name/time/river/fish), and DELETES today's stray
+`Nick · Coho · 1050 · 14:38Z` row. Sanity: 31/31 green.
+Migrations applied to the live DB by the agent (`npx supabase db push`):
+`20260918000200` (river_name + view + today-row delete) and `20260918000300`
+(backfill the surviving 09-17 catch to `river_name='Puyallup River'`). Standing
+convention persisted to `.clinerules`: always author DB changes as idempotent
+timestamped migrations AND apply them via `db push` (never hand it to the user).
+- Key files: `src/app.js`, `src/services/supabase.js`, `src/styles.css`,
+  `index.html`, `sanity_pass.js`, `supabase/migrations/20260918000200_*.sql`,
+  `supabase/migrations/20260918000300_*.sql`, `.clinerules`, `.gitignore`.
+
 ## 2026-09-18 — Phase 2.2 complete ✅ (UI honesty + readability + auto-refresh)
 9-pill conditions grid rebuilt (Barometer / Precip% + in_NH-now-for hint /
 PrecipVol + hint / Cloud / Temp + trend arrow / Wind + direction arrow, FIXED

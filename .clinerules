@@ -12,6 +12,17 @@
 - Act mode: read TASK.md's ACTIVE phase only; execute unchecked items in order;
   mark `- [x]` only after the Verification Step passes.
 
+# Database (standing instruction from user)
+- ALWAYS author DB changes as an idempotent timestamped migration under
+  `supabase/migrations/`, then APPLY IT YOURSELF with
+  `npx supabase db push --yes < /dev/null`. Never leave a migration unapplied and
+  never ask the user to run it by hand — they are already logged in + linked.
+- Then VERIFY against the live DB (read-only query) before reporting done.
+- `CREATE OR REPLACE VIEW` cannot rename a column (42P16): `drop view if exists`
+  first, then `create view` (matches `src/services/schema.sql`).
+- One-time data fixes are migrations too, guarded so they are no-ops on re-run
+  (e.g. `where id = '…' and river_name is null`).
+
 # Terminal safety
 - NEVER run the same failing command more than twice consecutively; then STOP and
   summarize the error + ask for guidance.
